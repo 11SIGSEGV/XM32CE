@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="dZza8H" name="XM32CE" projectType="guiapp" useAppConfig="0"
+              addUsingNamespaceToJuceHeader="1" jucerFormatVersion="1" version="0.0.1">
+  <MAINGROUP id="JwpW4Q" name="XM32CE">
+    <GROUP id="{7B09487A-26C2-78F1-4A57-6EF2E3107206}" name="Source">
+      <FILE id="ae6kfT" name="Helpers.cpp" compile="1" resource="0" file="Source/Helpers.cpp"/>
+      <FILE id="jcZulN" name="Helpers.h" compile="0" resource="0" file="Source/Helpers.h"/>
+      <FILE id="QnRjsm" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
+      <FILE id="BWTmT0" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
+      <FILE id="rElCOl" name="MainComponent.cpp" compile="1" resource="0"
+            file="Source/MainComponent.cpp"/>
+    </GROUP>
+  </MAINGROUP>
+  <MODULES>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_osc" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1"/>
+  <EXPORTFORMATS>
+    <LINUX_MAKE targetFolder="Builds/LinuxMakefile">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="XM32CE"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="XM32CE"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="../../../Apps/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../../Apps/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../../Apps/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../../Apps/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../../Apps/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../../Apps/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../../Apps/JUCE/modules"/>
+        <MODULEPATH id="juce_osc" path="../../../Apps/JUCE/modules"/>
+      </MODULEPATHS>
+    </LINUX_MAKE>
+  </EXPORTFORMATS>
+</JUCERPROJECT>
