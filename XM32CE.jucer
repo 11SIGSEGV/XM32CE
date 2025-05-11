@@ -4,6 +4,8 @@
               addUsingNamespaceToJuceHeader="1" jucerFormatVersion="1" version="0.0.1">
   <MAINGROUP id="JwpW4Q" name="XM32CE">
     <GROUP id="{7B09487A-26C2-78F1-4A57-6EF2E3107206}" name="Source">
+      <FILE id="nTI55A" name="OSCMan.cpp" compile="1" resource="0" file="Source/OSCMan.cpp"/>
+      <FILE id="x9EMl8" name="OSCMan.h" compile="0" resource="0" file="Source/OSCMan.h"/>
       <FILE id="ae6kfT" name="Helpers.cpp" compile="1" resource="0" file="Source/Helpers.cpp"/>
       <FILE id="jcZulN" name="Helpers.h" compile="0" resource="0" file="Source/Helpers.h"/>
       <FILE id="QnRjsm" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>

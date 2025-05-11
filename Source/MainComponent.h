@@ -83,6 +83,7 @@ private:
 };
 
 
+// TODO: Make Component static elements backgroundImage instead of rerendering each paint() call
 class OSCDeviceSelectorComponent: public Component, public TextEditor::Listener, public TextButton::Listener {
 public:
     OSCDeviceSelectorComponent() {
