@@ -10,6 +10,18 @@
 
 #pragma once
 #include <JuceHeader.h>
+using namespace juce;
 
-bool isValidIPv4(const String &ip);
+/* Structure to hold the output of the validation functions.
+ * errorMessage is a blank String when isValid is true
+ */
+struct ValidatorOutput {
+    bool isValid;
+    String errorMessage;
+};
 
+ValidatorOutput isValidIPv4(const String &ip);
+
+ValidatorOutput isValidPort(const String &port);
+
+ValidatorOutput isValidDeviceName(const String &deviceName);
