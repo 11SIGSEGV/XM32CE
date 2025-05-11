@@ -1,6 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
-
+#include "OSCMan.h"
 #include <utility>
 #include "Helpers.h"
 
@@ -36,13 +36,6 @@ inline void loadUICfgIntoStdLnF(LookAndFeel_V4 &lnf) {
     lnf.setColour(TextEditor::backgroundColourId, UICfg::TEXT_EDITOR_BG_COLOUR);
 
 }
-
-
-struct OSCDevice {
-    String ipAddress;
-    int port;
-    String deviceName;
-};
 
 
 //==============================================================================
@@ -84,6 +77,7 @@ private:
 
 
 // TODO: Make Component static elements backgroundImage instead of rerendering each paint() call
+// TODO: Refactor into OSCMan
 class OSCDeviceSelectorComponent: public Component, public TextEditor::Listener, public TextButton::Listener {
 public:
     OSCDeviceSelectorComponent() {

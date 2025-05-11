@@ -65,3 +65,56 @@ ValidatorOutput isValidDeviceName(const String &deviceName) {
     return ValidatorOutput { true, "" };
 }
 
+
+
+float XM32::floatToDb(float v) {
+    float db;
+    if (v >= 0.5)
+        db = v * 40.f - 30.f;
+    else if (v >= 0.25)
+        db = v * 80.f - 50.f;
+    else if (v >= 0.0625)
+        db = v * 160.f - 70.f;
+    else if (v >= 0.0)
+        db = v * 480.f - 90.f;
+    else
+        throw std::out_of_range("floatToDb: v value out of range");
+    return db;
+}
+
+float XM32::dbToFloat(float db) {
+    float v;
+    if (db < -60.f)
+        v = ( db+90.f ) / 480.f;
+    else if (db < -30.f)
+        v = (db+70.f) / 160.f;
+    else if (db < -10.f)
+        v = (db+50.f) / 80.f;
+    else if (db <= 10.f)
+        v = (db+30.f) / 40.f;
+    else
+        throw std::out_of_range("dbToFloat: db value out of range");
+    // Optional, round value to X32 known value
+    v = roundf(v*1023)/1023;
+    return v;
+}
+
+float XM32::roundToNearestFrequency(float inputFreq, const std::vector<float> &frequencyMap) {
+    auto it = std::lower_bound(frequencyMap.begin(), frequencyMap.end(), inputFreq);
+
+    if (it == frequencyMap.begin()) {
+        return *it;
+    } if (it == frequencyMap.end()) {
+        return frequencyMap.back();
+    }
+
+    // Check the two nearest values
+    float lower = *(it - 1);
+    float upper = *it;
+
+    return (std::fabs(inputFreq - lower) < std::fabs(inputFreq - upper)) ? lower : upper;
+}
+
+
+
+

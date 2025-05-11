@@ -1,0 +1,60 @@
+0 "HALL"
+ %000000 Hall Reverb
+1 "AMBI"
+ %000101 Ambiance
+2 "RPLT"
+ %000011 Rich Plate Reverb
+3 "ROOM"
+ %000010 Room Reverb
+4 "CHAM"
+ %000001 Chamber Reverb
+5 "PLAT"
+ %000100 Plate Reverb
+6 "VREV"
+ %001001 Vintage Reverb
+7 "VRM"
+ %001000 Vintage room
+8 "GATE"
+ %000110 Gated Reverb
+9 "RVRS"
+ %000111 Reverse Reverb
+10 "DLY"
+ %010100 Stereo Delay
+11 "3TAP"
+ %010101 3-Tap Delay
+12 "4TAP"
+ %010110 Rhythm Delay
+13 "CRS"
+ %001010 Stereo Chorus
+14 "FLNG"
+ %001011 Stereo Flanger
+15 "PHAS"
+ %011011 Stereo Phaser
+16 "DIMC"
+ %111010 Dimension-C
+17 "FILT"
+ %101001 Mood Filter
+18 "ROTA"
+ %011100 Rotary Speaker
+19 "PAN"
+ %101000 Tremolo/Panner
+20 "SUB"
+ %111001 Suboctaver
+21 "D/RV"
+ %010000 Delay+Chamber
+22 "CR/R"
+ %001110 Chorus+Chamber
+23 "FL/R"
+ %001111 Flanger+Chamber
+24 "D/CR"
+ %010001 Delay+Chorus
+25 "D/FL"
+ %010010 Delay+Flanger
+26 "MODD"
+ %010011 Modulation Delay
+27 "GEQ2"
+ %011000 Dual Graphic EQ
+28 "GEQ"
+ %010111 Stereo Graphic EQ
+29 "TEQ2"
+ %011010 Dual TrueEQ

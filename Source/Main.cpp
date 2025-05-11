@@ -12,19 +12,19 @@
 #include "MainComponent.h"
 
 //==============================================================================
-class XM32CEApplication  : public juce::JUCEApplication
+class XM32CEApplication  : public JUCEApplication
 {
 public:
 
     //==============================================================================
     XM32CEApplication() {}
 
-    const juce::String getApplicationName() override       { return ProjectInfo::projectName; }
-    const juce::String getApplicationVersion() override    { return ProjectInfo::versionString; }
+    const String getApplicationName() override       { return ProjectInfo::projectName; }
+    const String getApplicationVersion() override    { return ProjectInfo::versionString; }
     bool moreThanOneInstanceAllowed() override             { return true; }
 
     //==============================================================================
-    void initialise (const juce::String& commandLine) override
+    void initialise (const String& commandLine) override
     {
         // This method is where you should put your application's initialisation code..
         oscDevSelWin.reset(new OSCDeviceSelectorWindow("OSC Device Selector"));
@@ -46,7 +46,7 @@ public:
         quit();
     }
 
-    void anotherInstanceStarted (const juce::String& commandLine) override
+    void anotherInstanceStarted (const String& commandLine) override
     {
         // When another instance of the app is launched while this one is running,
         // this method is invoked, and the commandLine parameter tells you what
