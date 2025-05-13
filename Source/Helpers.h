@@ -44,6 +44,19 @@ public:
     /* The frequency map is a logarithmic scale of frequencies from 20Hz to 20kHz.
      * The function will round the input frequency to the nearest frequency in the map.
      * If the input frequency is outside the range of the map, it will return the closest frequency in the map.
+     *
+     * Declared in header file because the linker is a b*tch (and doesn't like template typenames)
      */
-    static float roundToNearestFrequency(float inputFreq, const std::vector<float> &frequencyMap = logScaleFreq_201);
+    template<typename T>
+    static inline T roundToNearest(T in, const std::set<T> &set) {
+        auto lower = set.lower_bound(in);
+
+        if (lower == set.begin()) return *lower;
+        if (lower == set.end()) return *std::prev(lower);
+
+        T lowerValue = *std::prev(lower);
+        T upperValue = *lower;
+
+        return (std::abs(lowerValue - in) <= std::abs(upperValue - in)) ? lowerValue : upperValue;
+    }
 };

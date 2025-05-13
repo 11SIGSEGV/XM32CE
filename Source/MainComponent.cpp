@@ -15,7 +15,7 @@ MainComponent::MainComponent()
     };
     addAndMakeVisible (rotaryKnob);
 
-    if (!sender.connect ("192.168.1.179", 10023))
+    if (!sender.connect ("127.0.0.1", 10023))
         showConnectionErrorMessage ("Error: could not connect to UDP port 10023.");
 
     // showAlertWindow();

@@ -17,7 +17,30 @@ class XM32CEApplication  : public JUCEApplication
 public:
 
     //==============================================================================
-    XM32CEApplication() {}
+    XM32CEApplication() {
+        // tests();
+    }
+
+    void tests() {
+
+        /*
+        std::cout << XM32::roundToNearest(15000.f, logScaleFreq_121) << std::endl;
+        std::cout << XM32::roundToNearest(15000.f, logScaleFreq_201) << std::endl;
+        std::cout << XM32::roundToNearest(20.f, logScaleFreq_201) << std::endl;
+        std::cout << XM32::roundToNearest(10.f, logScaleFreq_201) << std::endl;
+        std::cout << XM32::roundToNearest(20000.f, logScaleFreq_201) << std::endl;
+        std::cout << XM32::roundToNearest(21000.f, logScaleFreq_201) << std::endl;
+        std::cout << XM32::roundToNearest(10.f, qFactors) << std::endl;
+        std::cout << XM32::roundToNearest(0.2f, qFactors) << std::endl;
+        std::cout << XM32::roundToNearest(5.4f, qFactors) << std::endl;
+        std::cout << XM32::roundToNearest(250.3f, hold) << std::endl;
+        std::cout << XM32::roundToNearest(200, release) << std::endl;
+        std::cout << XM32::roundToNearest(-83.f, levelValues_161) << std::endl;
+        std::cout << XM32::roundToNearest(-900.f, levelValues_161) << std::endl;
+        std::cout << XM32::roundToNearest(3.4f, levelValues_161) << std::endl;
+        std::cout << XM32::roundToNearest(4.f, rtaDecay) << std::endl;
+        */
+    }
 
     const String getApplicationName() override       { return ProjectInfo::projectName; }
     const String getApplicationVersion() override    { return ProjectInfo::versionString; }

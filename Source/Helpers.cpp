@@ -99,22 +99,6 @@ float XM32::dbToFloat(float db) {
     return v;
 }
 
-float XM32::roundToNearestFrequency(float inputFreq, const std::vector<float> &frequencyMap) {
-    auto it = std::lower_bound(frequencyMap.begin(), frequencyMap.end(), inputFreq);
-
-    if (it == frequencyMap.begin()) {
-        return *it;
-    } if (it == frequencyMap.end()) {
-        return frequencyMap.back();
-    }
-
-    // Check the two nearest values
-    float lower = *(it - 1);
-    float upper = *it;
-
-    return (std::fabs(inputFreq - lower) < std::fabs(inputFreq - upper)) ? lower : upper;
-}
-
 
 
 
