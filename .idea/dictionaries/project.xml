@@ -2,6 +2,8 @@
   <dictionary name="project">
     <words>
       <w>juce</w>
+      <w>linf</w>
+      <w>logf</w>
     </words>
   </dictionary>
 </component>

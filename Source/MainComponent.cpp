@@ -25,28 +25,7 @@ MainComponent::MainComponent()
     // addAndMakeVisible(new OSCDeviceSelectorComponent());
 }
 
-MainComponent::~MainComponent()
-{
-}
-
-
-void MainComponent::showAlertWindow() {
-    auto *alertWindow = new ResizableWindow("OSC Device", Colours::black, false);
-    // alertWindow->addTextBlock("Text block");
-    // alertWindow->addTextEditor("Text editor", "Text editor");
-    // alertWindow->addTextBlock("Press any button, or the escape key, to close the window");
-    //
-    // enum AlertWindowResult {
-    //        noButtonPressed,
-    //        button1Pressed,
-    //        button2Pressed
-    //    };
-    //
-    // alertWindow->addButton("Button 1", AlertWindowResult::button1Pressed);
-    // alertWindow->addButton("Button 2", AlertWindowResult::button2Pressed);
-    // RectanglePlacement placement{ RectanglePlacement::yMid | RectanglePlacement::xLeft | RectanglePlacement::doNotResize };
-    // alertWindow->setBounds(placement.appliedTo(alertWindow->getBounds(), getBounds()));
-    alertWindow->setVisible(true);
+MainComponent::~MainComponent() {
 }
 
 

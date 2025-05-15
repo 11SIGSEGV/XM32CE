@@ -63,7 +63,6 @@ public:
     }
 
 
-    void showAlertWindow();
 private:
     //==============================================================================
     // Your private member variables go here...

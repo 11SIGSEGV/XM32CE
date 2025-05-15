@@ -4,10 +4,9 @@
 
 #pragma once
 #include <bitset>
-#include <concepts>
-#include <bitset>
 #include <utility> // For std::move
 
+/*
 const std::set<float> logScaleFreq_201 = {
     20.0, 20.7, 21.4, 22.2, 23.0, 23.8, 24.6, 25.5, 26.4, 27.3, 28.3, 29.2, 30.3, 31.3, 32.4, 33.6, 34.8, 36.0, 37.2,
     38.6, 39.9, 41.3, 42.8, 44.3, 45.8, 47.4, 49.1, 50.8, 52.6, 54.5, 56.4, 58.3, 60.4, 62.5,
@@ -269,7 +268,7 @@ const std::unordered_map<int, float> releaseToFloat = {
 };
 
 
-/* Please note, -inf is represented as -90.0 in the code below. */
+// Please note, -inf is represented as -90.0 in the code below.
 const std::set<float> levelValues_161 = {
     -90.0, -87.0, -84.0, -81.0, -78.0, -75.0, -72.0, -69.0, -66.0, -63.0, -60.0, -59.0, -58.0, -57.0, -56.0, -55.0,
     -54.0, -53.0, -52.0, -51.0, -50.0, -49.0, -48.0, -47.0, -46.0, -45.0, -44.0, -43.0, -42.0,
@@ -354,33 +353,105 @@ const std::unordered_map<float, float> rtaDecayToFloat = {
     {1.26, 0.3889}, {1.59, 0.4444}, {2.0, 0.5}, {2.52, 0.5556}, {3.17, 0.6111}, {4.0, 0.6667}, {5.04, 0.7222},
     {6.35, 0.7778}, {8.0, 0.8333}, {10.08, 0.8889}, {12.7, 0.9444}, {16.0, 1.0}
 };
+*/
 
 
-enum FxParamType {
-    LINF,
-    LOGF,
-    ENUM
+
+// Use LEVEL_1024 for levels with 1024 values, but use LEVEL_161 for levels with 161 values. They use different implementations.
+enum ParamType {
+    LINF, LOGF, ENUM, STRING, INT,
+    LEVEL_1024, LEVEL_161, BITSET, OPTION
 };
+
+
+
+// Ok, this originally used std::variant... but turns out it's slow as f*ck.
+// So this is a rare case where it makes sense to sacrifice the ridiculous amount of memory for multiple structs.
+
+struct OptionParam_INPATH {
+    const std::string name;
+    const std::set<std::string> value {}; // OPTION
+    const ParamType _meta_PARAMTYPE;
+
+    OptionParam_INPATH(std::string name, const std::set<std::string>& value):
+        name(std::move(name)), value(value), _meta_PARAMTYPE(ParamType::OPTION) {};
+};
+
+
+struct EnumParam_INPATH {
+    const std::string name;
+    const std::vector<std::string> value {}; // OPTION
+    const ParamType _meta_PARAMTYPE;
+
+    EnumParam_INPATH(std::string name, const std::vector<std::string>& value):
+        name(std::move(name)), value(value), _meta_PARAMTYPE(ParamType::ENUM) {}
+};
+
+// Includes std::string, float and int
+struct NonIter_INPATH {
+    const std::string name;
+    const int int_value {};
+    const int int_min {}; // Min/maxes are all inclusive
+    const int int_max {};
+
+    const float float_value {};
+    const float float_min {};
+    const float float_max {};
+
+    const std::string string_value {};
+    // We'll use int_min and int_max for string min/max length.
+
+    const ParamType _meta_PARAMTYPE;
+
+    NonIter_INPATH(std::string name, const int value, const int minVal = std::numeric_limits<int>::min(),
+        const int maxVal = std::numeric_limits<int>::max()):
+    name(std::move(name)), int_value(value), _meta_PARAMTYPE(ParamType::INT), int_min(minVal), int_max(maxVal) {}
+
+    NonIter_INPATH(std::string name, const float value, const bool isLinear,
+        const float minVal = std::numeric_limits<float>::min(), const float maxVal = std::numeric_limits<float>::max()):
+    name(std::move(name)), float_value(value), _meta_PARAMTYPE(isLinear ? ParamType::LINF : ParamType:: LOGF),
+    float_min(minVal), float_max(maxVal) {}
+
+    NonIter_INPATH(std::string name, const std::string &value, const int minLen = 0, const int maxLen = -1):
+    name(std::move(name)), string_value(value), _meta_PARAMTYPE(ParamType::STRING), int_min(minLen), int_max(maxLen) {}
+};
+
+
+
+// An example. This assumes const std::string& basePath = "/ch".
+inline std::set<std::variant<std::string, OptionParam_INPATH, EnumParam_INPATH, NonIter_INPATH>> channelFader = {
+    NonIter_INPATH("channel", 1, 1, 32), "/mix/fader"};
+
+// Used when an argument is included in the actual OSC Path itself.
+class PathWithEmbeddedArguments {
+public:
+    // An example path would be:
+    PathWithEmbeddedArguments(const std::string& basePath,
+        std::unordered_set<std::set<std::variant<std::string, OptionParam_INPATH, EnumParam_INPATH, NonIter_INPATH>>> acceptedPaths):
+    BASE_PATH(basePath), ACCEPTED_PATHS(std::move(acceptedPaths)) {}
+
+private:
+    const OSCAddress BASE_PATH;
+    const std::unordered_set<std::set<std::variant<std::string, OptionParam_INPATH, EnumParam_INPATH, NonIter_INPATH>>> ACCEPTED_PATHS;
+};
+
 
 
 struct FxParam {
     std::string name;
-    FxParamType type;
+    ParamType type;
     float min{};
     float max{};
     int enumElements{};
-    std::map<int, std::string> enumMap{};
+    std::vector<std::string> enumMap{};
 
     // Constructor for LINF/LOGF types
-    FxParam(std::string paramName, FxParamType paramType, float rangeMin, float rangeMax) :
+    FxParam(std::string paramName, ParamType paramType, float rangeMin, float rangeMax) :
         name(std::move(paramName)), type(paramType), min(rangeMin), max(rangeMax), enumElements(0) {}
 
     // Constructor for ENUM types
-    FxParam(std::string paramName, FxParamType paramType, int count, std::map<int, std::string> map) :
+    FxParam(std::string paramName, ParamType paramType, int count, std::vector<std::string> map) :
         name(std::move(paramName)), type(paramType), min(0.0f), max(0.0f), enumElements(count), enumMap(std::move(map)) {}
-
-    // Default constructor
-    FxParam() = default;
 
     bool operator<(const FxParam& other) const {
         return name < other.name;
@@ -408,18 +479,18 @@ struct Effect {
 };
 
 
-inline std::map<int, std::string> _femMaleEnuMap() {
-    return {{0, "FEM"}, {1, "MALE"}};
+inline std::vector<std::string> femMaleEnuMap() {
+    return {"FEM", "MALE"};
 }
 
-inline std::map<int, std::string> _onOffEnumMap() {
-    return {{0, "OFF"}, {1, "ON"}};
+inline std::vector<std::string> onOffEnumMap() {
+    return {"OFF", "ON"};
 }
 
-/* MISSING:
- * 75 Plate Reverb
- *
- */
+inline std::vector<std::string> factorsEnums() {
+    return {"1/4", "3/8", "1/2", "2/3", "1", "4/3", "3/2", "2", "3"};
+}
+
 
 /* Please note: the code below is **AI GENERATED** and may contain errors. */
 const std::set<Effect> X32Effects = {
@@ -427,236 +498,224 @@ const std::set<Effect> X32Effects = {
     {
         0, -1, "HALL", std::bitset<6>("000000"), "Hall Reverb",
         {
-            {"Pre Delay", FxParamType::LINF, 0.0f, 200.0f},
-            {"Decay", FxParamType::LOGF, 0.2f, 5.0f},
-            {"Size", FxParamType::LINF, 2.0f, 100.0f},
-            {"Damping", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Diffuse", FxParamType::LINF, 1.0f, 30.0f},
-            {"Level", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Bass Multi", FxParamType::LOGF, 0.5f, 2.0f},
-            {"Spread", FxParamType::LINF, 0.0f, 50.0f},
-            {"Shape", FxParamType::LINF, 0.0f, 250.0f},
-            {"Mod Speed", FxParamType::LINF, 0.0f, 100.0f}
+            {"Pre Delay", ParamType::LINF, 0.0f, 200.0f},
+            {"Decay", ParamType::LOGF, 0.2f, 5.0f},
+            {"Size", ParamType::LINF, 2.0f, 100.0f},
+            {"Damping", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Diffuse", ParamType::LINF, 1.0f, 30.0f},
+            {"Level", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Bass Multi", ParamType::LOGF, 0.5f, 2.0f},
+            {"Spread", ParamType::LINF, 0.0f, 50.0f},
+            {"Shape", ParamType::LINF, 0.0f, 250.0f},
+            {"Mod Speed", ParamType::LINF, 0.0f, 100.0f}
         }
     },
     // 2. Ambiance (AMBI)
     {
         1, -1, "AMBI", std::bitset<6>("000101"), "Ambiance",
         {
-            {"Pre Delay", FxParamType::LINF, 0.0f, 200.0f},
-            {"Decay", FxParamType::LOGF, 0.2f, 7.3f},
-            {"Size", FxParamType::LINF, 2.0f, 100.0f},
-            {"Damping", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Diffuse", FxParamType::LINF, 1.0f, 30.0f},
-            {"Level", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Modulate", FxParamType::LINF, 0.0f, 100.0f},
-            {"Tail Gain", FxParamType::LINF, 0.0f, 100.0f}
+            {"Pre Delay", ParamType::LINF, 0.0f, 200.0f},
+            {"Decay", ParamType::LOGF, 0.2f, 7.3f},
+            {"Size", ParamType::LINF, 2.0f, 100.0f},
+            {"Damping", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Diffuse", ParamType::LINF, 1.0f, 30.0f},
+            {"Level", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Modulate", ParamType::LINF, 0.0f, 100.0f},
+            {"Tail Gain", ParamType::LINF, 0.0f, 100.0f}
         }
     },
     // 3. Rich Plate Reverb (RPLT)
     {
         2, -1, "RPLT", std::bitset<6>("000011"), "Rich Plate Reverb",
         {
-            {"Pre Delay", FxParamType::LINF, 0.0f, 200.0f},
-            {"Decay", FxParamType::LOGF, 0.3f, 29.0f},
-            {"Size", FxParamType::LINF, 4.0f, 39.0f},
-            {"Damping", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Diffuse", FxParamType::LINF, 1.0f, 30.0f},
-            {"Level", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Bass Multi", FxParamType::LOGF, 0.25f, 4.0f},
-            {"Spread", FxParamType::LINF, 0.0f, 50.0f},
-            {"Attack", FxParamType::LINF, 0.0f, 100.0f},
-            {"Spin", FxParamType::LINF, 0.0f, 100.0f},
-            {"Echo L", FxParamType::LINF, 0.0f, 1200.0f},
-            {"Echo R", FxParamType::LINF, 0.0f, 1200.0f},
-            {"Echo Feed L", FxParamType::LINF, -100.0f, 100.0f},
-            {"Echo Feed R", FxParamType::LINF, -100.0f, 100.0f} // PDF says "Echo Feed L" twice, assuming second is R
+            {"Pre Delay", ParamType::LINF, 0.0f, 200.0f},
+            {"Decay", ParamType::LOGF, 0.3f, 29.0f},
+            {"Size", ParamType::LINF, 4.0f, 39.0f},
+            {"Damping", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Diffuse", ParamType::LINF, 1.0f, 30.0f},
+            {"Level", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Bass Multi", ParamType::LOGF, 0.25f, 4.0f},
+            {"Spread", ParamType::LINF, 0.0f, 50.0f},
+            {"Attack", ParamType::LINF, 0.0f, 100.0f},
+            {"Spin", ParamType::LINF, 0.0f, 100.0f},
+            {"Echo L", ParamType::LINF, 0.0f, 1200.0f},
+            {"Echo R", ParamType::LINF, 0.0f, 1200.0f},
+            {"Echo Feed L", ParamType::LINF, -100.0f, 100.0f},
+            {"Echo Feed R", ParamType::LINF, -100.0f, 100.0f} // PDF says "Echo Feed L" twice, assuming second is R
         }
     },
     // 4. Room Reverb (ROOM)
     {
         3, -1, "ROOM", std::bitset<6>("000010"), "Room Reverb",
         {
-            {"Pre Delay", FxParamType::LINF, 0.0f, 200.0f},
-            {"Decay", FxParamType::LOGF, 0.3f, 29.0f},
-            {"Size", FxParamType::LINF, 4.0f, 72.0f},
-            {"Damping", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Diffuse", FxParamType::LINF, 1.0f, 30.0f},
-            {"Level", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Bass Multi", FxParamType::LOGF, 0.25f, 4.0f},
-            {"Spread", FxParamType::LINF, 0.0f, 50.0f},
-            {"Shape", FxParamType::LINF, 0.0f, 250.0f},
-            {"Spin", FxParamType::LINF, 0.0f, 100.0f},
-            {"Echo L", FxParamType::LINF, 0.0f, 1200.0f},
-            {"Echo R", FxParamType::LINF, 0.0f, 1200.0f},
-            {"Echo Feed L", FxParamType::LINF, -100.0f, 100.0f},
-            {"Echo Feed R", FxParamType::LINF, -100.0f, 100.0f} // PDF says "Echo Feed L" twice, assuming second is R
+            {"Pre Delay", ParamType::LINF, 0.0f, 200.0f},
+            {"Decay", ParamType::LOGF, 0.3f, 29.0f},
+            {"Size", ParamType::LINF, 4.0f, 72.0f},
+            {"Damping", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Diffuse", ParamType::LINF, 1.0f, 30.0f},
+            {"Level", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Bass Multi", ParamType::LOGF, 0.25f, 4.0f},
+            {"Spread", ParamType::LINF, 0.0f, 50.0f},
+            {"Shape", ParamType::LINF, 0.0f, 250.0f},
+            {"Spin", ParamType::LINF, 0.0f, 100.0f},
+            {"Echo L", ParamType::LINF, 0.0f, 1200.0f},
+            {"Echo R", ParamType::LINF, 0.0f, 1200.0f},
+            {"Echo Feed L", ParamType::LINF, -100.0f, 100.0f},
+            {"Echo Feed R", ParamType::LINF, -100.0f, 100.0f} // PDF says "Echo Feed L" twice, assuming second is R
         }
     },
     // 5. Chamber Reverb (CHAM)
     {
         4, -1, "CHAM", std::bitset<6>("000001"), "Chamber Reverb",
         {
-            {"Pre Delay", FxParamType::LINF, 0.0f, 200.0f},
-            {"Decay", FxParamType::LOGF, 0.3f, 29.0f},
-            {"Size", FxParamType::LINF, 4.0f, 72.0f},
-            {"Damping", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Diffuse", FxParamType::LINF, 1.0f, 30.0f},
-            {"Level", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Bass Multi", FxParamType::LOGF, 0.25f, 4.0f},
-            {"Spread", FxParamType::LINF, 0.0f, 50.0f},
-            {"Shape", FxParamType::LINF, 0.0f, 250.0f},
-            {"Spin", FxParamType::LINF, 0.0f, 100.0f},
-            {"Reflection L", FxParamType::LINF, 0.0f, 500.0f},
-            {"Reflection R", FxParamType::LINF, 0.0f, 500.0f},
-            {"Reflection Gain L", FxParamType::LINF, 0.0f, 100.0f},
-            {"Reflection Gain R", FxParamType::LINF, 0.0f, 100.0f} // PDF says "Reflection Gain L" twice
+            {"Pre Delay", ParamType::LINF, 0.0f, 200.0f},
+            {"Decay", ParamType::LOGF, 0.3f, 29.0f},
+            {"Size", ParamType::LINF, 4.0f, 72.0f},
+            {"Damping", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Diffuse", ParamType::LINF, 1.0f, 30.0f},
+            {"Level", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Bass Multi", ParamType::LOGF, 0.25f, 4.0f},
+            {"Spread", ParamType::LINF, 0.0f, 50.0f},
+            {"Shape", ParamType::LINF, 0.0f, 250.0f},
+            {"Spin", ParamType::LINF, 0.0f, 100.0f},
+            {"Reflection L", ParamType::LINF, 0.0f, 500.0f},
+            {"Reflection R", ParamType::LINF, 0.0f, 500.0f},
+            {"Reflection Gain L", ParamType::LINF, 0.0f, 100.0f},
+            {"Reflection Gain R", ParamType::LINF, 0.0f, 100.0f} // PDF says "Reflection Gain L" twice
         }
     },
     // 6. Plate Reverb (PLAT)
     {
         5, -1, "PLAT", std::bitset<6>("001000"), "Plate Reverb",
         {
-            {"Pre Delay", FxParamType::LINF, 0.0f, 200.0f},
-            {"Decay", FxParamType::LOGF, 0.2f, 10.0f},
-            {"Size", FxParamType::LINF, 2.0f, 100.0f},
-            {"Damping", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Diffuse", FxParamType::LINF, 1.0f, 30.0f},
-            {"Level", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Bass Multi", FxParamType::LOGF, 0.5f, 2.0f},
-            {"Xover", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Mod", FxParamType::LINF, 0.0f, 50.0f},
-            {"Mod Speed", FxParamType::LINF, 0.0f, 100.0f}
+            {"Pre Delay", ParamType::LINF, 0.0f, 200.0f},
+            {"Decay", ParamType::LOGF, 0.2f, 10.0f},
+            {"Size", ParamType::LINF, 2.0f, 100.0f},
+            {"Damping", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Diffuse", ParamType::LINF, 1.0f, 30.0f},
+            {"Level", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Bass Multi", ParamType::LOGF, 0.5f, 2.0f},
+            {"Xover", ParamType::LOGF, 10.0f, 500.0f},
+            {"Mod", ParamType::LINF, 0.0f, 50.0f},
+            {"Mod Speed", ParamType::LINF, 0.0f, 100.0f}
         }
     },
     // 7. Vintage Reverb (VREV)
     {
         6, -1, "VREV", std::bitset<6>("001001"), "Vintage Reverb",
         {
-            {"Pre Delay", FxParamType::LINF, 0.0f, 120.0f},
-            {"Decay", FxParamType::LOGF, 0.3f, 4.5f},
-            {"Modulate", FxParamType::LINF, 0.0f, 10.0f},
-            {"Vintage", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Position", FxParamType::ENUM, 2, {{0, "FRONT"}, {1, "REAR"}}},
-            {"Level", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Lo Multiply", FxParamType::LOGF, 0.5f, 2.0f},
-            {"Hi Multiply", FxParamType::LOGF, 0.25f, 1.0f}
+            {"Pre Delay", ParamType::LINF, 0.0f, 120.0f},
+            {"Decay", ParamType::LOGF, 0.3f, 4.5f},
+            {"Modulate", ParamType::LINF, 0.0f, 10.0f},
+            {"Vintage", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Position", ParamType::ENUM, 2, {"FRONT", "REAR"}},
+            {"Level", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Lo Multiply", ParamType::LOGF, 0.5f, 2.0f},
+            {"Hi Multiply", ParamType::LOGF, 0.25f, 1.0f}
         }
     },
     // 8. Vintage Room (VRM)
     {
         7, -1, "VRM", std::bitset<6>("001000"), "Vintage Room", // PDF appendix has "Vintage room"
         {
-            {"Reverb Delay", FxParamType::LINF, 0.0f, 20.0f},
-            {"Decay", FxParamType::LOGF, 0.1f, 20.0f},
-            {"Size", FxParamType::LINF, 0.0f, 10.0f},
-            {"Density", FxParamType::LINF, 1.0f, 30.0f},
-            {"ER Level", FxParamType::LINF, 0.0f, 190.0f}, // PDF has 0...190 for ER Level
-            {"Level", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Multiply", FxParamType::LOGF, 0.1f, 10.0f},
-            {"Hi Multiply", FxParamType::LOGF, 0.1f, 10.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"ER Left", FxParamType::LINF, 0.0f, 10.0f},
-            {"ER Right", FxParamType::LINF, 0.0f, 10.0f},
-            {"Freeze", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Reverb Delay", ParamType::LINF, 0.0f, 20.0f},
+            {"Decay", ParamType::LOGF, 0.1f, 20.0f},
+            {"Size", ParamType::LINF, 0.0f, 10.0f},
+            {"Density", ParamType::LINF, 1.0f, 30.0f},
+            {"ER Level", ParamType::LINF, 0.0f, 190.0f}, // PDF has 0...190 for ER Level
+            {"Level", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Multiply", ParamType::LOGF, 0.1f, 10.0f},
+            {"Hi Multiply", ParamType::LOGF, 0.1f, 10.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"ER Left", ParamType::LINF, 0.0f, 10.0f},
+            {"ER Right", ParamType::LINF, 0.0f, 10.0f},
+            {"Freeze", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 9. Gated Reverb (GATE)
     {
         8, -1, "GATE", std::bitset<6>("000110"), "Gated Reverb",
         {
-            {"Pre Delay", FxParamType::LINF, 0.0f, 200.0f},
-            {"Decay", FxParamType::LOGF, 140.0f, 1000.0f},
-            {"Attack", FxParamType::LINF, 0.0f, 30.0f},
-            {"Density", FxParamType::LINF, 1.0f, 30.0f},
-            {"Spread", FxParamType::LINF, 0.0f, 100.0f},
-            {"Level", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Hi Shv Gain", FxParamType::LINF, -30.0f, 0.0f},
-            {"Diffuse", FxParamType::LINF, 1.0f, 30.0f}
+            {"Pre Delay", ParamType::LINF, 0.0f, 200.0f},
+            {"Decay", ParamType::LOGF, 140.0f, 1000.0f},
+            {"Attack", ParamType::LINF, 0.0f, 30.0f},
+            {"Density", ParamType::LINF, 1.0f, 30.0f},
+            {"Spread", ParamType::LINF, 0.0f, 100.0f},
+            {"Level", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Hi Shv Gain", ParamType::LINF, -30.0f, 0.0f},
+            {"Diffuse", ParamType::LINF, 1.0f, 30.0f}
         }
     },
     // 10. Reverse Reverb (RVRS)
     {
         9, -1, "RVRS", std::bitset<6>("000111"), "Reverse Reverb",
         {
-            {"Pre Delay", FxParamType::LINF, 0.0f, 200.0f},
-            {"Decay", FxParamType::LOGF, 140.0f, 1000.0f},
-            {"Rise", FxParamType::LINF, 0.0f, 50.0f},
-            {"Diffuse", FxParamType::LINF, 1.0f, 30.0f},
-            {"Spread", FxParamType::LINF, 1.0f, 100.0f},
-            {"Level", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Hi Shv Gain", FxParamType::LINF, -30.0f, 0.0f}
+            {"Pre Delay", ParamType::LINF, 0.0f, 200.0f},
+            {"Decay", ParamType::LOGF, 140.0f, 1000.0f},
+            {"Rise", ParamType::LINF, 0.0f, 50.0f},
+            {"Diffuse", ParamType::LINF, 1.0f, 30.0f},
+            {"Spread", ParamType::LINF, 1.0f, 100.0f},
+            {"Level", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Hi Shv Gain", ParamType::LINF, -30.0f, 0.0f}
         }
     },
     // 11. Stereo Delay (DLY)
     {
         10, -1, "DLY", std::bitset<6>("010100"), "Stereo Delay",
         {
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f},
-            {"Time", FxParamType::LINF, 0.0f, 3000.0f}, // PDF p79, [0...3000]
-            {"Mode", FxParamType::ENUM, 3, {{0, "ST"}, {1, "X"}, {2, "M"}}},
-            {
-                "Factor L", FxParamType::ENUM, 9,
-                {{0, "1/4"}, {1, "3/8"}, {2, "1/2"}, {3, "2/3"}, {4, "1"}, {5, "4/3"}, {6, "3/2"}, {7, "2"}, {8, "3"}}
-            },
-            {
-                "Factor R", FxParamType::ENUM, 9,
-                {{0, "1/4"}, {1, "3/8"}, {2, "1/2"}, {3, "2/3"}, {4, "1"}, {5, "4/3"}, {6, "3/2"}, {7, "2"}, {8, "3"}}
-            },
-            {"Offset L/R", FxParamType::LINF, -100.0f, 100.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Feed Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Feed Left", FxParamType::LINF, 1.0f, 100.0f},
-            {"Feed Right", FxParamType::LINF, 1.0f, 100.0f},
-            {"Feed Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f}
+            {"Mix", ParamType::LINF, 0.0f, 100.0f},
+            {"Time", ParamType::LINF, 0.0f, 3000.0f}, // PDF p79, [0...3000]
+            {"Mode", ParamType::ENUM, 3, {"ST", "X", "M"}},
+            {"Factor L", ParamType::ENUM, 9, factorsEnums()},
+            {"Factor R", ParamType::ENUM, 9, factorsEnums()},
+            {"Offset L/R", ParamType::LINF, -100.0f, 100.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Feed Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Feed Left", ParamType::LINF, 1.0f, 100.0f},
+            {"Feed Right", ParamType::LINF, 1.0f, 100.0f},
+            {"Feed Hi Cut", ParamType::LOGF, 200.0f, 20000.0f}
         }
     },
     // 12. 3-Tap Delay (3TAP)
     {
         11, -1, "3TAP", std::bitset<6>("010101"), "3-Tap Delay",
         {
-            {"Dry", FxParamType::LINF, 0.0f, 3000.0f},
+            {"Dry", ParamType::LINF, 0.0f, 3000.0f},
             // Parameter name "Dry" on p80 looks like it should be "Time" or "Delay Base"
-            {"Gain Base", FxParamType::LINF, 0.0f, 100.0f},
-            {"Pan Base", FxParamType::LINF, -100.0f, 100.0f},
-            {"Feedback", FxParamType::LINF, 0.0f, 100.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {
-                "Factor A", FxParamType::ENUM, 9,
-                {{0, "1/4"}, {1, "3/8"}, {2, "1/2"}, {3, "2/3"}, {4, "1"}, {5, "4/3"}, {6, "3/2"}, {7, "2"}, {8, "3"}}
-            },
-            {"Gain A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Pan A", FxParamType::LINF, -100.0f, 100.0f},
-            {
-                "Factor B", FxParamType::ENUM, 9,
-                {{0, "1/4"}, {1, "3/8"}, {2, "1/2"}, {3, "2/3"}, {4, "1"}, {5, "4/3"}, {6, "3/2"}, {7, "2"}, {8, "3"}}
-            },
-            {"Gain B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Pan B", FxParamType::LINF, -100.0f, 100.0f},
-            {"Cross Feed", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Mono", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Dry Out", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Gain Base", ParamType::LINF, 0.0f, 100.0f},
+            {"Pan Base", ParamType::LINF, -100.0f, 100.0f},
+            {"Feedback", ParamType::LINF, 0.0f, 100.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Factor A", ParamType::ENUM, 9, factorsEnums()},
+            {"Gain A", ParamType::LINF, 0.0f, 100.0f},
+            {"Pan A", ParamType::LINF, -100.0f, 100.0f},
+            {"Factor B", ParamType::ENUM, 9, factorsEnums()},
+            {"Gain B", ParamType::LINF, 0.0f, 100.0f},
+            {"Pan B", ParamType::LINF, -100.0f, 100.0f},
+            {"Cross Feed", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Mono", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Dry Out", ParamType::ENUM, 2, onOffEnumMap()}
             // PDF p80 has "Dry" as last param. "Dry Out" for clarity.
         }
     },
@@ -664,148 +723,136 @@ const std::set<Effect> X32Effects = {
     {
         12, -1, "4TAP", std::bitset<6>("010110"), "Rhythm Delay",
         {
-            {"Time", FxParamType::LINF, 1.0f, 3000.0f},
-            {"Gain Base", FxParamType::LINF, 0.0f, 100.0f},
-            {"Feedback", FxParamType::LINF, 0.0f, 100.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Spread", FxParamType::LINF, 0.0f, 6.0f},
-            {
-                "Factor A", FxParamType::ENUM, 9,
-                {{0, "1/4"}, {1, "3/8"}, {2, "1/2"}, {3, "2/3"}, {4, "1"}, {5, "4/3"}, {6, "3/2"}, {7, "2"}, {8, "3"}}
-            },
-            {"Gain A", FxParamType::LINF, 0.0f, 100.0f},
-            {
-                "Factor B", FxParamType::ENUM, 9,
-                {{0, "1/4"}, {1, "3/8"}, {2, "1/2"}, {3, "2/3"}, {4, "1"}, {5, "4/3"}, {6, "3/2"}, {7, "2"}, {8, "3"}}
-            },
-            {"Gain B", FxParamType::LINF, 0.0f, 100.0f},
-            {
-                "Factor C", FxParamType::ENUM, 9,
-                {{0, "1/4"}, {1, "3/8"}, {2, "1/2"}, {3, "2/3"}, {4, "1"}, {5, "4/3"}, {6, "3/2"}, {7, "2"}, {8, "3"}}
-            },
-            {"Gain C", FxParamType::LINF, 0.0f, 100.0f},
-            {"Cross Feed", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Mono", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Dry", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Time", ParamType::LINF, 1.0f, 3000.0f},
+            {"Gain Base", ParamType::LINF, 0.0f, 100.0f},
+            {"Feedback", ParamType::LINF, 0.0f, 100.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Spread", ParamType::LINF, 0.0f, 6.0f},
+            {"Factor A", ParamType::ENUM, 9, factorsEnums()},
+            {"Gain A", ParamType::LINF, 0.0f, 100.0f},
+            {"Factor B", ParamType::ENUM, 9, factorsEnums()},
+            {"Gain B", ParamType::LINF, 0.0f, 100.0f},
+            {"Factor C", ParamType::ENUM, 9, factorsEnums()},
+            {"Gain C", ParamType::LINF, 0.0f, 100.0f},
+            {"Cross Feed", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Mono", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Dry", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 14. Stereo Chorus (CRS)
     {
         13, -1, "CRS", std::bitset<6>("001010"), "Stereo Chorus",
         {
-            {"Speed", FxParamType::LOGF, 0.05f, 5.0f},
-            {"Depth L", FxParamType::LINF, 0.0f, 100.0f},
-            {"Depth R", FxParamType::LINF, 0.0f, 100.0f},
-            {"Delay L", FxParamType::LOGF, 0.5f, 20.0f},
-            {"Delay R", FxParamType::LOGF, 0.5f, 20.0f},
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Phase", FxParamType::LINF, 0.0f, 180.0f},
-            {"Wave", FxParamType::LINF, 0.0f, 100.0f},
-            {"Spread", FxParamType::LINF, 0.0f, 100.0f}
+            {"Speed", ParamType::LOGF, 0.05f, 5.0f},
+            {"Depth L", ParamType::LINF, 0.0f, 100.0f},
+            {"Depth R", ParamType::LINF, 0.0f, 100.0f},
+            {"Delay L", ParamType::LOGF, 0.5f, 20.0f},
+            {"Delay R", ParamType::LOGF, 0.5f, 20.0f},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Phase", ParamType::LINF, 0.0f, 180.0f},
+            {"Wave", ParamType::LINF, 0.0f, 100.0f},
+            {"Spread", ParamType::LINF, 0.0f, 100.0f}
         }
     },
     // 15. Stereo Flanger (FLNG)
     {
         14, -1, "FLNG", std::bitset<6>("001011"), "Stereo Flanger",
         {
-            {"Speed", FxParamType::LOGF, 0.05f, 5.0f},
-            {"Depth L", FxParamType::LINF, 0.0f, 100.0f},
-            {"Depth R", FxParamType::LINF, 0.0f, 100.0f},
-            {"Delay L", FxParamType::LOGF, 0.5f, 20.0f},
-            {"Delay R", FxParamType::LOGF, 0.5f, 20.0f},
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Phase", FxParamType::LINF, 0.0f, 180.0f},
-            {"Feed Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Feed Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Feed", FxParamType::LINF, -90.0f, 90.0f}
+            {"Speed", ParamType::LOGF, 0.05f, 5.0f},
+            {"Depth L", ParamType::LINF, 0.0f, 100.0f},
+            {"Depth R", ParamType::LINF, 0.0f, 100.0f},
+            {"Delay L", ParamType::LOGF, 0.5f, 20.0f},
+            {"Delay R", ParamType::LOGF, 0.5f, 20.0f},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Phase", ParamType::LINF, 0.0f, 180.0f},
+            {"Feed Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Feed Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Feed", ParamType::LINF, -90.0f, 90.0f}
         }
     },
     // 16. Stereo Phaser (PHAS)
     {
         15, 30, "PHAS", std::bitset<6>("011011"), "Stereo Phaser",
         {
-            {"Speed", FxParamType::LOGF, 0.05f, 5.0f},
-            {"Depth", FxParamType::LINF, 0.0f, 100.0f},
-            {"Resonance", FxParamType::LINF, 0.0f, 80.0f},
-            {"Base", FxParamType::LINF, 0.0f, 50.0f}, // PDF p82 Range is [0...50] for Base
-            {"Stages", FxParamType::LINF, 2.0f, 12.0f}, // Assuming LINF, though discrete values
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f},
-            {"Wave", FxParamType::LINF, -50.0f, 50.0f},
-            {"Phase", FxParamType::LINF, 0.0f, 180.0f},
-            {"Env. Modulation", FxParamType::LINF, -100.0f, 100.0f},
-            {"Attack", FxParamType::LOGF, 10.0f, 1000.0f},
-            {"Hold", FxParamType::LOGF, 1.0f, 2000.0f},
-            {"Release", FxParamType::LOGF, 10.0f, 1000.0f}
+            {"Speed", ParamType::LOGF, 0.05f, 5.0f},
+            {"Depth", ParamType::LINF, 0.0f, 100.0f},
+            {"Resonance", ParamType::LINF, 0.0f, 80.0f},
+            {"Base", ParamType::LINF, 0.0f, 50.0f}, // PDF p82 Range is [0...50] for Base
+            {"Stages", ParamType::LINF, 2.0f, 12.0f}, // Assuming LINF, though discrete values
+            {"Mix", ParamType::LINF, 0.0f, 100.0f},
+            {"Wave", ParamType::LINF, -50.0f, 50.0f},
+            {"Phase", ParamType::LINF, 0.0f, 180.0f},
+            {"Env. Modulation", ParamType::LINF, -100.0f, 100.0f},
+            {"Attack", ParamType::LOGF, 10.0f, 1000.0f},
+            {"Hold", ParamType::LOGF, 1.0f, 2000.0f},
+            {"Release", ParamType::LOGF, 10.0f, 1000.0f}
         }
     },
     // 17. Dimensional Chorus (DIMC)
     {
         16, -1, "DIMC", std::bitset<6>("111010"), "Dimension-C",
         {
-            {"Active", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Mode", FxParamType::ENUM, 2, {{0, "M"}, {1, "ST"}}},
-            {"Dry", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Mode 1", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Mode 2", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Mode 3", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Mode 4", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Active", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Mode", ParamType::ENUM, 2, {"M", "ST"}},
+            {"Dry", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Mode 1", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Mode 2", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Mode 3", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Mode 4", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 18. Mood Filter (FILT)
     {
         17, 31, "FILT", std::bitset<6>("101001"), "Mood Filter",
         {
-            {"Speed", FxParamType::LOGF, 0.05f, 20.0f},
-            {"Depth", FxParamType::LINF, 0.0f, 100.0f},
-            {"Resonance", FxParamType::LINF, 0.0f, 100.0f},
-            {"Base", FxParamType::LOGF, 10.0f, 15000.0f},
-            {"Mode", FxParamType::ENUM, 4, {{0, "LP"}, {1, "HP"}, {2, "BP"}, {3, "NO"}}},
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f},
-            {
-                "Wave", FxParamType::ENUM, 7,
-                {{0, "TRI"}, {1, "SIN"}, {2, "SAW"}, {3, "SAW-"}, {4, "RMP"}, {5, "SQU"}, {6, "RND"}}
-            }, // SAW- is SAW (inverted), RMP is Ramp
-            {"Phase", FxParamType::LINF, 0.0f, 180.0f},
-            {"Env. Modulation", FxParamType::LINF, -100.0f, 100.0f},
-            {"Attack", FxParamType::LOGF, 10.0f, 250.0f}, // PDF p83
-            {"Release", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Drive", FxParamType::LINF, 0.0f, 100.0f},
-            {"4 Pole", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Side Chain", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Speed", ParamType::LOGF, 0.05f, 20.0f},
+            {"Depth", ParamType::LINF, 0.0f, 100.0f},
+            {"Resonance", ParamType::LINF, 0.0f, 100.0f},
+            {"Base", ParamType::LOGF, 10.0f, 15000.0f},
+            {"Mode", ParamType::ENUM, 4, {"LP", "HP", "BP", "NO"}},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f},
+            {"Wave", ParamType::ENUM, 7, {"TRI", "SIN", "SAW", "SAW-", "RMP", "SQU", "RND"}}, // SAW- is SAW (inverted), RMP is Ramp
+            {"Phase", ParamType::LINF, 0.0f, 180.0f},
+            {"Env. Modulation", ParamType::LINF, -100.0f, 100.0f},
+            {"Attack", ParamType::LOGF, 10.0f, 250.0f}, // PDF p83
+            {"Release", ParamType::LOGF, 10.0f, 500.0f},
+            {"Drive", ParamType::LINF, 0.0f, 100.0f},
+            {"4 Pole", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Side Chain", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 19. Rotary Speaker (ROTA)
     {
         18, -1, "ROTA", std::bitset<6>("011100"), "Rotary Speaker",
         {
-            {"Lo Speed", FxParamType::LOGF, 0.1f, 4.0f},
-            {"Hi Speed", FxParamType::LOGF, 2.0f, 10.0f},
-            {"Accelerate", FxParamType::LINF, 0.0f, 100.0f},
-            {"Distance", FxParamType::LINF, 0.0f, 100.0f},
-            {"Balance", FxParamType::LINF, -100.0f, 100.0f},
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f},
-            {"Stop", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Slow", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Lo Speed", ParamType::LOGF, 0.1f, 4.0f},
+            {"Hi Speed", ParamType::LOGF, 2.0f, 10.0f},
+            {"Accelerate", ParamType::LINF, 0.0f, 100.0f},
+            {"Distance", ParamType::LINF, 0.0f, 100.0f},
+            {"Balance", ParamType::LINF, -100.0f, 100.0f},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f},
+            {"Stop", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Slow", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 20. Tremolo / Panner (PAN)
     {
         19, 32, "PAN", std::bitset<6>("101000"), "Tremolo/Panner",
         {
-            {"Speed", FxParamType::LOGF, 0.05f, 4.0f},
-            {"Phase", FxParamType::LINF, 0.0f, 180.0f},
-            {"Wave", FxParamType::LINF, -50.0f, 50.0f},
-            {"Depth", FxParamType::LINF, 0.0f, 100.0f},
-            {"Env. Speed", FxParamType::LINF, 0.0f, 100.0f},
-            {"Env. Depth", FxParamType::LINF, 0.0f, 100.0f},
-            {"Attack", FxParamType::LOGF, 10.0f, 1000.0f},
-            {"Hold", FxParamType::LOGF, 1.0f, 2000.0f},
-            {"Release", FxParamType::LOGF, 10.0f, 1000.0f}
+            {"Speed", ParamType::LOGF, 0.05f, 4.0f},
+            {"Phase", ParamType::LINF, 0.0f, 180.0f},
+            {"Wave", ParamType::LINF, -50.0f, 50.0f},
+            {"Depth", ParamType::LINF, 0.0f, 100.0f},
+            {"Env. Speed", ParamType::LINF, 0.0f, 100.0f},
+            {"Env. Depth", ParamType::LINF, 0.0f, 100.0f},
+            {"Attack", ParamType::LOGF, 10.0f, 1000.0f},
+            {"Hold", ParamType::LOGF, 1.0f, 2000.0f},
+            {"Release", ParamType::LOGF, 10.0f, 1000.0f}
         }
     },
     // 21. Sub Octaver (SUB)
@@ -814,144 +861,132 @@ const std::set<Effect> X32Effects = {
         {
             // PDF shows two sets of params, seems like for Channel A / Channel B or Left / Right
             // Assuming these are for one channel/side, and would be duplicated or chosen for stereo/dual
-            {"Active", FxParamType::ENUM, 2, _onOffEnumMap()}, // This is for the first set
-            {"Range", FxParamType::ENUM, 3, {{0, "LO"}, {1, "MID"}, {2, "HI"}}},
-            {"Dry", FxParamType::LINF, 0.0f, 100.0f},
-            {"Octave -1", FxParamType::LINF, 0.0f, 100.0f},
-            {"Octave -2", FxParamType::LINF, 0.0f, 100.0f},
-                {"Active", FxParamType::ENUM, 2, _onOffEnumMap()}, // This is for the second set
-                {"Range", FxParamType::ENUM, 3, {{0, "LO"}, {1, "MID"}, {2, "HI"}}},
-                {"Dry", FxParamType::LINF, 0.0f, 100.0f},
-                {"Octave -1", FxParamType::LINF, 0.0f, 100.0f},
-                {"Octave -2", FxParamType::LINF, 0.0f, 100.0f}
+            {"Active A", ParamType::ENUM, 2, onOffEnumMap()}, // This is for the first set
+            {"Range A", ParamType::ENUM, 3, {"LO", "MID", "HI"}},
+            {"Dry A", ParamType::LINF, 0.0f, 100.0f},
+            {"Octave -1 A", ParamType::LINF, 0.0f, 100.0f},
+            {"Octave -2 A", ParamType::LINF, 0.0f, 100.0f},
+            {"Active B", ParamType::ENUM, 2, onOffEnumMap()}, // This is for the second set
+            {"Range B", ParamType::ENUM, 3, {"LO", "MID", "HI"}},
+            {"Dry B", ParamType::LINF, 0.0f, 100.0f},
+            {"Octave -1 B", ParamType::LINF, 0.0f, 100.0f},
+            {"Octave -2 B", ParamType::LINF, 0.0f, 100.0f}
         }
     },
     // 22. Delay / Chamber (D/RV)
     {
         21, -1, "D/RV", std::bitset<6>("010000"), "Delay/Chamber",
         {
-            {"Time", FxParamType::LINF, 1.0f, 3000.0f},
-            {
-                "Pattern", FxParamType::ENUM, 14,
-                {
-                    {0, "1/4"}, {1, "1/3"}, {2, "3/8"}, {3, "1/2"}, {4, "2/3"}, {5, "3/4"}, {6, "1"}, {7, "1/4X"},
-                    {8, "1/3X"}, {9, "3/8X"}, {10, "1/2X"}, {11, "2/3X"}, {12, "3/4X"}, {13, "1X"}
-                }
+            {"Time", ParamType::LINF, 1.0f, 3000.0f},
+            {"Pattern", ParamType::ENUM, 14,
+                {"1/4", "1/3", "3/8", "1/2", "2/3", "3/4", "1", "1/4X", "1/3X", "3/8X", "1/2X", "2/3X", "3/4X", "1X"}
             },
-            {"Feed Hi Cut", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Feedback", FxParamType::LINF, 0.0f, 100.0f},
-            {"Cross Feed", FxParamType::LINF, 0.0f, 100.0f},
-            {"Balance", FxParamType::LINF, -100.0f, 100.0f},
-            {"Pre Delay", FxParamType::LINF, 0.0f, 200.0f}, // Chamber params start
-            {"Decay", FxParamType::LOGF, 0.1f, 5.0f},
-            {"Size", FxParamType::LINF, 2.0f, 100.0f},
-            {"Damping", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f}
+            {"Feed Hi Cut", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Feedback", ParamType::LINF, 0.0f, 100.0f},
+            {"Cross Feed", ParamType::LINF, 0.0f, 100.0f},
+            {"Balance", ParamType::LINF, -100.0f, 100.0f},
+            {"Pre Delay", ParamType::LINF, 0.0f, 200.0f}, // Chamber params start
+            {"Decay", ParamType::LOGF, 0.1f, 5.0f},
+            {"Size", ParamType::LINF, 2.0f, 100.0f},
+            {"Damping", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f}
         }
     },
     // 23. Chorus / Chamber (CR/R)
     {
         22, -1, "CR/R", std::bitset<6>("001110"), "Chorus/Chamber",
         {
-            {"Speed", FxParamType::LOGF, 0.05f, 4.0f}, // Chorus params
-            {"Depth", FxParamType::LINF, 0.0f, 100.0f},
-            {"Delay", FxParamType::LOGF, 0.5f, 50.0f},
-            {"Phase", FxParamType::LINF, 0.0f, 180.0f},
-            {"Wave", FxParamType::LINF, 0.0f, 100.0f},
-            {"Balance", FxParamType::LINF, -100.0f, 100.0f}, // Balance between Chorus and Chamber
-            {"Pre Delay", FxParamType::LINF, 0.0f, 200.0f}, // Chamber params
-            {"Decay", FxParamType::LOGF, 0.1f, 5.0f},
-            {"Size", FxParamType::LINF, 2.0f, 100.0f},
-            {"Damping", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f} // Overall mix
+            {"Speed", ParamType::LOGF, 0.05f, 4.0f}, // Chorus params
+            {"Depth", ParamType::LINF, 0.0f, 100.0f},
+            {"Delay", ParamType::LOGF, 0.5f, 50.0f},
+            {"Phase", ParamType::LINF, 0.0f, 180.0f},
+            {"Wave", ParamType::LINF, 0.0f, 100.0f},
+            {"Balance", ParamType::LINF, -100.0f, 100.0f}, // Balance between Chorus and Chamber
+            {"Pre Delay", ParamType::LINF, 0.0f, 200.0f}, // Chamber params
+            {"Decay", ParamType::LOGF, 0.1f, 5.0f},
+            {"Size", ParamType::LINF, 2.0f, 100.0f},
+            {"Damping", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f} // Overall mix
         }
     },
     // 24. Flanger / Chamber (FL/R)
     {
         23, -1, "FL/R", std::bitset<6>("001111"), "Flanger/Chamber",
         {
-            {"Speed", FxParamType::LOGF, 0.05f, 4.0f}, // Flanger params
-            {"Depth", FxParamType::LINF, 0.0f, 100.0f},
-            {"Delay", FxParamType::LOGF, 0.5f, 20.0f},
-            {"Phase", FxParamType::LINF, 0.0f, 180.0f},
-            {"Feed", FxParamType::LINF, -90.0f, 90.0f},
-            {"Balance", FxParamType::LINF, -100.0f, 100.0f}, // Balance
-            {"Pre Delay", FxParamType::LINF, 0.0f, 200.0f}, // Chamber params
-            {"Decay", FxParamType::LOGF, 0.1f, 5.0f},
-            {"Size", FxParamType::LINF, 2.0f, 100.0f},
-            {"Damping", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f} // Overall mix
+            {"Speed", ParamType::LOGF, 0.05f, 4.0f}, // Flanger params
+            {"Depth", ParamType::LINF, 0.0f, 100.0f},
+            {"Delay", ParamType::LOGF, 0.5f, 20.0f},
+            {"Phase", ParamType::LINF, 0.0f, 180.0f},
+            {"Feed", ParamType::LINF, -90.0f, 90.0f},
+            {"Balance", ParamType::LINF, -100.0f, 100.0f}, // Balance
+            {"Pre Delay", ParamType::LINF, 0.0f, 200.0f}, // Chamber params
+            {"Decay", ParamType::LOGF, 0.1f, 5.0f},
+            {"Size", ParamType::LINF, 2.0f, 100.0f},
+            {"Damping", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f} // Overall mix
         }
     },
     // 25. Delay / Chorus (D/CR)
     {
         24, -1, "D/CR", std::bitset<6>("010001"), "Delay/Chorus",
         {
-            {"Time", FxParamType::LINF, 1.0f, 3000.0f}, // Delay params
-            {
-                "Pattern", FxParamType::ENUM, 14,
-                {
-                    {0, "1/4"}, {1, "1/3"}, {2, "3/8"}, {3, "1/2"}, {4, "2/3"}, {5, "3/4"}, {6, "1"}, {7, "1/4X"},
-                    {8, "1/3X"}, {9, "3/8X"}, {10, "1/2X"}, {11, "2/3X"}, {12, "3/4X"}, {13, "1X"}
-                }
+            {"Time", ParamType::LINF, 1.0f, 3000.0f}, // Delay params
+            {"Pattern", ParamType::ENUM, 14,
+                {"1/4", "1/3", "3/8", "1/2", "2/3", "3/4", "1", "1/4X", "1/3X", "3/8X", "1/2X", "2/3X", "3/4X", "1X"}
             },
-            {"Feed Hi Cut", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Feedback", FxParamType::LINF, 0.0f, 100.0f},
-            {"Cross Feed", FxParamType::LINF, 0.0f, 100.0f},
-            {"Balance", FxParamType::LINF, -100.0f, 100.0f}, // Balance
-            {"Speed", FxParamType::LOGF, 0.05f, 4.0f}, // Chorus params
-            {"Depth", FxParamType::LINF, 0.0f, 100.0f},
-            {"Delay", FxParamType::LOGF, 0.5f, 50.0f}, // Chorus delay
-            {"Phase", FxParamType::LINF, 0.0f, 180.0f},
-            {"Wave", FxParamType::LINF, 0.0f, 100.0f},
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f} // Overall mix
+            {"Feed Hi Cut", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Feedback", ParamType::LINF, 0.0f, 100.0f},
+            {"Cross Feed", ParamType::LINF, 0.0f, 100.0f},
+            {"Balance", ParamType::LINF, -100.0f, 100.0f}, // Balance
+            {"Speed", ParamType::LOGF, 0.05f, 4.0f}, // Chorus params
+            {"Depth", ParamType::LINF, 0.0f, 100.0f},
+            {"Delay", ParamType::LOGF, 0.5f, 50.0f}, // Chorus delay
+            {"Phase", ParamType::LINF, 0.0f, 180.0f},
+            {"Wave", ParamType::LINF, 0.0f, 100.0f},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f} // Overall mix
         }
     },
     // 26. Delay / Flanger (D/FL)
     {
         25, -1, "D/FL", std::bitset<6>("010010"), "Delay/Flanger",
         {
-            {"Time", FxParamType::LINF, 1.0f, 3000.0f}, // Delay params
-            {
-                "Pattern", FxParamType::ENUM, 14,
-                {
-                    {0, "1/4"}, {1, "1/3"}, {2, "3/8"}, {3, "1/2"}, {4, "2/3"}, {5, "3/4"}, {6, "1"}, {7, "1/4X"},
-                    {8, "1/3X"}, {9, "3/8X"}, {10, "1/2X"}, {11, "2/3X"}, {12, "3/4X"}, {13, "1X"}
-                }
+            {"Time", ParamType::LINF, 1.0f, 3000.0f}, // Delay params
+            {"Pattern", ParamType::ENUM, 14,
+                {"1/4", "1/3", "3/8", "1/2", "2/3", "3/4", "1", "1/4X", "1/3X", "3/8X", "1/2X", "2/3X", "3/4X", "1X"}
             },
-            {"Feed Hi Cut", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Feedback", FxParamType::LINF, 0.0f, 100.0f},
-            {"Cross Feed", FxParamType::LINF, 0.0f, 100.0f},
-            {"Balance", FxParamType::LINF, -100.0f, 100.0f}, // Balance
-            {"Speed", FxParamType::LOGF, 0.05f, 4.0f}, // Flanger params
-            {"Depth", FxParamType::LINF, 0.0f, 100.0f},
-            {"Delay", FxParamType::LOGF, 0.5f, 20.0f}, // Flanger delay
-            {"Phase", FxParamType::LINF, 0.0f, 180.0f},
-            {"Feed", FxParamType::LINF, -90.0f, 90.0f}, // Flanger feed
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f} // Overall mix
+            {"Feed Hi Cut", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Feedback", ParamType::LINF, 0.0f, 100.0f},
+            {"Cross Feed", ParamType::LINF, 0.0f, 100.0f},
+            {"Balance", ParamType::LINF, -100.0f, 100.0f}, // Balance
+            {"Speed", ParamType::LOGF, 0.05f, 4.0f}, // Flanger params
+            {"Depth", ParamType::LINF, 0.0f, 100.0f},
+            {"Delay", ParamType::LOGF, 0.5f, 20.0f}, // Flanger delay
+            {"Phase", ParamType::LINF, 0.0f, 180.0f},
+            {"Feed", ParamType::LINF, -90.0f, 90.0f}, // Flanger feed
+            {"Mix", ParamType::LINF, 0.0f, 100.0f} // Overall mix
         }
     },
     // 27. Modulation Delay (MODD)
     {
         26, -1, "MODD", std::bitset<6>("010011"), "Modulation Delay",
         {
-            {"Time", FxParamType::LINF, 1.0f, 3000.0f},
-            {"Delay", FxParamType::ENUM, 4, {{0, "1"}, {1, "1/2"}, {2, "2/3"}, {3, "3/2"}}},
+            {"Time", ParamType::LINF, 1.0f, 3000.0f},
+            {"Delay", ParamType::ENUM, 4, {"1", "1/2", "2/3", "3/2"}},
             // PDF p87 has Delay enum [1, 1/2, 2/3, 3/2]
-            {"Feed", FxParamType::LINF, 0.0f, 100.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 200.0f, 20000.0f},
-            {"Depth Rate", FxParamType::LINF, 0.0f, 100.0f}, // PDF p87 typo "Depth Rate" likely means "Depth"
-            {"Rate", FxParamType::LOGF, 0.05f, 10.0f},
-            {"Setup", FxParamType::ENUM, 2, {{0, "PAR"}, {1, "SER"}}},
-            {"Type", FxParamType::ENUM, 3, {{0, "AMB"}, {1, "CLUB"}, {2, "HALL"}}},
-            {"Decay", FxParamType::LINF, 1.0f, 10.0f}, // This seems to be for the Reverb part of Mod Delay
-            {"Damping", FxParamType::LOGF, 1000.0f, 20000.0f},
-            {"Balance", FxParamType::LINF, -100.0f, 100.0f},
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f}
+            {"Feed", ParamType::LINF, 0.0f, 100.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 200.0f, 20000.0f},
+            {"Depth Rate", ParamType::LINF, 0.0f, 100.0f}, // PDF p87 typo "Depth Rate" likely means "Depth"
+            {"Rate", ParamType::LOGF, 0.05f, 10.0f},
+            {"Setup", ParamType::ENUM, 2, {"PAR", "SER"}},
+            {"Type", ParamType::ENUM, 3, {"AMB", "CLUB", "HALL"}},
+            {"Decay", ParamType::LINF, 1.0f, 10.0f}, // This seems to be for the Reverb part of Mod Delay
+            {"Damping", ParamType::LOGF, 1000.0f, 20000.0f},
+            {"Balance", ParamType::LINF, -100.0f, 100.0f},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f}
         }
     },
     // 28. Dual Graphic Equalizer (GEQ2)
@@ -960,108 +995,108 @@ const std::set<Effect> X32Effects = {
     {
         27, 0, "GEQ2", std::bitset<6>("011000"), "Dual Graphic EQ",
         {
-            {"Eq Level A 1 (20Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 2 (25Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 3 (31.5Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 4 (40Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 5 (50Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 6 (63Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 7 (80Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 8 (100Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 9 (125Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 10 (160Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 11 (200Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 12 (250Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 13 (315Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 14 (400Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 15 (500Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 16 (630Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 17 (800Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 18 (1kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 19 (1.25kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 20 (1.6kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 21 (2kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 22 (2.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 23 (3.15kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 24 (4kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 25 (5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 26 (6.3kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 27 (8kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 28 (10kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 29 (12.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 30 (16kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 31 (20kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Master Level A", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 1 (20Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 2 (25Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 3 (31.5Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 4 (40Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 5 (50Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 6 (63Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 7 (80Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 8 (100Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 9 (125Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 10 (160Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 11 (200Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 12 (250Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 13 (315Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 14 (400Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 15 (500Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 16 (630Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 17 (800Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 18 (1kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 19 (1.25kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 20 (1.6kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 21 (2kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 22 (2.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 23 (3.15kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 24 (4kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 25 (5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 26 (6.3kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 27 (8kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 28 (10kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 29 (12.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 30 (16kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 31 (20kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Master Level B", FxParamType::LINF, -15.0f, 15.0f}
+            {"Eq Level A 1 (20Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 2 (25Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 3 (31.5Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 4 (40Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 5 (50Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 6 (63Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 7 (80Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 8 (100Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 9 (125Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 10 (160Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 11 (200Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 12 (250Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 13 (315Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 14 (400Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 15 (500Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 16 (630Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 17 (800Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 18 (1kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 19 (1.25kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 20 (1.6kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 21 (2kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 22 (2.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 23 (3.15kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 24 (4kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 25 (5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 26 (6.3kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 27 (8kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 28 (10kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 29 (12.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 30 (16kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 31 (20kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Master Level A", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 1 (20Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 2 (25Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 3 (31.5Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 4 (40Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 5 (50Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 6 (63Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 7 (80Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 8 (100Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 9 (125Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 10 (160Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 11 (200Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 12 (250Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 13 (315Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 14 (400Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 15 (500Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 16 (630Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 17 (800Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 18 (1kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 19 (1.25kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 20 (1.6kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 21 (2kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 22 (2.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 23 (3.15kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 24 (4kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 25 (5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 26 (6.3kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 27 (8kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 28 (10kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 29 (12.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 30 (16kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 31 (20kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Master Level B", ParamType::LINF, -15.0f, 15.0f}
         }
     },
     // 29. Stereo Graphic Equalizer (GEQ)
     {
         28, 1, "GEQ", std::bitset<6>("010111"), "Stereo Graphic EQ",
         {
-            {"Eq Level 1 (20Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 2 (25Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 3 (31.5Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 4 (40Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 5 (50Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 6 (63Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 7 (80Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 8 (100Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 9 (125Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 10 (160Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 11 (200Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 12 (250Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 13 (315Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 14 (400Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 15 (500Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 16 (630Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 17 (800Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 18 (1kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 19 (1.25kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 20 (1.6kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 21 (2kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 22 (2.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 23 (3.15kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 24 (4kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 25 (5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 26 (6.3kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 27 (8kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 28 (10kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 29 (12.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 30 (16kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 31 (20kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Master Level L/R", FxParamType::LINF, -15.0f, 15.0f}
+            {"Eq Level 1 (20Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 2 (25Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 3 (31.5Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 4 (40Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 5 (50Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 6 (63Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 7 (80Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 8 (100Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 9 (125Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 10 (160Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 11 (200Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 12 (250Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 13 (315Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 14 (400Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 15 (500Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 16 (630Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 17 (800Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 18 (1kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 19 (1.25kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 20 (1.6kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 21 (2kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 22 (2.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 23 (3.15kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 24 (4kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 25 (5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 26 (6.3kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 27 (8kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 28 (10kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 29 (12.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 30 (16kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 31 (20kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Master Level L/R", ParamType::LINF, -15.0f, 15.0f}
         }
     },
     // 30. Dual TrueEQ (TEQ2)
@@ -1069,70 +1104,70 @@ const std::set<Effect> X32Effects = {
         29, 2, "TEQ2", std::bitset<6>("011010"), "Dual TrueEQ",
         {
             // Same parameters as GEQ2
-            {"Eq Level A 1 (20Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 2 (25Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 3 (31.5Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 4 (40Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 5 (50Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 6 (63Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 7 (80Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 8 (100Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 9 (125Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 10 (160Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 11 (200Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 12 (250Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 13 (315Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 14 (400Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 15 (500Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 16 (630Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 17 (800Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 18 (1kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 19 (1.25kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 20 (1.6kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 21 (2kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 22 (2.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 23 (3.15kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 24 (4kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 25 (5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 26 (6.3kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 27 (8kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 28 (10kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 29 (12.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 30 (16kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level A 31 (20kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Master Level A", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 1 (20Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 2 (25Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 3 (31.5Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 4 (40Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 5 (50Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 6 (63Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 7 (80Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 8 (100Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 9 (125Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 10 (160Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 11 (200Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 12 (250Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 13 (315Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 14 (400Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 15 (500Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 16 (630Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 17 (800Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 18 (1kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 19 (1.25kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 20 (1.6kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 21 (2kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 22 (2.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 23 (3.15kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 24 (4kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 25 (5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 26 (6.3kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 27 (8kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 28 (10kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 29 (12.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 30 (16kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level B 31 (20kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Master Level B", FxParamType::LINF, -15.0f, 15.0f}
+            {"Eq Level A 1 (20Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 2 (25Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 3 (31.5Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 4 (40Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 5 (50Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 6 (63Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 7 (80Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 8 (100Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 9 (125Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 10 (160Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 11 (200Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 12 (250Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 13 (315Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 14 (400Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 15 (500Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 16 (630Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 17 (800Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 18 (1kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 19 (1.25kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 20 (1.6kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 21 (2kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 22 (2.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 23 (3.15kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 24 (4kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 25 (5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 26 (6.3kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 27 (8kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 28 (10kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 29 (12.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 30 (16kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level A 31 (20kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Master Level A", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 1 (20Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 2 (25Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 3 (31.5Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 4 (40Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 5 (50Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 6 (63Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 7 (80Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 8 (100Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 9 (125Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 10 (160Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 11 (200Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 12 (250Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 13 (315Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 14 (400Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 15 (500Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 16 (630Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 17 (800Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 18 (1kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 19 (1.25kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 20 (1.6kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 21 (2kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 22 (2.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 23 (3.15kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 24 (4kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 25 (5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 26 (6.3kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 27 (8kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 28 (10kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 29 (12.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 30 (16kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level B 31 (20kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Master Level B", ParamType::LINF, -15.0f, 15.0f}
         }
     },
     // 31. Stereo TrueEQ (TEQ) - Appendix says "Strereo TrueEQ"
@@ -1140,243 +1175,208 @@ const std::set<Effect> X32Effects = {
         30, 3, "TEQ", std::bitset<6>("011001"), "Stereo TrueEQ",
         {
             // Same parameters as GEQ
-            {"Eq Level 1 (20Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 2 (25Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 3 (31.5Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 4 (40Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 5 (50Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 6 (63Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 7 (80Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 8 (100Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 9 (125Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 10 (160Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 11 (200Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 12 (250Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 13 (315Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 14 (400Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 15 (500Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 16 (630Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 17 (800Hz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 18 (1kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 19 (1.25kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 20 (1.6kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 21 (2kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 22 (2.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 23 (3.15kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 24 (4kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 25 (5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 26 (6.3kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 27 (8kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 28 (10kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 29 (12.5kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 30 (16kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Eq Level 31 (20kHz)", FxParamType::LINF, -15.0f, 15.0f},
-            {"Master Level L/R", FxParamType::LINF, -15.0f, 15.0f}
+            {"Eq Level 1 (20Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 2 (25Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 3 (31.5Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 4 (40Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 5 (50Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 6 (63Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 7 (80Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 8 (100Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 9 (125Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 10 (160Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 11 (200Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 12 (250Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 13 (315Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 14 (400Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 15 (500Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 16 (630Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 17 (800Hz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 18 (1kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 19 (1.25kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 20 (1.6kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 21 (2kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 22 (2.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 23 (3.15kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 24 (4kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 25 (5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 26 (6.3kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 27 (8kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 28 (10kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 29 (12.5kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 30 (16kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Eq Level 31 (20kHz)", ParamType::LINF, -15.0f, 15.0f},
+            {"Master Level L/R", ParamType::LINF, -15.0f, 15.0f}
         }
     },
     // 32. Dual DeEsser (DES2)
     {
         31, 4, "DES2", std::bitset<6>("101011"), "Dual DeEsser",
         {
-            {"Lo Band A", FxParamType::LINF, 0.0f, 50.0f},
-            {"Hi Band A", FxParamType::LINF, 0.0f, 50.0f},
-            {"Lo Band B", FxParamType::LINF, 0.0f, 50.0f},
-            {"Hi Band B", FxParamType::LINF, 0.0f, 50.0f},
-            {"Voice A", FxParamType::ENUM, 2, _femMaleEnuMap()},
-            {"Voice B", FxParamType::ENUM, 2, _femMaleEnuMap()}
+            {"Lo Band A", ParamType::LINF, 0.0f, 50.0f},
+            {"Hi Band A", ParamType::LINF, 0.0f, 50.0f},
+            {"Lo Band B", ParamType::LINF, 0.0f, 50.0f},
+            {"Hi Band B", ParamType::LINF, 0.0f, 50.0f},
+            {"Voice A", ParamType::ENUM, 2, femMaleEnuMap()},
+            {"Voice B", ParamType::ENUM, 2, femMaleEnuMap()}
         }
     },
     // 33. Stereo DeEsser (DES)
     {
         32, 5, "DES", std::bitset<6>("101010"), "Stereo DeEsser",
         {
-            {"Lo Band L", FxParamType::LINF, 0.0f, 50.0f},
-            {"Hi Band L", FxParamType::LINF, 0.0f, 50.0f},
-            {"Lo Band R", FxParamType::LINF, 0.0f, 50.0f},
-            {"Hi Band R", FxParamType::LINF, 0.0f, 50.0f},
-            {"Voice", FxParamType::ENUM, 2, _femMaleEnuMap()},
-            {"Mode", FxParamType::ENUM, 2, {{0, "ST"}, {1, "M/S"}}}
+            {"Lo Band L", ParamType::LINF, 0.0f, 50.0f},
+            {"Hi Band L", ParamType::LINF, 0.0f, 50.0f},
+            {"Lo Band R", ParamType::LINF, 0.0f, 50.0f},
+            {"Hi Band R", ParamType::LINF, 0.0f, 50.0f},
+            {"Voice", ParamType::ENUM, 2, femMaleEnuMap()},
+            {"Mode", ParamType::ENUM, 2, {"ST", "M/S"}}
         }
     },
     // 34. Stereo Xtec EQ1 (P1A) - Pultec EQP-1A emulation
     {
         33, 6, "P1A", std::bitset<6>("101100"), "Stereo Xtec EQ1",
         {
-            {"Active", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Gain", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Boost", FxParamType::LINF, 0.0f, 10.0f}, // Range based on typical Pultec behavior (arbitrary units)
-            {"Lo Freq", FxParamType::ENUM, 4, {{0, "0"}, {1, "30"}, {2, "60"}, {3, "100"}}},
+            {"Active", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Gain", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Boost", ParamType::LINF, 0.0f, 10.0f}, // Range based on typical Pultec behavior (arbitrary units)
+            {"Lo Freq", ParamType::ENUM, 4, {"0", "30", "60", "100"}},
             // Assuming 0 is '20Hz' or similar lowest setting
-            {"Mid Width", FxParamType::LINF, 0.0f, 10.0f}, // (Sharp/Broad)
-            {"Mid Boost", FxParamType::LINF, 0.0f, 10.0f}, // Mid band boost
-            {
-                "Mid Freq", FxParamType::ENUM, 7,
-                {{0, "3k"}, {1, "4k"}, {2, "5k"}, {3, "8k"}, {4, "10k"}, {5, "12k"}, {6, "16k"}}
-            },
-            {"Hi Attenuation", FxParamType::LINF, 0.0f, 10.0f}, // Hi shelf atten
-            {"Hi Freq", FxParamType::ENUM, 3, {{0, "5k"}, {1, "10k"}, {2, "20k"}}}, // Hi shelf atten freq
-            {"Transformer", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Mid Width", ParamType::LINF, 0.0f, 10.0f}, // (Sharp/Broad)
+            {"Mid Boost", ParamType::LINF, 0.0f, 10.0f}, // Mid-band boost
+            {"Mid Freq", ParamType::ENUM, 7, {"3k", "4k", "5k", "8k", "10k", "12k", "16k"}},
+            {"Hi Attenuation", ParamType::LINF, 0.0f, 10.0f}, // Hi shelf atten
+            {"Hi Freq", ParamType::ENUM, 3, {"5k", "10k", "20k"}}, // Hi shelf atten freq
+            {"Transformer", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 35. Dual Xtec EQ1 (P1A2)
     {
         34, 7, "P1A2", std::bitset<6>("101101"), "Dual Xtec EQ1",
         {
-            {"Active A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Gain A", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Boost A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Lo Freq A", FxParamType::ENUM, 4, {{0, "0"}, {1, "30"}, {2, "60"}, {3, "100"}}},
-            {"Mid Width A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Mid Boost A", FxParamType::LINF, 0.0f, 10.0f},
-            {
-                "Mid Freq A", FxParamType::ENUM, 7,
-                {{0, "3k"}, {1, "4k"}, {2, "5k"}, {3, "8k"}, {4, "10k"}, {5, "12k"}, {6, "16k"}}
-            },
-            {"Hi Attenuation A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Hi Freq A", FxParamType::ENUM, 3, {{0, "5k"}, {1, "10k"}, {2, "20k"}}},
-            {"Transformer A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Active B", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Gain B", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Boost B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Lo Freq B", FxParamType::ENUM, 4, {{0, "0"}, {1, "30"}, {2, "60"}, {3, "100"}}},
-            {"Mid Width B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Mid Boost B", FxParamType::LINF, 0.0f, 10.0f},
-            {
-                "Mid Freq B", FxParamType::ENUM, 7,
-                {{0, "3k"}, {1, "4k"}, {2, "5k"}, {3, "8k"}, {4, "10k"}, {5, "12k"}, {6, "16k"}}
-            },
-            {"Hi Attenuation B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Hi Freq B", FxParamType::ENUM, 3, {{0, "5k"}, {1, "10k"}, {2, "20k"}}},
-            {"Transformer B", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Active A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Gain A", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Boost A", ParamType::LINF, 0.0f, 10.0f},
+            {"Lo Freq A", ParamType::ENUM, 4, {"0", "30", "60", "100"}},
+            {"Mid Width A", ParamType::LINF, 0.0f, 10.0f},
+            {"Mid Boost A", ParamType::LINF, 0.0f, 10.0f},
+            {"Mid Freq A", ParamType::ENUM, 7, {"3k", "4k", "5k", "8k", "10k", "12k", "16k"}},
+            {"Hi Attenuation A", ParamType::LINF, 0.0f, 10.0f},
+            {"Hi Freq A", ParamType::ENUM, 3, {"5k", "10k", "20k"}},
+            {"Transformer A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Active B", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Gain B", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Boost B", ParamType::LINF, 0.0f, 10.0f},
+            {"Lo Freq B", ParamType::ENUM, 4, {"0", "30", "60", "100"}},
+            {"Mid Width B", ParamType::LINF, 0.0f, 10.0f},
+            {"Mid Boost B", ParamType::LINF, 0.0f, 10.0f},
+            {"Mid Freq B", ParamType::ENUM, 7, {"3k", "4k", "5k", "8k", "10k", "12k", "16k"}},
+            {"Hi Attenuation B", ParamType::LINF, 0.0f, 10.0f},
+            {"Hi Freq B", ParamType::ENUM, 3, {"5k", "10k", "20k"}},
+            {"Transformer B", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 36. Stereo Xtec EQ5 (PQ5) - Pultec MEQ-5 emulation
     {
         35, 8, "PQ5", std::bitset<6>("101110"), "Stereo Xtec EQ5",
         {
-            {"Active", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Gain", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Freq", FxParamType::ENUM, 5, {{0, "200"}, {1, "300"}, {2, "500"}, {3, "700"}, {4, "1000"}}},
+            {"Active", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Gain", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Freq", ParamType::ENUM, 5, {"200", "300", "500", "700", "1000"}},
             // Lo Mid Peak Freq
-            {"Lo Boost", FxParamType::LINF, 0.0f, 10.0f}, // Lo Mid Peak Boost
-            {
-                "Mid Freq", FxParamType::ENUM, 11,
-                {
-                    {0, "200"}, {1, "300"}, {2, "500"}, {3, "700"}, {4, "1k"}, {5, "1k5"}, {6, "2k"}, {7, "3k"},
-                    {8, "4k"}, {9, "5k"}, {10, "7k"}
-                }
-            }, // Mid Dip Freq
-            {"Mid Boost", FxParamType::LINF, 0.0f, 10.0f}, // Mid Dip Atten (param name is Boost but it's Atten)
-            {"Hi Freq", FxParamType::ENUM, 5, {{0, "1k5"}, {1, "2k"}, {2, "3k"}, {3, "4k"}, {4, "5k"}}},
+            {"Lo Boost", ParamType::LINF, 0.0f, 10.0f}, // Lo Mid Peak Boost
+            {"Mid Freq", ParamType::ENUM, 11, {"200", "300", "500", "700", "1k", "1k5", "2k", "3k", "4k", "5k", "7k"}}, // Mid Dip Freq
+            {"Mid Boost", ParamType::LINF, 0.0f, 10.0f}, // Mid Dip Atten (param name is Boost but it's Atten)
+            {"Hi Freq", ParamType::ENUM, 5, {"1k5", "2k", "3k", "4k", "5k"}},
             // Hi Mid Peak Freq
-            {"Hi Boost", FxParamType::LINF, 0.0f, 10.0f}, // Hi Mid Peak Boost
-            {"Transformer", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Hi Boost", ParamType::LINF, 0.0f, 10.0f}, // Hi Mid Peak Boost
+            {"Transformer", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 37. Dual Xtec EQ5 (PQ5S) - PDF has PQ5S, appendix PQ5S
     {
         36, 9, "PQ5S", std::bitset<6>("101111"), "Dual Xtec EQ5",
         {
-            {"Active A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Gain A", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Freq A", FxParamType::ENUM, 5, {{0, "200"}, {1, "300"}, {2, "500"}, {3, "700"}, {4, "1000"}}},
-            {"Lo Boost A", FxParamType::LINF, 0.0f, 10.0f},
-            {
-                "Mid Freq A", FxParamType::ENUM, 11,
-                {
-                    {0, "200"}, {1, "300"}, {2, "500"}, {3, "700"}, {4, "1k"}, {5, "1k5"}, {6, "2k"}, {7, "3k"},
-                    {8, "4k"}, {9, "5k"}, {10, "7k"}
-                }
-            },
-            {"Mid Boost A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Hi Freq A", FxParamType::ENUM, 5, {{0, "1k5"}, {1, "2k"}, {2, "3k"}, {3, "4k"}, {4, "5k"}}},
-            {"Hi Boost A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Transformer A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Active B", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Gain B", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Freq B", FxParamType::ENUM, 5, {{0, "200"}, {1, "300"}, {2, "500"}, {3, "700"}, {4, "1000"}}},
-            {"Lo Boost B", FxParamType::LINF, 0.0f, 10.0f},
-            {
-                "Mid Freq B", FxParamType::ENUM, 11,
-                {
-                    {0, "200"}, {1, "300"}, {2, "500"}, {3, "700"}, {4, "1k"}, {5, "1k5"}, {6, "2k"}, {7, "3k"},
-                    {8, "4k"}, {9, "5k"}, {10, "7k"}
-                }
-            },
-            {"Mid Boost B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Hi Freq B", FxParamType::ENUM, 5, {{0, "1k5"}, {1, "2k"}, {2, "3k"}, {3, "4k"}, {4, "5k"}}},
-            {"Hi Boost B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Transformer B", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Active A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Gain A", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Freq A", ParamType::ENUM, 5, {"200", "300", "500", "700", "1000"}},
+            {"Lo Boost A", ParamType::LINF, 0.0f, 10.0f},
+            {"Mid Freq A", ParamType::ENUM, 11, {"200", "300", "500", "700", "1k", "1k5", "2k", "3k", "4k", "5k", "7k"}},
+            {"Mid Boost A", ParamType::LINF, 0.0f, 10.0f},
+            {"Hi Freq A", ParamType::ENUM, 5, {"1k5", "2k", "3k", "4k", "5k"}},
+            {"Hi Boost A", ParamType::LINF, 0.0f, 10.0f},
+            {"Transformer A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Active B", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Gain B", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Freq B", ParamType::ENUM, 5, {"200", "300", "500", "700", "1000"}},
+            {"Lo Boost B", ParamType::LINF, 0.0f, 10.0f},
+            {"Mid Freq B", ParamType::ENUM, 11, {"200", "300", "500", "700", "1k", "1k5", "2k", "3k", "4k", "5k", "7k"}},
+            {"Mid Boost B", ParamType::LINF, 0.0f, 10.0f},
+            {"Hi Freq B", ParamType::ENUM, 5, {"1k5", "2k", "3k", "4k", "5k"}},
+            {"Hi Boost B", ParamType::LINF, 0.0f, 10.0f},
+            {"Transformer B", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 38. Wave Designer (WAVD) - PDF has WAV, appendix WAVD
     {
         37, 10, "WAVD", std::bitset<6>("011101"), "Wave Designer", // PDF p102 has WAV, appendix p124 has WAVD
         {
-            {"Attack A", FxParamType::LINF, -100.0f, 100.0f},
-            {"Sustain A", FxParamType::LINF, -100.0f, 100.0f},
-            {"Gain A", FxParamType::LINF, -24.0f, 24.0f},
-            {"Attack B", FxParamType::LINF, -100.0f, 100.0f},
-            {"Sustain B", FxParamType::LINF, -100.0f, 100.0f},
-            {"Gain B", FxParamType::LINF, -24.0f, 24.0f}
+            {"Attack A", ParamType::LINF, -100.0f, 100.0f},
+            {"Sustain A", ParamType::LINF, -100.0f, 100.0f},
+            {"Gain A", ParamType::LINF, -24.0f, 24.0f},
+            {"Attack B", ParamType::LINF, -100.0f, 100.0f},
+            {"Sustain B", ParamType::LINF, -100.0f, 100.0f},
+            {"Gain B", ParamType::LINF, -24.0f, 24.0f}
         }
     },
     // 39. Precision Limiter (LIM)
     {
         38, 11, "LIM", std::bitset<6>("011110"), "Precision Limiter",
         {
-            {"Input Gain", FxParamType::LINF, 0.0f, 18.0f},
-            {"Out Gain", FxParamType::LINF, -18.0f, 18.0f},
-            {"Squeeze", FxParamType::LINF, 0.0f, 100.0f},
-            {"Knee", FxParamType::LINF, 0.0f, 10.0f},
-            {"Attack", FxParamType::LOGF, 0.05f, 1.0f},
-            {"Release", FxParamType::LOGF, 20.0f, 2000.0f},
-            {"Stereo Link", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Auto Gain", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Input Gain", ParamType::LINF, 0.0f, 18.0f},
+            {"Out Gain", ParamType::LINF, -18.0f, 18.0f},
+            {"Squeeze", ParamType::LINF, 0.0f, 100.0f},
+            {"Knee", ParamType::LINF, 0.0f, 10.0f},
+            {"Attack", ParamType::LOGF, 0.05f, 1.0f},
+            {"Release", ParamType::LOGF, 20.0f, 2000.0f},
+            {"Stereo Link", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Auto Gain", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 40. Stereo Combinator (CMB)
     {
         39, -1, "CMB", std::bitset<6>("111011"), "Combinator",
         {
-            {"Active", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {
-                "Band Solo", FxParamType::ENUM, 6,
-                {{0, "OFF"}, {1, "Bd1"}, {2, "Bd2"}, {3, "Bd3"}, {4, "Bd4"}, {5, "Bd5"}}
-            },
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f},
-            {"Attack", FxParamType::LINF, 0.0f, 19.0f}, // PDF p92: linf [0...19]
-            {"Release", FxParamType::LOGF, 20.0f, 3000.0f},
-            {"Autorelease", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"SBC speed", FxParamType::LINF, 0.0f, 10.0f},
-            {"SBC ON", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Xover", FxParamType::LINF, -50.0f, 50.0f}, // Crossover Freq Balance
-            {"Xover Slope", FxParamType::ENUM, 2, {{0, "12"}, {1, "48"}}},
-            {
-                "Ratio", FxParamType::ENUM, 14,
-                {
-                    {0, "1.1"}, {1, "1.2"}, {2, "1.3"}, {3, "1.5"}, {4, "1.7"}, {5, "2"}, {6, "2.5"}, {7, "3"},
-                    {8, "3.5"}, {9, "4"}, {10, "5"}, {11, "7"}, {12, "10"}, {13, "LIM"}
-                }
-            },
-            {"Threshold", FxParamType::LINF, -40.0f, 0.0f}, // Overall Threshold
-            {"Gain", FxParamType::LINF, -10.0f, 10.0f}, // Overall Gain
-            {"Band 1 Threshold", FxParamType::LINF, -10.0f, 10.0f}, // Relative Threshold
-            {"Band 1 Gain", FxParamType::LINF, -10.0f, 10.0f}, // Relative Gain
-            {"Band 1 Lock", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}}, // 0=Unlock, 1=Lock
-            {"Band 2 Threshold", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 2 Gain", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 2 Lock", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Band 3 Threshold", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 3 Gain", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 3 Lock", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Band 4 Threshold", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 4 Gain", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 4 Lock", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Band 5 Threshold", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 5 Gain", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 5 Lock", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Meter Mode", FxParamType::ENUM, 3, {{0, "GR"}, {1, "SBC"}, {2, "PEAK"}}}
+            {"Active", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Band Solo", ParamType::ENUM, 6, {"OFF", "Bd1", "Bd2", "Bd3", "Bd4", "Bd5"}},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f},
+            {"Attack", ParamType::LINF, 0.0f, 19.0f}, // PDF p92: linf [0...19]
+            {"Release", ParamType::LOGF, 20.0f, 3000.0f},
+            {"Autorelease", ParamType::ENUM, 2, onOffEnumMap()},
+            {"SBC speed", ParamType::LINF, 0.0f, 10.0f},
+            {"SBC ON", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Xover", ParamType::LINF, -50.0f, 50.0f}, // Crossover Freq Balance
+            {"Xover Slope", ParamType::ENUM, 2, {"12", "48"}},
+            {"Ratio", ParamType::ENUM, 14,
+                {"1.1", "1.2", "1.3", "1.5", "1.7", "2", "2.5", "3", "3.5", "4", "5", "7", "10", "LIM"}},
+            {"Threshold", ParamType::LINF, -40.0f, 0.0f}, // Overall Threshold
+            {"Gain", ParamType::LINF, -10.0f, 10.0f}, // Overall Gain
+            {"Band 1 Threshold", ParamType::LINF, -10.0f, 10.0f}, // Relative Threshold
+            {"Band 1 Gain", ParamType::LINF, -10.0f, 10.0f}, // Relative Gain
+            {"Band 1 Lock", ParamType::ENUM, 2, {"0", "1"}}, // 0=Unlock, 1=Lock
+            {"Band 2 Threshold", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 2 Gain", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 2 Lock", ParamType::ENUM, 2, {"0", "1"}},
+            {"Band 3 Threshold", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 3 Gain", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 3 Lock", ParamType::ENUM, 2, {"0", "1"}},
+            {"Band 4 Threshold", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 4 Gain", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 4 Lock", ParamType::ENUM, 2, {"0", "1"}},
+            {"Band 5 Threshold", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 5 Gain", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 5 Lock", ParamType::ENUM, 2, {"0", "1"}},
+            {"Meter Mode", ParamType::ENUM, 3, {"GR", "SBC", "PEAK"}}
         }
     },
     // 41. Dual Combinator (CMB2) - Parameters are doubled from CMB
@@ -1384,96 +1384,81 @@ const std::set<Effect> X32Effects = {
         40, -1, "CMB2", std::bitset<6>("111100"), "Dual Combinator",
         {
             // Listing only A channel for brevity, B channel would follow
-            {"Active A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {
-                "Band Solo A", FxParamType::ENUM, 6,
-                {{0, "OFF"}, {1, "Bd1"}, {2, "Bd2"}, {3, "Bd3"}, {4, "Bd4"}, {5, "Bd5"}}
+            {"Active A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Band Solo A", ParamType::ENUM, 6, {"OFF", "Bd1", "Bd2", "Bd3", "Bd4", "Bd5"}},
+            {"Mix A", ParamType::LINF, 0.0f, 100.0f},
+            {"Attack A", ParamType::LINF, 0.0f, 19.0f},
+            {"Release A", ParamType::LOGF, 20.0f, 3000.0f},
+            {"Autorelease A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"SBC speed A", ParamType::LINF, 0.0f, 10.0f},
+            {"SBC ON A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Xover A", ParamType::LINF, -50.0f, 50.0f},
+            {"Xover Slope A", ParamType::ENUM, 2, {"12", "48"}},
+            {"Ratio A", ParamType::ENUM, 14,
+                {"1.1", "1.2", "1.3", "1.5", "1.7", "2", "2.5", "3", "3.5", "4", "5", "7", "10", "LIM"}
             },
-            {"Mix A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Attack A", FxParamType::LINF, 0.0f, 19.0f},
-            {"Release A", FxParamType::LOGF, 20.0f, 3000.0f},
-            {"Autorelease A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"SBC speed A", FxParamType::LINF, 0.0f, 10.0f},
-            {"SBC ON A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Xover A", FxParamType::LINF, -50.0f, 50.0f},
-            {"Xover Slope A", FxParamType::ENUM, 2, {{0, "12"}, {1, "48"}}},
-            {
-                "Ratio A", FxParamType::ENUM, 14,
-                {
-                    {0, "1.1"}, {1, "1.2"}, {2, "1.3"}, {3, "1.5"}, {4, "1.7"}, {5, "2"}, {6, "2.5"}, {7, "3"},
-                    {8, "3.5"}, {9, "4"}, {10, "5"}, {11, "7"}, {12, "10"}, {13, "LIM"}
-                }
-            },
-            {"Threshold A", FxParamType::LINF, -40.0f, 0.0f},
-            {"Gain A", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 1 Threshold A", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 1 Gain A", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 1 Lock A", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Band 2 Threshold A", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 2 Gain A", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 2 Lock A", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Band 3 Threshold A", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 3 Gain A", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 3 Lock A", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Band 4 Threshold A", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 4 Gain A", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 4 Lock A", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Band 5 Threshold A", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 5 Gain A", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 5 Lock A", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Meter Mode A", FxParamType::ENUM, 3, {{0, "GR"}, {1, "SBC"}, {2, "PEAK"}}},
+            {"Threshold A", ParamType::LINF, -40.0f, 0.0f},
+            {"Gain A", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 1 Threshold A", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 1 Gain A", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 1 Lock A", ParamType::ENUM, 2, {"0", "1"}},
+            {"Band 2 Threshold A", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 2 Gain A", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 2 Lock A", ParamType::ENUM, 2, {"0", "1"}},
+            {"Band 3 Threshold A", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 3 Gain A", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 3 Lock A", ParamType::ENUM, 2, {"0", "1"}},
+            {"Band 4 Threshold A", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 4 Gain A", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 4 Lock A", ParamType::ENUM, 2, {"0", "1"}},
+            {"Band 5 Threshold A", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 5 Gain A", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 5 Lock A", ParamType::ENUM, 2, {"0", "1"}},
+            {"Meter Mode A", ParamType::ENUM, 3, {"GR", "SBC", "PEAK"}},
             // ... Parameters for Channel B would follow the same pattern
-            {"Active B", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {
-                "Band Solo B", FxParamType::ENUM, 6,
-                {{0, "OFF"}, {1, "Bd1"}, {2, "Bd2"}, {3, "Bd3"}, {4, "Bd4"}, {5, "Bd5"}}
-            },
-            {"Mix B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Attack B", FxParamType::LINF, 0.0f, 19.0f},
-            {"Release B", FxParamType::LOGF, 20.0f, 3000.0f},
-            {"Autorelease B", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"SBC speed B", FxParamType::LINF, 0.0f, 10.0f},
-            {"SBC ON B", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Xover B", FxParamType::LINF, -50.0f, 50.0f},
-            {"Xover Slope B", FxParamType::ENUM, 2, {{0, "12"}, {1, "48"}}},
-            {
-                "Ratio B", FxParamType::ENUM, 14,
-                {
-                    {0, "1.1"}, {1, "1.2"}, {2, "1.3"}, {3, "1.5"}, {4, "1.7"}, {5, "2"}, {6, "2.5"}, {7, "3"},
-                    {8, "3.5"}, {9, "4"}, {10, "5"}, {11, "7"}, {12, "10"}, {13, "LIM"}
-                }
-            },
-            {"Threshold B", FxParamType::LINF, -40.0f, 0.0f},
-            {"Gain B", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 1 Threshold B", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 1 Gain B", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 1 Lock B", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Band 2 Threshold B", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 2 Gain B", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 2 Lock B", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Band 3 Threshold B", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 3 Gain B", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 3 Lock B", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Band 4 Threshold B", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 4 Gain B", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 4 Lock B", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Band 5 Threshold B", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 5 Gain B", FxParamType::LINF, -10.0f, 10.0f},
-            {"Band 5 Lock B", FxParamType::ENUM, 2, {{0, "0"}, {1, "1"}}},
-            {"Meter Mode B", FxParamType::ENUM, 3, {{0, "GR"}, {1, "SBC"}, {2, "PEAK"}}}
+            {"Active B", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Band Solo B", ParamType::ENUM, 6, {"OFF", "Bd1", "Bd2", "Bd3", "Bd4", "Bd5"}},
+            {"Mix B", ParamType::LINF, 0.0f, 100.0f},
+            {"Attack B", ParamType::LINF, 0.0f, 19.0f},
+            {"Release B", ParamType::LOGF, 20.0f, 3000.0f},
+            {"Autorelease B", ParamType::ENUM, 2, onOffEnumMap()},
+            {"SBC speed B", ParamType::LINF, 0.0f, 10.0f},
+            {"SBC ON B", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Xover B", ParamType::LINF, -50.0f, 50.0f},
+            {"Xover Slope B", ParamType::ENUM, 2, {"12", "48"}},
+            {"Ratio B", ParamType::ENUM, 14,
+                {"1.1", "1.2", "1.3", "1.5", "1.7", "2", "2.5", "3", "3.5", "4", "5", "7", "10", "LIM"}},
+            {"Threshold B", ParamType::LINF, -40.0f, 0.0f},
+            {"Gain B", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 1 Threshold B", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 1 Gain B", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 1 Lock B", ParamType::ENUM, 2, {"0", "1"}},
+            {"Band 2 Threshold B", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 2 Gain B", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 2 Lock B", ParamType::ENUM, 2, {"0", "1"}},
+            {"Band 3 Threshold B", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 3 Gain B", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 3 Lock B", ParamType::ENUM, 2, {"0", "1"}},
+            {"Band 4 Threshold B", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 4 Gain B", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 4 Lock B", ParamType::ENUM, 2, {"0", "1"}},
+            {"Band 5 Threshold B", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 5 Gain B", ParamType::LINF, -10.0f, 10.0f},
+            {"Band 5 Lock B", ParamType::ENUM, 2, {"0", "1"}},
+            {"Meter Mode B", ParamType::ENUM, 3, {"GR", "SBC", "PEAK"}}
         }
     },
     // 42. Fair Compressor (FAC)
     {
         41, 12, "FAC", std::bitset<6>("110000"), "Fair Comp",
         {
-            {"Active", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Input Gain", FxParamType::LINF, -20.0f, 20.0f},
-            {"Threshold", FxParamType::LINF, 0.0f, 10.0f}, // Fairchild style threshold/input
-            {"Time", FxParamType::LINF, 0.0f, 6.0f}, // Time constant settings
-            {"Bias", FxParamType::LINF, 0.0f, 100.0f},
-            {"Gain", FxParamType::LINF, -18.0f, 6.0f}, // Output Gain
-            {"Balance", FxParamType::LINF, -100.0f, 100.0f}
+            {"Active", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Input Gain", ParamType::LINF, -20.0f, 20.0f},
+            {"Threshold", ParamType::LINF, 0.0f, 10.0f}, // Fairchild style threshold/input
+            {"Time", ParamType::LINF, 0.0f, 6.0f}, // Time constant settings
+            {"Bias", ParamType::LINF, 0.0f, 100.0f},
+            {"Gain", ParamType::LINF, -18.0f, 6.0f}, // Output Gain
+            {"Balance", ParamType::LINF, -100.0f, 100.0f}
         }
     },
     // 43. M/S Fair Compressor (FAC1M)
@@ -1482,13 +1467,13 @@ const std::set<Effect> X32Effects = {
         {
             // Parameters likely duplicated for Mid and Side, or linked. PDF shows one set.
             // Assuming it means controls for both M and S sections, or global controls for an M/S processed signal
-            {"Active", FxParamType::ENUM, 2, _onOffEnumMap()}, // Global active
-            {"Input Gain", FxParamType::LINF, -20.0f, 20.0f}, // Applied to input before M/S encoding?
-            {"Threshold", FxParamType::LINF, 0.0f, 10.0f}, // For M and S path?
-            {"Time", FxParamType::LINF, 0.0f, 6.0f},
-            {"Bias", FxParamType::LINF, 0.0f, 100.0f},
-            {"Gain", FxParamType::LINF, -18.0f, 6.0f}, // Output Gain after M/S decoding?
-            {"Balance", FxParamType::LINF, -100.0f, 100.0f} // M/S Balance or Stereo Width?
+            {"Active", ParamType::ENUM, 2, onOffEnumMap()}, // Global active
+            {"Input Gain", ParamType::LINF, -20.0f, 20.0f}, // Applied to input before M/S encoding?
+            {"Threshold", ParamType::LINF, 0.0f, 10.0f}, // For M and S path?
+            {"Time", ParamType::LINF, 0.0f, 6.0f},
+            {"Bias", ParamType::LINF, 0.0f, 100.0f},
+            {"Gain", ParamType::LINF, -18.0f, 6.0f}, // Output Gain after M/S decoding?
+            {"Balance", ParamType::LINF, -100.0f, 100.0f} // M/S Balance or Stereo Width?
             // For an actual M/S compressor, you'd expect separate Threshold/Time/Gain for Mid and Side.
             // The PDF is sparse here. Assuming global controls as listed.
         }
@@ -1497,301 +1482,301 @@ const std::set<Effect> X32Effects = {
     {
         43, 14, "FAC2", std::bitset<6>("110010"), "Dual Fair Comp",
         {
-            {"Active A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Input Gain A", FxParamType::LINF, -20.0f, 20.0f},
-            {"Threshold A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Time A", FxParamType::LINF, 0.0f, 6.0f},
-            {"Bias A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Gain A", FxParamType::LINF, -18.0f, 6.0f},
-            {"Balance A", FxParamType::LINF, -100.0f, 100.0f}, // Balance A likely unused for mono channel
-            {"Active B", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Input Gain B", FxParamType::LINF, -20.0f, 20.0f},
-            {"Threshold B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Time B", FxParamType::LINF, 0.0f, 6.0f},
-            {"Bias B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Gain B", FxParamType::LINF, -18.0f, 6.0f},
-            {"Balance B", FxParamType::LINF, -100.0f, 100.0f} // Balance B likely unused for mono channel
+            {"Active A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Input Gain A", ParamType::LINF, -20.0f, 20.0f},
+            {"Threshold A", ParamType::LINF, 0.0f, 10.0f},
+            {"Time A", ParamType::LINF, 0.0f, 6.0f},
+            {"Bias A", ParamType::LINF, 0.0f, 100.0f},
+            {"Gain A", ParamType::LINF, -18.0f, 6.0f},
+            {"Balance A", ParamType::LINF, -100.0f, 100.0f}, // Balance A likely unused for mono channel
+            {"Active B", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Input Gain B", ParamType::LINF, -20.0f, 20.0f},
+            {"Threshold B", ParamType::LINF, 0.0f, 10.0f},
+            {"Time B", ParamType::LINF, 0.0f, 6.0f},
+            {"Bias B", ParamType::LINF, 0.0f, 100.0f},
+            {"Gain B", ParamType::LINF, -18.0f, 6.0f},
+            {"Balance B", ParamType::LINF, -100.0f, 100.0f} // Balance B likely unused for mono channel
         }
     },
     // 45. Leisure Compressor (LEC) - LA-2A Emulation
     {
         44, 15, "LEC", std::bitset<6>("110011"), "Leisure Comp",
         {
-            {"Active", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Gain", FxParamType::LINF, 0.0f, 100.0f}, // Input Gain / Drive
-            {"Peak", FxParamType::LINF, 0.0f, 100.0f}, // Peak Reduction
-            {"Mode", FxParamType::ENUM, 2, {{0, "COMP"}, {1, "LIM"}}}, // Compress or Limit
-            {"Output Gain", FxParamType::LINF, -18.0f, 6.0f} // PDF p96 names this "Gain"
+            {"Active", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Gain", ParamType::LINF, 0.0f, 100.0f}, // Input Gain / Drive
+            {"Peak", ParamType::LINF, 0.0f, 100.0f}, // Peak Reduction
+            {"Mode", ParamType::ENUM, 2, {"COMP", "LIM"}}, // Compress or Limit
+            {"Output Gain", ParamType::LINF, -18.0f, 6.0f} // PDF p96 names this "Gain"
         }
     },
     // 46. Dual Leisure Compressor (LEC2)
     {
         45, 16, "LEC2", std::bitset<6>("110100"), "Dual Leisure Comp",
         {
-            {"Active A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Gain A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Peak A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Mode A", FxParamType::ENUM, 2, {{0, "COMP"}, {1, "LIM"}}},
-            {"Output Gain A", FxParamType::LINF, -18.0f, 6.0f}, // PDF p96 names this "Gain A"
-            {"Active B", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Gain B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Peak B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Mode B", FxParamType::ENUM, 2, {{0, "COMP"}, {1, "LIM"}}},
-            {"Output Gain B", FxParamType::LINF, -18.0f, 6.0f} // PDF p96 names this "Gain B"
+            {"Active A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Gain A", ParamType::LINF, 0.0f, 100.0f},
+            {"Peak A", ParamType::LINF, 0.0f, 100.0f},
+            {"Mode A", ParamType::ENUM, 2, {"COMP", "LIM"}},
+            {"Output Gain A", ParamType::LINF, -18.0f, 6.0f}, // PDF p96 names this "Gain A"
+            {"Active B", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Gain B", ParamType::LINF, 0.0f, 100.0f},
+            {"Peak B", ParamType::LINF, 0.0f, 100.0f},
+            {"Mode B", ParamType::ENUM, 2, {"COMP", "LIM"}},
+            {"Output Gain B", ParamType::LINF, -18.0f, 6.0f} // PDF p96 names this "Gain B"
         }
     },
     // 47. Ultimo Compressor (ULC) - 1176 Emulation
     {
         46, 17, "ULC", std::bitset<6>("110101"), "Ultimo Comp",
         {
-            {"Active", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Input Gain", FxParamType::LINF, -48.0f, 0.0f}, // Range is usually relative on 1176
-            {"Out Gain", FxParamType::LINF, -48.0f, 0.0f}, // Range is usually relative
-            {"Attack", FxParamType::LINF, 1.0f, 7.0f}, // 1176 attack: 1(slow)-7(fast)
-            {"Release", FxParamType::LINF, 1.0f, 7.0f}, // 1176 release: 1(slow)-7(fast)
-            {"Ratio", FxParamType::ENUM, 5, {{0, "4"}, {1, "8"}, {2, "12"}, {3, "20"}, {4, "ALL"}}}
+            {"Active", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Input Gain", ParamType::LINF, -48.0f, 0.0f}, // Range is usually relative on 1176
+            {"Out Gain", ParamType::LINF, -48.0f, 0.0f}, // Range is usually relative
+            {"Attack", ParamType::LINF, 1.0f, 7.0f}, // 1176 attack: 1(slow)-7(fast)
+            {"Release", ParamType::LINF, 1.0f, 7.0f}, // 1176 release: 1(slow)-7(fast)
+            {"Ratio", ParamType::ENUM, 5, {"4", "8", "12", "20", "ALL"}}
         }
     },
     // 48. Dual Ultimo Compressor (ULC2)
     {
         47, 18, "ULC2", std::bitset<6>("110110"), "Dual Ultimo Comp",
         {
-            {"Active A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Input Gain A", FxParamType::LINF, -48.0f, 0.0f},
-            {"Out Gain A", FxParamType::LINF, -48.0f, 0.0f},
-            {"Attack A", FxParamType::LINF, 1.0f, 7.0f},
-            {"Release A", FxParamType::LINF, 1.0f, 7.0f},
-            {"Ratio A", FxParamType::ENUM, 5, {{0, "4"}, {1, "8"}, {2, "12"}, {3, "20"}, {4, "ALL"}}},
-            {"Active B", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Input Gain B", FxParamType::LINF, -48.0f, 0.0f},
-            {"Out Gain B", FxParamType::LINF, -48.0f, 0.0f},
-            {"Attack B", FxParamType::LINF, 1.0f, 7.0f},
-            {"Release B", FxParamType::LINF, 1.0f, 7.0f},
-            {"Ratio B", FxParamType::ENUM, 5, {{0, "4"}, {1, "8"}, {2, "12"}, {3, "20"}, {4, "ALL"}}}
+            {"Active A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Input Gain A", ParamType::LINF, -48.0f, 0.0f},
+            {"Out Gain A", ParamType::LINF, -48.0f, 0.0f},
+            {"Attack A", ParamType::LINF, 1.0f, 7.0f},
+            {"Release A", ParamType::LINF, 1.0f, 7.0f},
+            {"Ratio A", ParamType::ENUM, 5, {"4", "8", "12", "20", "ALL"}},
+            {"Active B", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Input Gain B", ParamType::LINF, -48.0f, 0.0f},
+            {"Out Gain B", ParamType::LINF, -48.0f, 0.0f},
+            {"Attack B", ParamType::LINF, 1.0f, 7.0f},
+            {"Release B", ParamType::LINF, 1.0f, 7.0f},
+            {"Ratio B", ParamType::ENUM, 5, {"4", "8", "12", "20", "ALL"}}
         }
     },
     // 49. Dual Enhancer (ENH2)
     {
         48, 19, "ENH2", std::bitset<6>("100000"), "Dual Enhancer",
         {
-            {"Out Gain A", FxParamType::LINF, -12.0f, 12.0f},
-            {"Speed A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Bass Gain A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Bass Freq A", FxParamType::LINF, 1.0f, 50.0f}, // Units not specified, assume relative
-            {"Mid Gain A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Mid Freq A", FxParamType::LINF, 1.0f, 50.0f},
-            {"Hi Gain A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Hi Freq A", FxParamType::LINF, 1.0f, 50.0f},
-            {"Solo A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Out Gain B", FxParamType::LINF, -12.0f, 12.0f},
-            {"Speed B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Bass Gain B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Bass Freq B", FxParamType::LINF, 1.0f, 50.0f},
-            {"Mid Gain B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Mid Freq B", FxParamType::LINF, 1.0f, 50.0f},
-            {"Hi Gain B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Hi Freq B", FxParamType::LINF, 1.0f, 50.0f},
-            {"Solo B", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Out Gain A", ParamType::LINF, -12.0f, 12.0f},
+            {"Speed A", ParamType::LINF, 0.0f, 100.0f},
+            {"Bass Gain A", ParamType::LINF, 0.0f, 100.0f},
+            {"Bass Freq A", ParamType::LINF, 1.0f, 50.0f}, // Units not specified, assume relative
+            {"Mid Gain A", ParamType::LINF, 0.0f, 100.0f},
+            {"Mid Freq A", ParamType::LINF, 1.0f, 50.0f},
+            {"Hi Gain A", ParamType::LINF, 0.0f, 100.0f},
+            {"Hi Freq A", ParamType::LINF, 1.0f, 50.0f},
+            {"Solo A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Out Gain B", ParamType::LINF, -12.0f, 12.0f},
+            {"Speed B", ParamType::LINF, 0.0f, 100.0f},
+            {"Bass Gain B", ParamType::LINF, 0.0f, 100.0f},
+            {"Bass Freq B", ParamType::LINF, 1.0f, 50.0f},
+            {"Mid Gain B", ParamType::LINF, 0.0f, 100.0f},
+            {"Mid Freq B", ParamType::LINF, 1.0f, 50.0f},
+            {"Hi Gain B", ParamType::LINF, 0.0f, 100.0f},
+            {"Hi Freq B", ParamType::LINF, 1.0f, 50.0f},
+            {"Solo B", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 50. Stereo Enhancer (ENH)
     {
         49, 20, "ENH", std::bitset<6>("011111"), "Stereo Enhancer",
         {
-            {"Out Gain", FxParamType::LINF, -12.0f, 12.0f},
-            {"Speed", FxParamType::LINF, 0.0f, 100.0f},
-            {"Bass Gain", FxParamType::LINF, 0.0f, 100.0f},
-            {"Bass Freq", FxParamType::LINF, 1.0f, 50.0f},
-            {"Mid Gain", FxParamType::LINF, 0.0f, 100.0f},
-            {"Mid Freq", FxParamType::LINF, 1.0f, 50.0f},
-            {"Hi Gain", FxParamType::LINF, 0.0f, 100.0f},
-            {"Hi Freq", FxParamType::LINF, 1.0f, 50.0f},
-            {"Solo", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Out Gain", ParamType::LINF, -12.0f, 12.0f},
+            {"Speed", ParamType::LINF, 0.0f, 100.0f},
+            {"Bass Gain", ParamType::LINF, 0.0f, 100.0f},
+            {"Bass Freq", ParamType::LINF, 1.0f, 50.0f},
+            {"Mid Gain", ParamType::LINF, 0.0f, 100.0f},
+            {"Mid Freq", ParamType::LINF, 1.0f, 50.0f},
+            {"Hi Gain", ParamType::LINF, 0.0f, 100.0f},
+            {"Hi Freq", ParamType::LINF, 1.0f, 50.0f},
+            {"Solo", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 51. Dual Exciter (EXC2)
     {
         50, 21, "EXC2", std::bitset<6>("100010"), "Dual Exciter",
         {
-            {"Tune A", FxParamType::LOGF, 1000.0f, 10000.0f},
-            {"Peak A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Zero Fill A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Timbre A", FxParamType::LINF, -50.0f, 50.0f},
-            {"Harmonics A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Mix A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Solo A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Tune B", FxParamType::LOGF, 1000.0f, 10000.0f},
-            {"Peak B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Zero Fill B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Timbre B", FxParamType::LINF, -50.0f, 50.0f},
-            {"Harmonics B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Mix B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Solo B", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Tune A", ParamType::LOGF, 1000.0f, 10000.0f},
+            {"Peak A", ParamType::LINF, 0.0f, 100.0f},
+            {"Zero Fill A", ParamType::LINF, 0.0f, 100.0f},
+            {"Timbre A", ParamType::LINF, -50.0f, 50.0f},
+            {"Harmonics A", ParamType::LINF, 0.0f, 100.0f},
+            {"Mix A", ParamType::LINF, 0.0f, 100.0f},
+            {"Solo A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Tune B", ParamType::LOGF, 1000.0f, 10000.0f},
+            {"Peak B", ParamType::LINF, 0.0f, 100.0f},
+            {"Zero Fill B", ParamType::LINF, 0.0f, 100.0f},
+            {"Timbre B", ParamType::LINF, -50.0f, 50.0f},
+            {"Harmonics B", ParamType::LINF, 0.0f, 100.0f},
+            {"Mix B", ParamType::LINF, 0.0f, 100.0f},
+            {"Solo B", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 52. Stereo Exciter (EXC)
     {
         51, 22, "EXC", std::bitset<6>("100001"), "Stereo Exciter",
         {
-            {"Tune", FxParamType::LOGF, 1000.0f, 10000.0f},
-            {"Peak", FxParamType::LINF, 0.0f, 100.0f},
-            {"Zero Fill", FxParamType::LINF, 0.0f, 100.0f},
-            {"Timbre", FxParamType::LINF, -50.0f, 50.0f},
-            {"Harmonics", FxParamType::LINF, 0.0f, 100.0f},
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f},
-            {"Solo", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Tune", ParamType::LOGF, 1000.0f, 10000.0f},
+            {"Peak", ParamType::LINF, 0.0f, 100.0f},
+            {"Zero Fill", ParamType::LINF, 0.0f, 100.0f},
+            {"Timbre", ParamType::LINF, -50.0f, 50.0f},
+            {"Harmonics", ParamType::LINF, 0.0f, 100.0f},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f},
+            {"Solo", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 53. Stereo Imager (IMG)
     {
         52, 23, "IMG", std::bitset<6>("100111"), "Stereo Imager",
         {
-            {"Balance", FxParamType::LINF, -100.0f, 100.0f},
-            {"Mono Pan", FxParamType::LINF, -100.0f, 100.0f},
-            {"Stereo Pan", FxParamType::LINF, -100.0f, 100.0f},
-            {"Shv Gain", FxParamType::LINF, 0.0f, 12.0f}, // Shelving Filter Gain
-            {"Shv Freq", FxParamType::LOGF, 100.0f, 1000.0f}, // Shelving Filter Freq
-            {"Shv Q", FxParamType::LOGF, 1.0f, 10.0f}, // Shelving Filter Q
-            {"Out Gain", FxParamType::LINF, -12.0f, 12.0f}
+            {"Balance", ParamType::LINF, -100.0f, 100.0f},
+            {"Mono Pan", ParamType::LINF, -100.0f, 100.0f},
+            {"Stereo Pan", ParamType::LINF, -100.0f, 100.0f},
+            {"Shv Gain", ParamType::LINF, 0.0f, 12.0f}, // Shelving Filter Gain
+            {"Shv Freq", ParamType::LOGF, 100.0f, 1000.0f}, // Shelving Filter Freq
+            {"Shv Q", ParamType::LOGF, 1.0f, 10.0f}, // Shelving Filter Q
+            {"Out Gain", ParamType::LINF, -12.0f, 12.0f}
         }
     },
     // 54. Edison EX1 (EDI)
     {
         53, 24, "EDI", std::bitset<6>("111000"), "Edison EX1",
         {
-            {"Active", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Stereo Input", FxParamType::ENUM, 2, {{0, "ST"}, {1, "M/S"}}},
-            {"Stereo Output", FxParamType::ENUM, 2, {{0, "ST"}, {1, "M/S"}}},
-            {"ST Spread", FxParamType::LINF, -50.0f, 50.0f},
-            {"LMF Spread", FxParamType::LINF, -50.0f, 50.0f}, // Low-Mid Frequency Spread
-            {"Balance", FxParamType::LINF, -50.0f, 50.0f},
-            {"Center Distance", FxParamType::LINF, -50.0f, 50.0f},
-            {"Out Gain", FxParamType::LINF, -12.0f, 12.0f}
+            {"Active", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Stereo Input", ParamType::ENUM, 2, {"ST", "M/S"}},
+            {"Stereo Output", ParamType::ENUM, 2, {"ST", "M/S"}},
+            {"ST Spread", ParamType::LINF, -50.0f, 50.0f},
+            {"LMF Spread", ParamType::LINF, -50.0f, 50.0f}, // Low-Mid Frequency Spread
+            {"Balance", ParamType::LINF, -50.0f, 50.0f},
+            {"Center Distance", ParamType::LINF, -50.0f, 50.0f},
+            {"Out Gain", ParamType::LINF, -12.0f, 12.0f}
         }
     },
     // 55. Sound Maxer (SON) - Sonic Maximizer type effect
     {
         54, 25, "SON", std::bitset<6>("110111"), "Sound Maxer",
         {
-            {"Active A", FxParamType::ENUM, 2, _onOffEnumMap()}, // Assuming Dual Mono (A/B)
-            {"Lo Contour A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Process A", FxParamType::LINF, 0.0f, 10.0f}, // Hi Contour / Process
-            {"Out Gain A", FxParamType::LINF, -12.0f, 12.0f},
-            {"Active B", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Lo Contour B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Process B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Out Gain B", FxParamType::LINF, -12.0f, 12.0f}
+            {"Active A", ParamType::ENUM, 2, onOffEnumMap()}, // Assuming Dual Mono (A/B)
+            {"Lo Contour A", ParamType::LINF, 0.0f, 10.0f},
+            {"Process A", ParamType::LINF, 0.0f, 10.0f}, // Hi Contour / Process
+            {"Out Gain A", ParamType::LINF, -12.0f, 12.0f},
+            {"Active B", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Lo Contour B", ParamType::LINF, 0.0f, 10.0f},
+            {"Process B", ParamType::LINF, 0.0f, 10.0f},
+            {"Out Gain B", ParamType::LINF, -12.0f, 12.0f}
         }
     },
     // 56. Dual Guitar Amp (AMP2)
     {
         55, 26, "AMP2", std::bitset<6>("100100"), "Dual Guitar Amp",
         {
-            {"Preamp A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Buzz A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Punch A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Crunch A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Drive A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Low A", FxParamType::LINF, 0.0f, 10.0f},
-            {"High A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Level A", FxParamType::LINF, 0.0f, 10.0f},
-            {"Cabinet A", FxParamType::ENUM, 2, _onOffEnumMap()},
-            {"Preamp B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Buzz B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Punch B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Crunch B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Drive B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Low B", FxParamType::LINF, 0.0f, 10.0f},
-            {"High B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Level B", FxParamType::LINF, 0.0f, 10.0f},
-            {"Cabinet B", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Preamp A", ParamType::LINF, 0.0f, 10.0f},
+            {"Buzz A", ParamType::LINF, 0.0f, 10.0f},
+            {"Punch A", ParamType::LINF, 0.0f, 10.0f},
+            {"Crunch A", ParamType::LINF, 0.0f, 10.0f},
+            {"Drive A", ParamType::LINF, 0.0f, 10.0f},
+            {"Low A", ParamType::LINF, 0.0f, 10.0f},
+            {"High A", ParamType::LINF, 0.0f, 10.0f},
+            {"Level A", ParamType::LINF, 0.0f, 10.0f},
+            {"Cabinet A", ParamType::ENUM, 2, onOffEnumMap()},
+            {"Preamp B", ParamType::LINF, 0.0f, 10.0f},
+            {"Buzz B", ParamType::LINF, 0.0f, 10.0f},
+            {"Punch B", ParamType::LINF, 0.0f, 10.0f},
+            {"Crunch B", ParamType::LINF, 0.0f, 10.0f},
+            {"Drive B", ParamType::LINF, 0.0f, 10.0f},
+            {"Low B", ParamType::LINF, 0.0f, 10.0f},
+            {"High B", ParamType::LINF, 0.0f, 10.0f},
+            {"Level B", ParamType::LINF, 0.0f, 10.0f},
+            {"Cabinet B", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 57. Stereo Guitar Amp (AMP)
     {
         56, 27, "AMP", std::bitset<6>("100011"), "Stereo Guitar Amp",
         {
-            {"Preamp", FxParamType::LINF, 0.0f, 10.0f},
-            {"Buzz", FxParamType::LINF, 0.0f, 10.0f},
-            {"Punch", FxParamType::LINF, 0.0f, 10.0f},
-            {"Crunch", FxParamType::LINF, 0.0f, 10.0f},
-            {"Drive", FxParamType::LINF, 0.0f, 10.0f},
-            {"Low", FxParamType::LINF, 0.0f, 10.0f},
-            {"High", FxParamType::LINF, 0.0f, 10.0f},
-            {"Level", FxParamType::LINF, 0.0f, 10.0f},
-            {"Cabinet", FxParamType::ENUM, 2, _onOffEnumMap()}
+            {"Preamp", ParamType::LINF, 0.0f, 10.0f},
+            {"Buzz", ParamType::LINF, 0.0f, 10.0f},
+            {"Punch", ParamType::LINF, 0.0f, 10.0f},
+            {"Crunch", ParamType::LINF, 0.0f, 10.0f},
+            {"Drive", ParamType::LINF, 0.0f, 10.0f},
+            {"Low", ParamType::LINF, 0.0f, 10.0f},
+            {"High", ParamType::LINF, 0.0f, 10.0f},
+            {"Level", ParamType::LINF, 0.0f, 10.0f},
+            {"Cabinet", ParamType::ENUM, 2, onOffEnumMap()}
         }
     },
     // 58. Dual Tube Stage (DRV2)
     {
         57, 28, "DRV2", std::bitset<6>("100110"), "Dual Tube Stage",
         {
-            {"Drive A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Even Ear A", FxParamType::LINF, 0.0f, 50.0f}, // Even Harmonics
-            {"Odd Ear A", FxParamType::LINF, 0.0f, 50.0f}, // Odd Harmonics
-            {"Gain A", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut A", FxParamType::LOGF, 20.0f, 200.0f},
-            {"Hi Cut A", FxParamType::LOGF, 4000.0f, 20000.0f},
-            {"Lo Gain A", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Freq A", FxParamType::LOGF, 50.0f, 400.0f},
-            {"Hi Gain A", FxParamType::LINF, -12.0f, 12.0f},
-            {"Hi Freq A", FxParamType::LOGF, 1000.0f, 10000.0f},
-            {"Drive B", FxParamType::LINF, 0.0f, 100.0f},
-            {"Even Ear B", FxParamType::LINF, 0.0f, 50.0f},
-            {"Odd Ear B", FxParamType::LINF, 0.0f, 50.0f},
-            {"Gain B", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut B", FxParamType::LOGF, 20.0f, 200.0f},
-            {"Hi Cut B", FxParamType::LOGF, 4000.0f, 20000.0f},
-            {"Lo Gain B", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Freq B", FxParamType::LOGF, 50.0f, 400.0f},
-            {"Hi Gain B", FxParamType::LINF, -12.0f, 12.0f},
-            {"Hi Freq B", FxParamType::LOGF, 1000.0f, 10000.0f}
+            {"Drive A", ParamType::LINF, 0.0f, 100.0f},
+            {"Even Ear A", ParamType::LINF, 0.0f, 50.0f}, // Even Harmonics
+            {"Odd Ear A", ParamType::LINF, 0.0f, 50.0f}, // Odd Harmonics
+            {"Gain A", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut A", ParamType::LOGF, 20.0f, 200.0f},
+            {"Hi Cut A", ParamType::LOGF, 4000.0f, 20000.0f},
+            {"Lo Gain A", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Freq A", ParamType::LOGF, 50.0f, 400.0f},
+            {"Hi Gain A", ParamType::LINF, -12.0f, 12.0f},
+            {"Hi Freq A", ParamType::LOGF, 1000.0f, 10000.0f},
+            {"Drive B", ParamType::LINF, 0.0f, 100.0f},
+            {"Even Ear B", ParamType::LINF, 0.0f, 50.0f},
+            {"Odd Ear B", ParamType::LINF, 0.0f, 50.0f},
+            {"Gain B", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut B", ParamType::LOGF, 20.0f, 200.0f},
+            {"Hi Cut B", ParamType::LOGF, 4000.0f, 20000.0f},
+            {"Lo Gain B", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Freq B", ParamType::LOGF, 50.0f, 400.0f},
+            {"Hi Gain B", ParamType::LINF, -12.0f, 12.0f},
+            {"Hi Freq B", ParamType::LOGF, 1000.0f, 10000.0f}
         }
     },
     // 59. Stereo Tube Stage (DRV)
     {
         58, 29, "DRV", std::bitset<6>("100101"), "Stereo Tube Stage",
         {
-            {"Drive", FxParamType::LINF, 0.0f, 100.0f},
-            {"Even Ear", FxParamType::LINF, 0.0f, 50.0f},
-            {"Odd Ear", FxParamType::LINF, 0.0f, 50.0f},
-            {"Gain", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Cut", FxParamType::LOGF, 20.0f, 200.0f},
-            {"Hi Cut", FxParamType::LOGF, 4000.0f, 20000.0f},
-            {"Lo Gain", FxParamType::LINF, -12.0f, 12.0f},
-            {"Lo Freq", FxParamType::LOGF, 50.0f, 400.0f},
-            {"Hi Gain", FxParamType::LINF, -12.0f, 12.0f},
-            {"Hi Freq", FxParamType::LOGF, 1000.0f, 10000.0f}
+            {"Drive", ParamType::LINF, 0.0f, 100.0f},
+            {"Even Ear", ParamType::LINF, 0.0f, 50.0f},
+            {"Odd Ear", ParamType::LINF, 0.0f, 50.0f},
+            {"Gain", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Cut", ParamType::LOGF, 20.0f, 200.0f},
+            {"Hi Cut", ParamType::LOGF, 4000.0f, 20000.0f},
+            {"Lo Gain", ParamType::LINF, -12.0f, 12.0f},
+            {"Lo Freq", ParamType::LOGF, 50.0f, 400.0f},
+            {"Hi Gain", ParamType::LINF, -12.0f, 12.0f},
+            {"Hi Freq", ParamType::LOGF, 1000.0f, 10000.0f}
         }
     },
     // 60. Dual Pitch Shifter (PIT2)
     {
         59, -1, "PIT2", std::bitset<6>("001101"), "Dual Pitch Shifter",
         {
-            {"Semitone A", FxParamType::LINF, -12.0f, 12.0f},
-            {"Cent A", FxParamType::LINF, -50.0f, 50.0f},
-            {"Delay A", FxParamType::LOGF, 1.0f, 100.0f},
-            {"Lo Cut A", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut A", FxParamType::LOGF, 2000.0f, 20000.0f},
-            {"Mix A", FxParamType::LINF, 0.0f, 100.0f},
-            {"Semitone B", FxParamType::LINF, -12.0f, 12.0f},
-            {"Cent B", FxParamType::LINF, -50.0f, 50.0f},
-            {"Delay B", FxParamType::LOGF, 1.0f, 100.0f},
-            {"Lo Cut B", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut B", FxParamType::LOGF, 2000.0f, 20000.0f},
-            {"Mix B", FxParamType::LINF, 0.0f, 100.0f}
+            {"Semitone A", ParamType::LINF, -12.0f, 12.0f},
+            {"Cent A", ParamType::LINF, -50.0f, 50.0f},
+            {"Delay A", ParamType::LOGF, 1.0f, 100.0f},
+            {"Lo Cut A", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut A", ParamType::LOGF, 2000.0f, 20000.0f},
+            {"Mix A", ParamType::LINF, 0.0f, 100.0f},
+            {"Semitone B", ParamType::LINF, -12.0f, 12.0f},
+            {"Cent B", ParamType::LINF, -50.0f, 50.0f},
+            {"Delay B", ParamType::LOGF, 1.0f, 100.0f},
+            {"Lo Cut B", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut B", ParamType::LOGF, 2000.0f, 20000.0f},
+            {"Mix B", ParamType::LINF, 0.0f, 100.0f}
         }
     },
     // 61. Stereo Pitch Shifter (PIT)
     {
         60, -1, "PIT", std::bitset<6>("001100"), "Stereo Pitch",
         {
-            {"Semitone", FxParamType::LINF, -12.0f, 12.0f},
-            {"Cent", FxParamType::LINF, -50.0f, 50.0f},
-            {"Delay", FxParamType::LOGF, 1.0f, 100.0f},
-            {"Lo Cut", FxParamType::LOGF, 10.0f, 500.0f},
-            {"Hi Cut", FxParamType::LOGF, 2000.0f, 20000.0f},
-            {"Mix", FxParamType::LINF, 0.0f, 100.0f}
+            {"Semitone", ParamType::LINF, -12.0f, 12.0f},
+            {"Cent", ParamType::LINF, -50.0f, 50.0f},
+            {"Delay", ParamType::LOGF, 1.0f, 100.0f},
+            {"Lo Cut", ParamType::LOGF, 10.0f, 500.0f},
+            {"Hi Cut", ParamType::LOGF, 2000.0f, 20000.0f},
+            {"Mix", ParamType::LINF, 0.0f, 100.0f}
         }
     }
 };
