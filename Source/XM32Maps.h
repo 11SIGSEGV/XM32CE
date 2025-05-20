@@ -367,11 +367,15 @@ enum ParamType {
 
 struct ValueStorer {
     // When Enum or Int:
-    int intValue;
+    int intValue {};
     // When Float or Level:
-    float floatValue;
+    float floatValue {};
     // When String, Bitset or Option
-    std::string stringValue;
+    std::string stringValue {};
+
+    ValueStorer(int intValue): intValue(intValue) {}
+    ValueStorer(float floatValue): floatValue(floatValue) {}
+    ValueStorer(const std::string &stringValue): stringValue(stringValue) {}
 };
 
 
@@ -403,6 +407,15 @@ struct EnumParam {
         name(name), verboseName(verboseName), description(description), value(value) {}
 };
 
+
+static std::string stringFromBoolVector(const std::vector<bool> boolVector ) {
+    std::stringstream ss;
+    for (const auto& b : boolVector) {
+        ss << (b ? '1' : '0');
+    }
+    return ss.str();
+}
+
 // Includes std::string, float and int
 struct NonIter {
     const std::string name;
@@ -410,9 +423,9 @@ struct NonIter {
     const std::string description;
     const int defaultIntValue {};
     // For intMin and intMax:
-        // When int, range.
-        // When string, length.
-        // When bitset, length of bitset (hence intMin == intMax).
+    // When int, range.
+    // When string, length.
+    // When bitset, length of bitset (hence intMin == intMax).
     const int intMin {}; // Min/maxes are all inclusive
     const int intMax {};
 
@@ -426,65 +439,47 @@ struct NonIter {
 
     const ParamType _meta_PARAMTYPE;
 
+    // Integer
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const int value,
         const int minVal = std::numeric_limits<int>::min(), const int maxVal = std::numeric_limits<int>::max()):
     name(name), verboseName(verboseName), description(description), defaultIntValue(value),
     _meta_PARAMTYPE(ParamType::INT), intMin(minVal), intMax(maxVal) {}
 
+    // Bitset
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description,
-        const std::string value):
+        const std::vector<bool> &value):
     name(name), verboseName(verboseName), description(description),
-    defaultStringValue(value), intMin(value.length()), intMax(value.length()), _meta_PARAMTYPE(ParamType::BITSET) {}
+    defaultStringValue(stringFromBoolVector(value)), intMin(value.size()), intMax(value.size()), _meta_PARAMTYPE(ParamType::BITSET) {}
 
-    NonIter(const std::string &name, const std::string &verboseName, const float value, const std::string &description,
-        const bool isLinear, const float minVal = std::numeric_limits<float>::min(), const float maxVal = std::numeric_limits<float>::max()):
-    name(name), verboseName(verboseName), description(description), defaultFloatValue(value),
-    _meta_PARAMTYPE(isLinear ? ParamType::LINF : ParamType:: LOGF),
-    floatMin(minVal), floatMax(maxVal) {}
+    // LINF, LOGF, LEVEL_1024, LEVEL_161
+    NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const float value,
+        const ParamType type, const float minVal = std::numeric_limits<float>::min(), const float maxVal = std::numeric_limits<float>::max()):
+    name(name), verboseName(verboseName), description(description), defaultFloatValue(value), _meta_PARAMTYPE(type),
+    floatMin((type == ParamType::LEVEL_161 || type == ParamType::LEVEL_1024) ? 0.f : minVal), floatMax((type == ParamType::LEVEL_161 || type == ParamType::LEVEL_1024) ? 1.f : maxVal) {}
 
-    NonIter(const std::string &name, const std::string &verboseName, const std::string &value, const std::string &description,
+
+    // String
+    NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const std::string &value,
         const int minLen = 0, const int maxLen = -1):
     name(name), verboseName(verboseName), description(description), defaultStringValue(value),
     _meta_PARAMTYPE(ParamType::STRING), intMin(minLen), intMax(maxLen) {}
-};
 
-struct LevelParam {
-    // Level Param stored as float (0.0 - 1.0). Converted to dB when needed.
-    const std::string name;
-    const std::string verboseName;
-    const std::string description;
 
-    const float defaultValue;
-    const ParamType _meta_PARAMTYPE;
-
-    LevelParam(const std::string &name, const std::string &verboseName, const std::string &description,
-        const float value, const bool use161InsteadOf1024Values = false):
-    name(name), verboseName(verboseName), description(description), defaultValue(value),
-    _meta_PARAMTYPE(use161InsteadOf1024Values ? ParamType::LEVEL_161 : ParamType::LEVEL_1024) {}
 };
 
 
 
 typedef std::vector<std::variant<std::string, OptionParam, EnumParam, NonIter>> ArgumentEmbeddedPath;
-typedef std::variant<OptionParam, NonIter, LevelParam> OSCMessageArguments;
-typedef std::unordered_map<ArgumentEmbeddedPath, std::vector<OSCMessageArguments>> PathToArgumentMap;
+typedef std::vector<ValueStorer> ValueStorerArray;
+typedef std::variant<OptionParam, NonIter, EnumParam> OSCMessageArguments;
+typedef std::unordered_map<ArgumentEmbeddedPath*, std::vector<OSCMessageArguments>> PathToArgumentMap;
+
 
 // An example. This assumes const std::string& basePath = "/ch".
 // inline std::set<std::variant<std::string, OptionParam, EnumParam, NonIter>> channelFader = {
 //     NonIter("channel", 1, 1, 32), "/mix/fader"};
 
-// Used when an argument is included in the actual OSC Path itself.
-class PathWithEmbeddedArguments {
-public:
-    // An example path would be:
-    PathWithEmbeddedArguments(const std::string& basePath,
-        PathToArgumentMap acceptedPaths):
-    BASE_PATH(basePath), ACCEPTED_PATHS(std::move(acceptedPaths)) {}
 
-private:
-    const OSCAddress BASE_PATH;
-    const PathToArgumentMap ACCEPTED_PATHS;
-};
 
 
 

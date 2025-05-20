@@ -20,13 +20,14 @@ struct OSCDevice {
 
 
 
-
-
 class OSCDeviceSender {
 public:
-    OSCDeviceSender(OSCDevice device);
-    OSCDeviceSender(String &ipAddress, String &port, String &deviceName);
-    OSCDeviceSender(String &ipAddress, int port, String &deviceName);
+    OSCDeviceSender(const String &ipAddress, const String &port, const String &deviceName);
+
+    OSCDeviceSender(const String &ipAddress, int port, const String &deviceName);
+
+    explicit OSCDeviceSender(OSCDevice device);
+
 
     /* Attempts to connect to OSC Device. If the connection is successful, it returns true. Otherwise, returns false.*/
     bool connect();
@@ -39,6 +40,19 @@ public:
     //     OSCMessage message(path, std::forward<Arg1>(arg1), std::forward<Args>(args)...);
     //     return oscSender.send(message);
     // }
+
+    // Converts argument embedded path and arguments into actual message
+    static OSCMessage messageFromArgumentEmbeddedPathAndOSCMessageArguments(
+        ArgumentEmbeddedPath &path,
+        ValueStorerArray &pathArgumentValues,
+        std::vector<OSCArgument> &arguments,
+        ValueStorerArray &argumentValues);
+
+    // Accepts path with embedded arguments, then using provided argument values, fills in the path in preparation to be sent.
+    static String fillInArgumentsOfEmbeddedPath(ArgumentEmbeddedPath &path, ValueStorerArray &pthArgVal);
+
+    // Accepts Vector of Expected Arguments (i.e., templates) and Vector of ValueStore.
+    static std::vector<OSCArgument> compileOSCArguments(std::vector<OSCMessageArguments> &args, ValueStorerArray &argVals);
 
 
     ~OSCDeviceSender();

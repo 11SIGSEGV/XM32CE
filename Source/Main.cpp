@@ -18,28 +18,20 @@ public:
 
     //==============================================================================
     XM32CEApplication() {
-        // tests();
+        tests();
     }
 
     void tests() {
+        ArgumentEmbeddedPath sampleArgumentEmbeddedPath = {"/ch/", NonIter("chNum", "Channel Number", "Number of the Channel", 1, 1, 32), "/mix/fader"};
+        ValueStorerArray sampleArgumentValues = {ValueStorer(2)};
+        std::vector<OSCMessageArguments> test = {NonIter("chFdr", "Channel Fader", "Fader Level for a Channel", 0.f, ParamType::LEVEL_1024, 0.f, 1.f),};
+        PathToArgumentMap samplePathToArgumentMap = {{&sampleArgumentEmbeddedPath, test}};
+        ValueStorerArray sampleValueStorerArray = {ValueStorer(.5f)};
+        OSCDeviceSender oscDevice = OSCDeviceSender {String("192.168.1.100"), 20023, String("Test")};
+        auto tetCompiliation = oscDevice.compileOSCArguments(test, sampleValueStorerArray);
+        auto testPathComp = oscDevice.fillInArgumentsOfEmbeddedPath(sampleArgumentEmbeddedPath, sampleArgumentValues);
 
-        /*
-        std::cout << XM32::roundToNearest(15000.f, logScaleFreq_121) << std::endl;
-        std::cout << XM32::roundToNearest(15000.f, logScaleFreq_201) << std::endl;
-        std::cout << XM32::roundToNearest(20.f, logScaleFreq_201) << std::endl;
-        std::cout << XM32::roundToNearest(10.f, logScaleFreq_201) << std::endl;
-        std::cout << XM32::roundToNearest(20000.f, logScaleFreq_201) << std::endl;
-        std::cout << XM32::roundToNearest(21000.f, logScaleFreq_201) << std::endl;
-        std::cout << XM32::roundToNearest(10.f, qFactors) << std::endl;
-        std::cout << XM32::roundToNearest(0.2f, qFactors) << std::endl;
-        std::cout << XM32::roundToNearest(5.4f, qFactors) << std::endl;
-        std::cout << XM32::roundToNearest(250.3f, hold) << std::endl;
-        std::cout << XM32::roundToNearest(200, release) << std::endl;
-        std::cout << XM32::roundToNearest(-83.f, levelValues_161) << std::endl;
-        std::cout << XM32::roundToNearest(-900.f, levelValues_161) << std::endl;
-        std::cout << XM32::roundToNearest(3.4f, levelValues_161) << std::endl;
-        std::cout << XM32::roundToNearest(4.f, rtaDecay) << std::endl;
-        */
+
     }
 
     const String getApplicationName() override       { return ProjectInfo::projectName; }
