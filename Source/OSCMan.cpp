@@ -60,7 +60,7 @@ OSCDeviceSender::OSCDeviceSender(const String &ipAddress, int port, const String
     this->deviceName = deviceName;
 }
 
-OSCMessage OSCDeviceSender::messageFromArgumentEmbeddedPathAndOSCMessageArguments(ArgumentEmbeddedPath &path, std::vector<ValueStorer> &pathArgumentValues, std::vector<OSCArgument> &arguments, std::vector<ValueStorer> &argumentValues) {
+OSCMessage OSCDeviceSender::compileMessageFromArgumentEmbeddedPathAndOSCMessageArguments(ArgumentEmbeddedPath &path, std::vector<ValueStorer> &pathArgumentValues, std::vector<OSCArgument> &arguments, std::vector<ValueStorer> &argumentValues) {
     /*This function will first form the path from the ArgumentEmbeddedPath using the values provided by the vector of ValueStorers
      *Then, using the list of message arguments expected, the function will format and correctly cast the appropriate
      *type to prepare for the OSC messsage to be sent.
@@ -153,7 +153,12 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(ArgumentEmbeddedPath &path
 
     // Being by checks. Find number of in-path arguments.
     int argIndx { 0 };
+    const int pathArgValsSize = pthArgVal.size();
     for (size_t i = 0; i < path.size(); ++i) {
+        // First, check if path[i] exists, or if it's out of range
+        if (argIndx >= pathArgValsSize) {
+            throw std::out_of_range("Path argument index out of range");
+        }
         if (auto *strVal = std::get_if<std::string>(&path[i])) {
             // If it's a string, append it directly
             finalString += String(*strVal);
@@ -198,14 +203,6 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(ArgumentEmbeddedPath &path
                     finalString += String(pthArgVal[argIndx].intValue);
                     break;
                 }
-                case ParamType::LINF: case ParamType::LOGF: {
-                    if (nonIter->floatMin > pthArgVal[argIndx].floatValue ||
-                        nonIter->floatMax < pthArgVal[argIndx].floatValue) {
-                        throw std::out_of_range("Float value out of range");
-                    }
-                    finalString += String(pthArgVal[argIndx].floatValue);
-                    break;
-                }
                 case ParamType::STRING: {
                     // Check string length limitations and append
                     // Remember, intMax and intMin are the max and min length of the string
@@ -228,6 +225,7 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(ArgumentEmbeddedPath &path
                     break;
                 }
                 default:
+                    // Float not included in switch-case - should NEVER be used in Embedded Path Argument
                     throw std::invalid_argument("Unsupported ParamType for NonIter Parameter Template in Embedded Path");
             }
             ++argIndx;
@@ -236,6 +234,13 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(ArgumentEmbeddedPath &path
         else
             throw std::invalid_argument("Unable to cast variant to valid parameter type for in-path arguments");
     }
+
+    // Check number of arguments was the same as the number of arguments in the path
+    // No need for argIndx + 1, as it should have been incremented in the loop (i.e., incremeted after it was used, even if never used again)
+    if (argIndx != pathArgValsSize) {
+        DBG("Number of arguments in path and number of arguments provided do not match");
+    }
+
     return finalString;
 }
 

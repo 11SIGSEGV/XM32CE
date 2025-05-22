@@ -22,14 +22,83 @@ public:
     }
 
     void tests() {
+        testTooManyArguments();
+        testOSCMessageArgumentCompiler();
+        /*
         ArgumentEmbeddedPath sampleArgumentEmbeddedPath = {"/ch/", NonIter("chNum", "Channel Number", "Number of the Channel", 1, 1, 32), "/mix/fader"};
         ValueStorerArray sampleArgumentValues = {ValueStorer(2)};
         std::vector<OSCMessageArguments> test = {NonIter("chFdr", "Channel Fader", "Fader Level for a Channel", 0.f, ParamType::LEVEL_1024, 0.f, 1.f),};
         PathToArgumentMap samplePathToArgumentMap = {{&sampleArgumentEmbeddedPath, test}};
         ValueStorerArray sampleValueStorerArray = {ValueStorer(.5f)};
-        OSCDeviceSender oscDevice = OSCDeviceSender {String("192.168.1.100"), 20023, String("Test")};
-        auto tetCompiliation = oscDevice.compileOSCArguments(test, sampleValueStorerArray);
-        auto testPathComp = oscDevice.fillInArgumentsOfEmbeddedPath(sampleArgumentEmbeddedPath, sampleArgumentValues);
+        auto tetCompiliation = testOscDevice.compileOSCArguments(test, sampleValueStorerArray);
+        auto m = tetCompiliation[0];
+        auto testPathComp = testOscDevice.fillInArgumentsOfEmbeddedPath(sampleArgumentEmbeddedPath, sampleArgumentValues);
+        */
+    }
+
+    void testOSCMessageArgumentCompiler() {
+        if (true) {
+            try {
+                std::vector<OSCMessageArguments> testArguments = {
+                    NonIter("chFdr", "Channel Fader", "Fader Level for a Channel", 0.f, ParamType::LEVEL_1024, 0.f, 1.f),};
+                ValueStorerArray sampleValueStorerArray = {ValueStorer(2)}; // Incorrect type, but no exception expected
+                auto testCompiliation = testOscDevice.compileOSCArguments(testArguments, sampleValueStorerArray);
+
+            } catch (std::out_of_range &e) {
+                DBG("Caught exception: " << e.what());
+            } catch (std::invalid_argument &e) {
+                DBG("Caught exception: " << e.what());
+            } catch (...) {
+                DBG("Caught unknown exception");
+            }
+        }
+    }
+
+    void testTooManyArguments() {
+        if (false) {
+            try {
+                ArgumentEmbeddedPath sampleArgumentEmbeddedPath = {"/ch/", NonIter("chNum", "Channel Number", "Number of the Channel", 1, 1, 32), "/mix/fader"};
+                ValueStorerArray sampleArgumentValues = {}; // Too little arguments
+                auto pathString = testOscDevice.fillInArgumentsOfEmbeddedPath(sampleArgumentEmbeddedPath, sampleArgumentValues);
+                // This should throw an exception
+            } catch (std::out_of_range &e) {
+                DBG("Caught exception: " << e.what());
+            } catch (std::invalid_argument &e) {
+                DBG("Caught exception: " << e.what());
+            } catch (...) {
+                DBG("Caught unknown exception");
+            }
+        }
+        if (false) {
+            try {
+                ArgumentEmbeddedPath sampleArgumentEmbeddedPath = {"/ch/", NonIter("chNum", "Channel Number", "Number of the Channel", 1, 1, 32), "/mix/fader"};
+                ValueStorerArray sampleArgumentValues = {ValueStorer(2), ValueStorer(8)}; // Too many arguments
+                auto pathString = testOscDevice.fillInArgumentsOfEmbeddedPath(sampleArgumentEmbeddedPath, sampleArgumentValues);
+                // This should throw an exception
+            } catch (std::out_of_range &e) {
+                DBG("Caught exception: " << e.what());
+            } catch (std::invalid_argument &e) {
+                DBG("Caught exception: " << e.what());
+            } catch (...) {
+                DBG("Caught unknown exception");
+            }
+        }
+        if (true) {
+            try {
+                std::vector<OSCMessageArguments> testArgumentTemplates = {NonIter("chFdr", "Channel Fader", "Fader Level for a Channel", 0.f, ParamType::LEVEL_1024, 0.f, 1.f),};
+                ValueStorerArray sampleArgumentValues = {}; // Too little arguments
+                auto pathString = testOscDevice.compileOSCArguments(testArgumentTemplates, sampleArgumentValues);
+                // This should throw an exception
+            } catch (std::out_of_range &e) {
+                DBG("Caught exception: " << e.what());
+            } catch (std::invalid_argument &e) {
+                DBG("Caught exception: " << e.what());
+            } catch (...) {
+                DBG("Caught unknown exception");
+            }
+        }
+
+
 
 
     }
@@ -122,6 +191,8 @@ public:
 private:
     std::unique_ptr<MainWindow> mainWindow;
     std::unique_ptr<OSCDeviceSelectorWindow> oscDevSelWin;
+    OSCDeviceSender testOscDevice = OSCDeviceSender {String("192.168.1.100"), 20023, String("Test")};
+
 
 };
 

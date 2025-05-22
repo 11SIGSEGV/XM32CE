@@ -42,13 +42,17 @@ public:
     // }
 
     // Converts argument embedded path and arguments into actual message
-    static OSCMessage messageFromArgumentEmbeddedPathAndOSCMessageArguments(
+    static OSCMessage compileMessageFromArgumentEmbeddedPathAndOSCMessageArguments(
         ArgumentEmbeddedPath &path,
         ValueStorerArray &pathArgumentValues,
         std::vector<OSCArgument> &arguments,
         ValueStorerArray &argumentValues);
 
-    // Accepts path with embedded arguments, then using provided argument values, fills in the path in preparation to be sent.
+    /* Accepts path with embedded arguments (X32Maps::ArgumentEmbeddedPath), then using provided argument values
+     * (X32Maps::ValueStorerArray), it will fill in the path with the values provided.
+     * Does NOT do type checking for NonIter types (e.g., int vs string) - if the ValueStorer values provided are not
+     * the same type as the NonIter type in the embedded argument path, it will NOT throw an exception...
+     */
     static String fillInArgumentsOfEmbeddedPath(ArgumentEmbeddedPath &path, ValueStorerArray &pthArgVal);
 
     // Accepts Vector of Expected Arguments (i.e., templates) and Vector of ValueStore.
