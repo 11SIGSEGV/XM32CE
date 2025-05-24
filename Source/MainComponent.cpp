@@ -10,22 +10,27 @@ MainComponent::MainComponent()
     rotaryKnob.setBounds (10, 10, 180, 180);
     rotaryKnob.onValueChange = [this] {
         // create and send an OSC message with an address and a float value:
-        if (!sender.send ("/ch/01/mix/fader", (float) rotaryKnob.getValue()))
+        if (!sender.send ("/ch/01/mix/fader", static_cast<float>(rotaryKnob.getValue())))
             showConnectionErrorMessage ("Error: could not send OSC message.");
     };
-    addAndMakeVisible (rotaryKnob);
 
     if (!sender.connect ("127.0.0.1", 10023))
         showConnectionErrorMessage ("Error: could not connect to UDP port 10023.");
+    inputBoxComponent.setBounds(10, 200, 580, 100);
 
-    // showAlertWindow();
-    // OSCDeviceSelectorWindow oscDeviceSelWindow =
-    //     OSCDeviceSelectorWindow ("OSC Device Selector");
-    // oscDeviceSelWindow.setVisible (true);
-    // addAndMakeVisible(new OSCDeviceSelectorComponent());
+    activeComps.push_back(&inputBoxComponent);
+
+    for (auto *comp : getComponents())
+    {
+        addAndMakeVisible(*comp);
+    }
 }
 
 MainComponent::~MainComponent() {
+    for (auto *comp : getComponents())
+    {
+        removeChildComponent(comp);
+    }
 }
 
 

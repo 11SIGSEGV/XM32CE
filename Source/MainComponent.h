@@ -1,7 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
 #include "OSCMan.h"
-#include <utility>
 #include "Helpers.h"
 
 
@@ -38,11 +37,35 @@ inline void loadUICfgIntoStdLnF(LookAndFeel_V4 &lnf) {
 }
 
 
-//==============================================================================
-/*
-    This component lives inside our window, and this is where you should put all
-    your controls and content.
-*/
+struct InputBoxComponent: public Component {
+public:
+    InputBoxComponent() {
+        setOpaque(true);
+        setSize(getLocalBounds().getWidth(), getLocalBounds().getHeight());
+        setBounds(getLocalBounds());
+        DBG("arrived here");
+        setVisible(true);
+        repaint();
+    }
+
+    ~InputBoxComponent() override { delete this; }
+
+    void paint(Graphics& g) override {
+        std::cout << "Here!"<< std::endl;
+        // Do nothing, as we want to use the Look and Feel to paint the background
+        // and the text editor will handle the text.
+        g.setColour(Colours::red);
+        g.fillRect(getLocalBounds());
+        // g.drawRect(getBounds(), 100);
+    }
+    void resized() override {
+        setSize(getLocalBounds().getWidth(), getLocalBounds().getHeight());
+        DBG("InputBoxComponent resized to: " << getLocalBounds().toString());
+    }
+};
+
+
+
 class MainComponent  : public Component
 {
 public:
@@ -51,7 +74,7 @@ public:
     ~MainComponent() override;
 
     //==============================================================================
-    void paint (Graphics&) override;
+    void paint (Graphics &g) override;
     void resized() override;
 
     static void showConnectionErrorMessage (const String& messageText)
@@ -69,10 +92,35 @@ private:
     Slider rotaryKnob; // [1]
     OSCSender sender; // [2]
 
+    // TODO: Remove InputBoxComponent when testing finished
+    InputBoxComponent inputBoxComponent; // [3]
+
+    std::vector<Component*> activeComps = { &rotaryKnob};
+
+    std::vector<Component*> getComponents() {
+        return activeComps;
+    }
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };
+
+
+// class OSCMessageCreatorComponent: public Component, public TextEditor::Listener, public TextButton::Listener {
+// public:
+//     OSCMessageCreatorComponent() {
+//         setOpaque(true);
+//         setSize(1000, 800);
+//         setVisible(true);
+//     }
+//
+//     void paint(Graphics& g) override;
+//
+//     void resized() override;
+// };
+
+
+
 
 
 // TODO: Make Component static elements backgroundImage instead of rerendering each paint() call
@@ -319,8 +367,6 @@ public:
         getParentComponent()->userTriedToCloseWindow();
         delete this;
     }
-
-
 
 
 private:

@@ -193,7 +193,6 @@ private:
     std::unique_ptr<OSCDeviceSelectorWindow> oscDevSelWin;
     OSCDeviceSender testOscDevice = OSCDeviceSender {String("192.168.1.100"), 20023, String("Test")};
 
-
 };
 
 //==============================================================================
