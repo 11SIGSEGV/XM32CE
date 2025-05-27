@@ -48,7 +48,7 @@ public:
      * Declared in header file because the linker is a b*tch (and doesn't like template typenames)
      */
     template<typename T>
-    static inline T roundToNearest(T in, const std::set<T> &set) {
+    static T roundToNearest(T in, const std::set<T> &set) {
         auto lower = set.lower_bound(in);
 
         if (lower == set.begin()) return *lower;

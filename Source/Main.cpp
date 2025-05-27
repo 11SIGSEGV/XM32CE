@@ -111,7 +111,7 @@ public:
     void initialise (const String& commandLine) override
     {
         // This method is where you should put your application's initialisation code..
-        oscDevSelWin.reset(new OSCDeviceSelectorWindow("OSC Device Selector"));
+        // oscDevSelWin.reset(new OSCDeviceSelectorWindow("OSC Device Selector"));
         mainWindow.reset (new MainWindow (getApplicationName()));
     }
 
@@ -190,7 +190,7 @@ public:
 
 private:
     std::unique_ptr<MainWindow> mainWindow;
-    std::unique_ptr<OSCDeviceSelectorWindow> oscDevSelWin;
+    // std::unique_ptr<OSCDeviceSelectorWindow> oscDevSelWin;
     OSCDeviceSender testOscDevice = OSCDeviceSender {String("192.168.1.100"), 20023, String("Test")};
 
 };

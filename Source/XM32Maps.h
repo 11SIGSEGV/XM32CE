@@ -267,6 +267,7 @@ const std::unordered_map<int, float> releaseToFloat = {
     {3741, 0.99}, {4000, 1.0}
 };
 
+*/
 
 // Please note, -inf is represented as -90.0 in the code below.
 const std::set<float> levelValues_161 = {
@@ -337,7 +338,7 @@ const std::unordered_map<float, float> levelToFloat_161 = {
     {8.3, 0.9563}, {8.5, 0.9625}, {8.8, 0.9688}, {9.0, 0.975}, {9.3, 0.9812}, {9.5, 0.9875},
     {9.8, 0.9937}, {10.0, 1.0}
 };
-
+/*
 const std::set<float> rtaDecay = {
     0.25, 0.31, 0.4, 0.5, 0.63, 0.79, 1.0, 1.26, 1.59, 2.0, 2.52, 3.17, 4.0, 5.04, 6.35, 8.0, 10.08, 12.7, 16.0
 };
