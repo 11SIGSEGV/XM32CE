@@ -52,25 +52,31 @@ private:
 };
 
 
-
-struct Encoder: public Component, public Slider::Listener, public TextEditor::Listener {
+struct Encoder : public Component, public Slider::Listener, public TextEditor::Listener {
     /* Initalise UIRotary.
      * When middle/defaultProvidedAsPercentage is true, the middle and default values are
      * automatically interpolated based on the middlePV/defaultPV percentage and the minValue and maxValue.
      * Otherwise, the middlePV and defaultPV are used as the actual values.
      */
     Encoder(Units unit,
-        const double minDeg = 225.0, const double minValue = 0.0,
-        const double maxDeg = 135.0, const double maxValue = 1.0,
-        const double middlePV = 0.5,
-        const double defaultPV = 0.0,
-        const String &minLabel = "",
-        const String &maxLabel = "",
-        const int overrideRoundingToXDecimalPlaces = -1,
-        const ParamType paramType = ParamType::LINF,
-        const bool middleProvidedAsPercentage = true,
-        const bool defaultProvidedAsPercentage = true
-        );
+            const double minDeg = 225.0, const double minValue = 0.0,
+            const double maxDeg = 135.0, const double maxValue = 1.0,
+            const double middlePV = 0.5,
+            const double defaultPV = 0.0,
+            const String &minLabel = "",
+            const String &maxLabel = "",
+            const int overrideRoundingToXDecimalPlaces = -1,
+            const ParamType paramType = ParamType::LINF,
+            const bool middleProvidedAsPercentage = true,
+            const bool defaultProvidedAsPercentage = true
+    );
+
+    ~Encoder() override {
+        encoder.removeListener(this);
+        manualInputBox.removeListener(this);
+        setLookAndFeel(nullptr);
+        deleteAllChildren();
+    }
 
 
     const String getValueAsDisplayString() {
@@ -86,7 +92,7 @@ struct Encoder: public Component, public Slider::Listener, public TextEditor::Li
                 if (value <= -90.0) {
                     return "-inf";
                 }
-                return ((value > 0) ? "+" + String(value, roundTo): String(value, roundTo)) + " dB";
+                return ((value > 0) ? "+" + String(value, roundTo) : String(value, roundTo)) + " dB";
             }
             case NONE: default:
                 return String(value, roundTo);
@@ -97,50 +103,47 @@ struct Encoder: public Component, public Slider::Listener, public TextEditor::Li
     void sliderValueChanged(Slider *) override {
         // When value changed, we'll update the manual input box
         manualInputBox.setText(getValueAsDisplayString());
-        DBG("HI!"); // For debugging purposes, remove in production
     }
 
     void textEditorReturnKeyPressed(TextEditor &editor) override {
         // Do checks to see if the value is valid
-        if (&editor == &manualInputBox) {
-            // If the value is valid, set the value of the slider
-            auto value = manualInputBox.getText().getDoubleValue();
+        auto [valid, value] = getDoubleValueFromTextEditor(editor.getText());
+        if (valid) {
+            std::cout << value << std::endl;
+            // If valid, set the value to the encoder
+            // Check if the value is within the range of the encoder
             if (value < minValue || value > maxValue) {
-                // Nothing happens. Invalid value.
+                AlertWindow::showMessageBoxAsync(AlertWindow::WarningIcon,
+                                                 "Invalid Input",
+                                                 "Value is out of range. Please enter a value between "
+                                                 + String(minValue) + " and " + String(maxValue) + ".");
                 return;
             }
-            encoder.setValue(value);
+            // Set the rounded value.
+            encoder.setValue(std::round(value * _roundingMultiplier) / _roundingMultiplier);
         } else {
-            jassertfalse; // This should never happen
+            // If not valid, show an error message
+            AlertWindow::showMessageBoxAsync(AlertWindow::WarningIcon,
+                                             "Invalid Input",
+                                             "Please enter a valid value.");
         }
     }
 
     // void sliderDragStarted(Slider *) override {};
     // void sliderDragEnded(Slider *) override {};
 
-    bool waitUntilResizeReady() {
-        // Wait until resized() is called before painting
-        for (int i; i < 100 && !resizeReady.get(); i++) {
-            Thread::sleep(10); // Sleep for 10ms to avoid busy waiting
-        }
-        if (resizeReady.get()) {
-            return true; // Resize is ready
-        }
-        return false;
-    }
 
     void paint(Graphics &g) override;
-    void resized() override;
 
+    void resized() override;
 
 private:
     EncoderRotary encoder;
     // Save raw arguments from constructor
 
 
-    TextEditor manualInputBox { "manualInputBox" };
+    TextEditor manualInputBox{"manualInputBox"};
 
-    Atomic<bool> resizeReady { false }; // To ensure resized() is called before paint()
     Rectangle<int> Bounds;
     const double middlePerc;
     double middlePos;
@@ -159,5 +162,6 @@ private:
 
     const Units unit;
     const int roundTo;
+    const double _roundingMultiplier;
     const ParamType paramType;
 };

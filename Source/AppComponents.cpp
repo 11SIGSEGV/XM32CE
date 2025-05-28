@@ -11,27 +11,55 @@
 #include "AppComponents.h"
 
 void Encoder::resized() {
+    // The encoder rotary can handle its own bounds
     encoder.setBounds(getLocalBounds());
-    return;
-    resizeReady.set(false);
-    Bounds = getLocalBounds();
 
-    // First, note that the bottom 10% and side (each left and right) 5% of the bounds are not part of the encoder.
-    // (It is reserved for the labels.)
-    auto circleBounds = Bounds;
-    circleBounds.removeFromBottom(Bounds.getHeight() * 0.1);
-    circleBounds.removeFromLeft(Bounds.getWidth() * 0.05);
-    circleBounds.removeFromRight(Bounds.getWidth() * 0.05);
+    // We still have to manually set the bounds for the manual input box.
+    auto bounds = getLocalBounds().removeFromTop(0.9 * getHeight());
+    bounds.removeFromLeft(0.05 * bounds.getWidth());
+    bounds.removeFromRight(0.05 * bounds.getWidth());
+
+    auto inputBoxBounds = Rectangle<int>(bounds.getCentreX() - getWidth() * 0.25,
+                                         bounds.getCentreY() - getHeight() * 0.0625,
+                                         getWidth() * 0.5, getHeight() * 0.125);
+    manualInputBox.setBounds(inputBoxBounds);
+}
 
 
-    auto textBoxArea = Rectangle(
-        circleBounds.getCentreX() - circleBounds.getWidth() / 4,
-        circleBounds.getCentreY() - circleBounds.getHeight()/6,
-        circleBounds.getWidth() / 2, circleBounds.getHeight() / 3);
-    // manualInputBox.setBounds(textBoxArea);
-    // manualInputBox.setVisible(false);
-    resizeReady.set(true);
+Encoder::Encoder(
+    Units unit, const double minDeg, const double minValue, const double maxDeg, const double maxValue,
+    const double middlePV, const double defaultPV,
+    const String &minLabel, const String &maxLabel,
+    const int overrideRoundingToXDecimalPlaces, const ParamType paramType, const bool middleProvidedAsPercentage,
+    const bool defaultProvidedAsPercentage): unit(unit),
+                                             roundTo((overrideRoundingToXDecimalPlaces == -1)
+                                                         ? ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT.at(unit)
+                                                         : overrideRoundingToXDecimalPlaces),
+                                             paramType(paramType),
+                                             middlePerc(middlePerc),
+                                             defaultPerc(defaultPerc),
+                                             minValue(minValue), minPos(degreesToRadians(minDeg)), minLabel(minLabel),
+                                             maxValue(maxValue), maxPos(degreesToRadians(maxDeg)), maxLabel(maxLabel),
+                                             encoder(unit, minDeg, minValue, maxDeg, maxValue,
+                                                     middlePV, defaultPV, minLabel, maxLabel,
+                                                     overrideRoundingToXDecimalPlaces, paramType,
+                                                     middleProvidedAsPercentage, defaultProvidedAsPercentage),
+                                             _roundingMultiplier(std::pow(10.0, roundTo)) {
+    if (minValue >= maxValue) {
+        jassertfalse; // Min value must be less than max value
+        return;
+    }
+    manualInputBox.setText(getValueAsDisplayString());
+    manualInputBox.addListener(this);
+    manualInputBox.setJustification(Justification::centred);
+    encoder.addListener(this);
+    addAndMakeVisible(encoder);
+    addAndMakeVisible(manualInputBox);
+}
 
+
+void Encoder::paint(Graphics &g) {
+    // encoder.paint(g);
 }
 
 
@@ -46,13 +74,12 @@ EncoderRotary::EncoderRotary(
     const int overrideRoundingToXDecimalPlaces,
     const ParamType paramType,
     const bool middleProvidedAsPercentage,
-    const bool defaultProvidedAsPercentage):
-    paramType(paramType),
-    middlePerc(middlePerc),
-    defaultPerc(defaultPerc),
-    minValue(minValue), minPos(degreesToRadians(minDeg)), minLabel(minLabel),
-    maxValue(maxValue), maxPos(degreesToRadians(maxDeg)), maxLabel(maxLabel),
-    Slider(SliderStyle::RotaryHorizontalVerticalDrag, Slider::NoTextBox) {
+    const bool defaultProvidedAsPercentage): paramType(paramType),
+                                             middlePerc(middlePerc),
+                                             defaultPerc(defaultPerc),
+                                             minValue(minValue), minPos(degreesToRadians(minDeg)), minLabel(minLabel),
+                                             maxValue(maxValue), maxPos(degreesToRadians(maxDeg)), maxLabel(maxLabel),
+                                             Slider(SliderStyle::RotaryHorizontalVerticalDrag, Slider::NoTextBox) {
     if (minValue >= maxValue) {
         jassertfalse; // Min value must be less than max value
         return;
@@ -80,8 +107,9 @@ EncoderRotary::EncoderRotary(
     setValue(defaultValue);
 
 
-    int roundTo = (overrideRoundingToXDecimalPlaces == -1) ?
-        ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT.at(unit) : overrideRoundingToXDecimalPlaces;
+    int roundTo = (overrideRoundingToXDecimalPlaces == -1)
+                      ? ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT.at(unit)
+                      : overrideRoundingToXDecimalPlaces;
 
     switch (paramType) {
         case ParamType::LINF:
@@ -106,10 +134,11 @@ void EncoderRotary::paint(Graphics &g) {
     auto boundsCopy = getLocalBounds();
     g.setColour(Colours::red);
 
-    auto manualInputBounds = boundsCopy.removeFromBottom(getLocalBounds().getHeight()*0.1);
+    auto manualInputBounds = boundsCopy.removeFromBottom(getLocalBounds().getHeight() * 0.1);
     // Use getLocalBounds() as boundsCopy will have change after a removeFromLeft call, meaning the removeFromRight will
     // remove 5% of the remaining 95% width, not the original width.
-    boundsCopy.removeFromLeft(getLocalBounds().getWidth()*0.05); boundsCopy.removeFromRight(getLocalBounds().getWidth()*0.05);
+    boundsCopy.removeFromLeft(getLocalBounds().getWidth() * 0.05);
+    boundsCopy.removeFromRight(getLocalBounds().getWidth() * 0.05);
     const float radius = jmin(boundsCopy.getWidth(), boundsCopy.getHeight()) * 0.5f;
 
     auto enabled = isEnabled();
@@ -135,7 +164,7 @@ void EncoderRotary::paint(Graphics &g) {
     pointer.addRoundedRectangle(r, ptrWdth); // TODO: Check if this actually remotely makes sense
 
     float sliderAngleAsRadian = jmap(getNormalisableRange().convertTo0to1(getValue()),
-        minPos, maxPos);
+                                     minPos, maxPos);
     pointer.applyTransform(AffineTransform::rotation(sliderAngleAsRadian, center.getX(), center.getY()));
 
     g.setColour(UICfg::ROTARY_POINTER_COLOUR);
@@ -163,40 +192,3 @@ void EncoderRotary::paint(Graphics &g) {
 
     g.drawFittedText(maxLabel, textBound.toNearestInt(), Justification::topRight, 1);
 }
-
-
-Encoder::Encoder(
-    Units unit, const double minDeg, const double minValue, const double maxDeg, const double maxValue,
-    const double middlePV, const double defaultPV,
-    const String &minLabel, const String &maxLabel,
-    const int overrideRoundingToXDecimalPlaces, const ParamType paramType, const bool middleProvidedAsPercentage,
-    const bool defaultProvidedAsPercentage):
-
-    unit(unit),
-    roundTo((overrideRoundingToXDecimalPlaces == -1) ?
-        ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT.at(unit) : overrideRoundingToXDecimalPlaces),
-    paramType(paramType),
-    middlePerc(middlePerc),
-    defaultPerc(defaultPerc),
-    minValue(minValue), minPos(degreesToRadians(minDeg)), minLabel(minLabel),
-    maxValue(maxValue), maxPos(degreesToRadians(maxDeg)), maxLabel(maxLabel),
-    encoder(unit, minDeg, minValue, maxDeg, maxValue,
-        middlePV, defaultPV, minLabel, maxLabel, overrideRoundingToXDecimalPlaces, paramType,
-        middleProvidedAsPercentage, defaultProvidedAsPercentage) {
-    if (minValue >= maxValue) {
-        jassertfalse; // Min value must be less than max value
-        return;
-    }
-    manualInputBox.setText(getValueAsDisplayString());
-    manualInputBox.addListener(this);
-    manualInputBox.setJustification(Justification::centred);
-    addAndMakeVisible(encoder);
-    addAndMakeVisible(manualInputBox);
-}
-
-
-
-void Encoder::paint(Graphics &g) {
-    // encoder.paint(g);
-}
-

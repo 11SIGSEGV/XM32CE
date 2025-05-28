@@ -80,6 +80,9 @@ ValidatorOutput isValidPort(const String &port);
 ValidatorOutput isValidDeviceName(const String &deviceName);
 
 
+std::pair<bool, double> getDoubleValueFromTextEditor(String text);
+
+
 
 
 class XM32 {

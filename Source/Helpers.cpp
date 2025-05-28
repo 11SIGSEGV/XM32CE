@@ -65,6 +65,16 @@ ValidatorOutput isValidDeviceName(const String &deviceName) {
     return ValidatorOutput { true, "" };
 }
 
+// First value indicates if value is valid, second value is the parsed double value.
+std::pair<bool, double> getDoubleValueFromTextEditor(String text) {
+    // Remove whitespace, characters and convert to lowercase
+    text = text.trim().toLowerCase().retainCharacters("1234567890.-");
+    if (text.isEmpty()) {
+        return {false, 0.0}; // Invalid value
+    }
+    return {true, text.getDoubleValue()};
+}
+
 
 
 float XM32::floatToDb(float v) {
