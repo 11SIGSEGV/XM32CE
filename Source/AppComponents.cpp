@@ -11,6 +11,8 @@
 #include "AppComponents.h"
 
 void Encoder::resized() {
+    encoder.setBounds(getLocalBounds());
+    return;
     resizeReady.set(false);
     Bounds = getLocalBounds();
 
@@ -185,55 +187,16 @@ Encoder::Encoder(
         jassertfalse; // Min value must be less than max value
         return;
     }
-    if (middleProvidedAsPercentage) {
-        middleValue = inferValueFromMinMaxAndPercentage(minValue, maxValue, middlePV, paramType);
-        middlePos = degreesToRadians(minDeg + (maxDeg - minDeg) * middlePV);
-    } else {
-        middleValue = middlePV;
-        // Normalise middlePV to the range of minValue and maxValue
-        middlePos = degreesToRadians(
-            minDeg + (maxDeg - minDeg) * inferPercentageFromMinMaxAndValue(
-                minValue, maxValue, middlePV, paramType));
-    }
-    if (defaultProvidedAsPercentage) {
-        defaultValue = inferValueFromMinMaxAndPercentage(minValue, maxValue, defaultPerc, paramType);
-        defaultPos = degreesToRadians(minDeg + (maxDeg - minDeg) * defaultPerc);
-    } else {
-        defaultValue = defaultPV;
-        defaultPos = degreesToRadians(
-            minDeg + (maxDeg - minDeg) *
-            inferPercentageFromMinMaxAndValue(minValue, maxValue, defaultPV, paramType));
-    }
-    encoder.setDoubleClickReturnValue(true, defaultValue);
-    encoder.setValue(defaultValue);
     manualInputBox.setText(getValueAsDisplayString());
-
-
-    switch (paramType) {
-        case ParamType::LINF:
-            encoder.setRange(minValue, maxValue, std::pow(10.0, -roundTo));
-            break;
-        case ParamType::LOGF:
-            encoder.setNormalisableRange(getNormalisableRangeExp(minValue, maxValue));
-            break;
-        case ParamType::LEVEL_161:
-            encoder.setNormalisableRange(LEVEL_161_NORMALISABLE_RANGE);
-            break;
-        case ParamType::LEVEL_1024:
-            encoder.setNormalisableRange(LEVEL_1024_NORMALISABLE_RANGE);
-            break;
-        default:
-            jassertfalse;
-    }
-    // encoder.addListener(this);
     manualInputBox.addListener(this);
     manualInputBox.setJustification(Justification::centred);
-    encoder.setBounds(getLocalBounds());
     addAndMakeVisible(encoder);
     addAndMakeVisible(manualInputBox);
 }
 
 
 
-void Encoder::paint(Graphics &g) {}
+void Encoder::paint(Graphics &g) {
+    // encoder.paint(g);
+}
 

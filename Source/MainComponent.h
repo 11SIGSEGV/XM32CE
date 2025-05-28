@@ -48,7 +48,7 @@ private:
      "20kHz", 2, ParamType::LOGF, true, true};
 
     Encoder testRotary2 {
-        DB, 225.0, -90.0, 135.0, 10.0, 0.5, 0.0, "-inf",
+        DB, -135.0, -90.0, 135.0, 10.0, 0.5, 0.0, "-inf",
      "+10.0dB", 2, ParamType::LEVEL_1024, true, true};
 
 
