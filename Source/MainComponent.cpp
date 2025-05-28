@@ -1,10 +1,11 @@
 #include "MainComponent.h"
 
 //==============================================================================
-
+[[deprecated("Use EncoderRotary::paint (AppComponents.h) instead")]]
 void AppLnF::drawRotarySlider(Graphics &g, int x, int y, int width, int height, float sliderPosProportional, float rotaryStartAngle, float rotaryEndAngle, Slider &slide) {
+    jassertfalse; // This function is now deprecated.
     Rectangle<float> bounds(x, y, width, height);
-    auto bottomLabelBounds = bounds.removeFromBottom(bounds.getHeight()*0.1);
+    auto manualInputBounds = bounds.removeFromBottom(bounds.getHeight()*0.1);
     bounds.removeFromLeft(bounds.getHeight()*0.05); bounds.removeFromRight(bounds.getHeight()*0.05);
     const float radius = jmin(bounds.getWidth(), bounds.getHeight()) * 0.5f;
 
@@ -14,7 +15,8 @@ void AppLnF::drawRotarySlider(Graphics &g, int x, int y, int width, int height, 
     g.fillEllipse(bounds);
 
 
-    if (auto* uiRtry = dynamic_cast<UIRotary*>(&slide)) {
+    if (auto* encoder = dynamic_cast<Slider*>(slide.getParentComponent())) {
+        DBG("reaches here!");
         auto center = bounds.getCentre();
 
         Path pointer;
@@ -38,22 +40,25 @@ void AppLnF::drawRotarySlider(Graphics &g, int x, int y, int width, int height, 
         g.setColour(UICfg::ROTARY_POINTER_COLOUR);
         g.fillPath(pointer);
 
-        // Now, let's draw the value
-        String displayString = uiRtry->getValueAsDisplayString();
+
         g.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
-        g.setFont(textHeight); // TODO: Test if this overrides above
+        // Now, let's draw the value
+         /* Reimplemented in Encoder::manualInputTextBox
+         String displayString = uiRtry->getValueAsDisplayString();
+         g.setFont(textHeight); // TODO: Test if this overrides above
 
-        auto textWidth = GlyphArrangement::getStringWidthInt(g.getCurrentFont(), displayString);
-        r.setSize(textWidth + textWidth * 0.25f, textHeight + textHeight * 0.25f);
-        r.setCentre(bounds.getCentre());
+         auto textWidth = GlyphArrangement::getStringWidthInt(g.getCurrentFont(), displayString);
+         r.setSize(textWidth + textWidth * 0.25f, textHeight + textHeight * 0.25f);
+         r.setCentre(bounds.getCentre());
 
-        // Ok, we'll draw a rectangle behind the text, and the text
-        g.setColour(enabled ? Colours::black : Colours::darkgrey);
-        g.fillRect(r);
-        g.setColour(enabled ? Colours::white : Colours::lightgrey);
-        g.drawFittedText(displayString, r.toNearestInt(), Justification::centred, 1);
+         // Ok, we'll draw a rectangle behind the text, and the text
+         g.setColour(enabled ? Colours::black : Colours::darkgrey);
+         g.fillRect(r);
+         g.setColour(enabled ? Colours::white : Colours::lightgrey);
+         g.drawFittedText(displayString, r.toNearestInt(), Justification::centred, 1);
+         */
 
-        auto minMaxLabels = uiRtry->getMinMaxLabel();
+        std::vector<String> minMaxLabels = {"Deprecated", "Function"};
 
         // Now to TRY draw the labels. Emphasis on Try.
         auto labelHeights = textHeight * 0.7f;
@@ -77,65 +82,6 @@ void AppLnF::drawRotarySlider(Graphics &g, int x, int y, int width, int height, 
 }
 
 
-UIRotary::UIRotary(
-    Units unit, const double minDeg, const double minValue, const double maxDeg, const double maxValue,
-    const double middlePV, const double defaultPV,
-    const String &minLabel, const String &maxLabel,
-    const int overrideRoundingToXDecimalPlaces, const ParamType paramType, const bool middleProvidedAsPercentage,
-    const bool defaultProvidedAsPercentage):
-
-    Slider(RotaryHorizontalVerticalDrag, NoTextBox), unit(unit),
-    roundTo((overrideRoundingToXDecimalPlaces == -1) ?
-        ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT.at(unit) : overrideRoundingToXDecimalPlaces),
-    paramType(paramType),
-    middlePerc(middlePerc),
-    defaultPerc(defaultPerc),
-    minValue(minValue), minLabelPos(degreesToRadians(minDeg)), minLabel(minLabel),
-    maxValue(maxValue), maxLabelPos(degreesToRadians(maxDeg)), maxLabel(maxLabel) {
-    if (minValue >= maxValue) {
-        jassertfalse; // Min value must be less than max value
-        return;
-    }
-    if (middleProvidedAsPercentage) {
-        middleValue = inferValueFromMinMaxAndPercentage(minValue, maxValue, middlePV, paramType);
-        middlePos = degreesToRadians(minDeg + (maxDeg - minDeg) * middlePV);
-    } else {
-        middleValue = middlePV;
-        // Normalise middlePV to the range of minValue and maxValue
-        middlePos = degreesToRadians(
-            minDeg + (maxDeg - minDeg) * inferPercentageFromMinMaxAndValue(
-                minValue, maxValue, middlePV, paramType));
-    }
-    if (defaultProvidedAsPercentage) {
-        defaultValue = inferValueFromMinMaxAndPercentage(minValue, maxValue, defaultPerc, paramType);
-        defaultPos = degreesToRadians(minDeg + (maxDeg - minDeg) * defaultPerc);
-    } else {
-        defaultValue = defaultPV;
-        defaultPos = degreesToRadians(
-            minDeg + (maxDeg - minDeg) *
-            inferPercentageFromMinMaxAndValue(minValue, maxValue, defaultPV, paramType));
-    }
-    setDoubleClickReturnValue(true, defaultValue);
-    switch (paramType) {
-        case ParamType::LINF:
-            setRange(minValue, maxValue, std::pow(10.0, -roundTo));
-            break;
-        case ParamType::LOGF:
-            setNormalisableRange(getNormalisableRangeExp(minValue, maxValue));
-            break;
-        case ParamType::LEVEL_161:
-            setNormalisableRange(LEVEL_161_NORMALISABLE_RANGE);
-            break;
-        case ParamType::LEVEL_1024:
-            setNormalisableRange(LEVEL_1024_NORMALISABLE_RANGE);
-            break;
-        default:
-            jassertfalse;
-    }
-}
-
-
-
 
 MainComponent::MainComponent()
 {
@@ -154,8 +100,7 @@ MainComponent::MainComponent()
         showConnectionErrorMessage ("Error: could not connect to UDP port  o10023.");
     testRotary.setBounds(10, 300, 180, 180);
     testRotary2.setBounds(300, 300, 180, 180);
-    testRotary.setLookAndFeel(&lnf);
-    testRotary2.setLookAndFeel(&lnf);
+    testRotary3.setBounds(500, 300, 180, 180);
 
     for (auto *comp : getComponents())
     {
@@ -199,14 +144,6 @@ void MainComponent::resized()
     // This is called when the MainComponent is resized.
     // If you add any child components, this is where you should
     // update their positions.
+
 }
 
-
-void UIRotary::paint(Graphics &g) {
-    auto bounds = getLocalBounds();
-    getLookAndFeel().drawRotarySlider(
-        g, bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight(),
-        getNormalisableRange().convertTo0to1(getValue()),
-        degreesToRadians(180.f + 45.f), degreesToRadians(180.f - 45.f) + MathConstants<float>::twoPi,
-        *this);
-}

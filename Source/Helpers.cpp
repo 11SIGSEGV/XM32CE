@@ -100,5 +100,99 @@ float XM32::dbToFloat(float db) {
 }
 
 
+const double inferValueFromMinMaxAndPercentage(double minVal, double maxVal, double percentage, ParamType algorithm) {
+    if (percentage == 0.0) {
+        // If default is 0, then we can assume that the value is just the min.
+        return minVal;
+    } if (percentage == 1.0) {
+        // If default is 1, then we can assume that the value is just the max.
+        return maxVal;
+    } if (percentage > 0.0 && percentage < 1.0) {
+        switch (algorithm) {
+            case ParamType::LINF:
+                // Linear interpolation
+                return jmap(percentage, minVal, maxVal);
+            case ParamType::LOGF:
+                // Logarithmic interpolation
+                return mapToLog10(percentage, minVal, maxVal);
+            case ParamType::LEVEL_161: {
+                // Level 161 interpolation - for XM32
+                // First, find the level equivalent of the percentage
+                if (minVal != -90.0 || maxVal != 10.0) {
+                    jassertfalse; // Level 161 is only defined for -90 to 10 dB
+                }
+                float targetLevel = jmap(percentage, minVal, maxVal);
+                // Then, find the closest level 161 value.
+                return XM32::roundToNearest(targetLevel, levelValues_161);
+            }
+            case ParamType::LEVEL_1024: {
+                // Level 1024 interpolation - for XM32. Much simpler! This uses Music Tribe's approximation for float to dB log scale
+                // NOTE: Here, if minVal and maxVal are not -90 and 10, respectively, it does not matter. It will still assume -90 and 10.
+                if (minVal != -90.0) {
+                    jassertfalse; // Level 1024 is only defined for -90 to 10 dB
+                } if (maxVal != 10.0) {
+                    jassertfalse; // Level 1024 is only defined for -90 to 10 dB
+                }
+                return XM32::floatToDb(percentage);
+            }
+            default:
+                jassertfalse;
+                return minVal; // Fallback to min value if algorithm is not recognised
+        }
+    }
+    jassertfalse; // Value is out of range from 0-1
+    return minVal;
+}
+
+
+const double inferPercentageFromMinMaxAndValue(double minVal, double maxVal, double value, ParamType algorithm) {
+    if (value == minVal) {
+        // If default value is the minimum, the normalised percentage is 0.
+        return 0.0;
+    } if (value == maxVal) {
+        // If default value is the maximum, the normalised percentage is 1.
+        return 1.0;
+    } if (value > minVal && value < maxVal) {
+        switch (algorithm) {
+            case ParamType::LINF:
+                // Linear interpolation
+                return (value-minVal)/(maxVal-minVal);
+            case ParamType::LOGF:
+                // Logarithmic interpolation
+                return mapFromLog10(value, minVal, maxVal);
+            case ParamType::LEVEL_161: {
+                // Level 161 'un'-interpolation - for XM32
+                if (minVal != -90.0 || maxVal != 10.0) {
+                    jassertfalse; // Level 161 is only defined for -90 to 10 dB
+                }
+                auto val = levelToFloat_161.find(value);
+                if (val == levelToFloat_161.end()) {
+                    jassertfalse; // Value is not a valid level 161 value
+                    return 0.0; // Fallback to 0.0 if value is not a valid level 161 value
+                }
+                return val->second;
+            }
+            case ParamType::LEVEL_1024: {
+                // Level 1024 interpolation - for XM32.
+                // NOTE: Here, if minVal and maxVal are not -90 and 10, respectively, it does not matter. It will still assume -90 and 10.
+                if (minVal != -90.0) {
+                    jassertfalse; // Level 1024 is only defined for -90 to 10 dB
+                } if (maxVal != 10.0) {
+                    jassertfalse; // Level 1024 is only defined for -90 to 10 dB
+                }
+                if (value < -90.0 || value > 10.0) {
+                    jassertfalse; // Value is out of range for level 1024
+                    return 0.0; // Fallback to 0.0 if value is out of range. We don't want to reach XM32::dbToFloat with an out of range value, as it will throw an exception
+                }
+                return XM32::dbToFloat(value);
+            }
+            default:
+                jassertfalse;
+                return 0.0; // Fallback to min value if algorithm is not recognised
+        }
+    }
+    jassertfalse; // Value is out of range from minVal to maxVal
+    return 0.0;
+}
 
 
