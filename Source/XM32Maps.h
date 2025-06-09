@@ -387,12 +387,13 @@ struct OptionParam {
     const std::string name;
     const std::string verboseName;
     const std::string description;
-    const std::set<std::string> value {}; // OPTION
+    const std::vector<std::string> value {}; // OPTION
     const ParamType _meta_PARAMTYPE {ParamType::OPTION};
+    const unsigned int len {}; // Number of options
 
     OptionParam(const std::string &name, const std::string &verboseName, const std::string &description,
-        const std::set<std::string>& value):
-        name(name), verboseName(verboseName), description(description), value(value) {}
+        const std::vector<std::string>& value):
+        name(name), verboseName(verboseName), description(description), value(value), len(value.size()) {}
 };
 
 
@@ -402,11 +403,15 @@ struct EnumParam {
     const std::string description;
     const std::vector<std::string> value {}; // ENUM
     const ParamType _meta_PARAMTYPE {ParamType::ENUM};
+    const unsigned int len {}; // Number of options
 
     EnumParam(const std::string &name, const std::string &verboseName, const std::string &description,
-        std::vector<std::string>& value):
-        name(name), verboseName(verboseName), description(description), value(value) {}
+        const std::vector<std::string>& value):
+        name(name), verboseName(verboseName), description(description), value(value), len(value.size()) {}
 };
+
+inline OptionParam _nullOption = {"", "", "", {}};
+inline EnumParam _nullEnum = {"", "", "", {}};
 
 
 static std::string stringFromBoolVector(const std::vector<bool> boolVector ) {

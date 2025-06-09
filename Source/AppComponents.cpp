@@ -36,25 +36,55 @@ Encoder::Encoder(
                                                          ? ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT.at(unit)
                                                          : overrideRoundingToXDecimalPlaces),
                                              paramType(paramType),
-                                             middlePerc(middlePerc),
-                                             defaultPerc(defaultPerc),
                                              minValue(minValue), minPos(degreesToRadians(minDeg)), minLabel(minLabel),
                                              maxValue(maxValue), maxPos(degreesToRadians(maxDeg)), maxLabel(maxLabel),
                                              encoder(unit, minDeg, minValue, maxDeg, maxValue,
                                                      middlePV, defaultPV, minLabel, maxLabel,
                                                      overrideRoundingToXDecimalPlaces, paramType,
                                                      middleProvidedAsPercentage, defaultProvidedAsPercentage),
-                                             _roundingMultiplier(std::pow(10.0, roundTo)) {
+                                             _roundingMultiplier(std::pow(10.0, roundTo)), _isOptionParam(false),
+                                             _isEnumParam(false), _option(_nullOption), _enumParam(_nullEnum) {
     if (minValue >= maxValue) {
         jassertfalse; // Min value must be less than max value
         return;
     }
-    manualInputBox.setText(getValueAsDisplayString());
-    manualInputBox.addListener(this);
-    manualInputBox.setJustification(Justification::centred);
-    encoder.addListener(this);
-    addAndMakeVisible(encoder);
-    addAndMakeVisible(manualInputBox);
+    init();
+}
+
+Encoder::Encoder(const OptionParam option, const double minDeg, const double maxDeg, const int defaultIndex,
+                 const String &minLabel, const String &maxLabel): unit(Units::NONE),
+                                                                  roundTo(-1),
+                                                                  paramType(ParamType::LINF),
+                                                                  minValue(0), minPos(degreesToRadians(minDeg)),
+                                                                  minLabel(minLabel),
+                                                                  maxValue(option.len - 1),
+                                                                  maxPos(degreesToRadians(maxDeg)),
+                                                                  maxLabel(maxLabel),
+                                                                  encoder(option, minDeg, maxDeg, defaultIndex,
+                                                                          minLabel,
+                                                                          maxLabel),
+                                                                  _roundingMultiplier(-1.0), _isOptionParam(true),
+                                                                  _isEnumParam(false),
+                                                                  _option(option), _enumParam(_nullEnum) {
+    init();
+}
+
+Encoder::Encoder(const EnumParam enumParam, const double minDeg, const double maxDeg, const int defaultIndex,
+                 const String &minLabel, const String &maxLabel): unit(Units::NONE),
+                                                                  roundTo(-1),
+                                                                  paramType(ParamType::LINF),
+                                                                  minValue(0), minPos(degreesToRadians(minDeg)),
+                                                                  minLabel(minLabel),
+                                                                  maxValue(enumParam.len - 1),
+                                                                  maxPos(degreesToRadians(maxDeg)),
+                                                                  maxLabel(maxLabel),
+                                                                  encoder(enumParam, minDeg, maxDeg, defaultIndex,
+                                                                          minLabel,
+                                                                          maxLabel),
+                                                                  _roundingMultiplier(-1.0), _isOptionParam(false),
+                                                                  _isEnumParam(true),
+                                                                  _option(_nullOption), _enumParam(enumParam) {
+    init();
 }
 
 
@@ -62,7 +92,7 @@ void Encoder::paint(Graphics &g) {
     // encoder.paint(g);
 }
 
-
+// TODO: Remove redundant isOption/EnumParam, and option and enumParam members
 EncoderRotary::EncoderRotary(
     Units unit,
     const double minDeg, const double minValue,
@@ -75,11 +105,11 @@ EncoderRotary::EncoderRotary(
     const ParamType paramType,
     const bool middleProvidedAsPercentage,
     const bool defaultProvidedAsPercentage): paramType(paramType),
-                                             middlePerc(middlePerc),
-                                             defaultPerc(defaultPerc),
                                              minValue(minValue), minPos(degreesToRadians(minDeg)), minLabel(minLabel),
                                              maxValue(maxValue), maxPos(degreesToRadians(maxDeg)), maxLabel(maxLabel),
-                                             Slider(SliderStyle::RotaryHorizontalVerticalDrag, Slider::NoTextBox) {
+                                             isOptionParam(false), isEnumParam(false),
+                                             Slider(SliderStyle::RotaryHorizontalVerticalDrag, Slider::NoTextBox),
+                                             option(_nullOption), enumParam(_nullEnum) {
     if (minValue >= maxValue) {
         jassertfalse; // Min value must be less than max value
         return;
@@ -95,8 +125,8 @@ EncoderRotary::EncoderRotary(
                 minValue, maxValue, middlePV, paramType));
     }
     if (defaultProvidedAsPercentage) {
-        defaultValue = inferValueFromMinMaxAndPercentage(minValue, maxValue, defaultPerc, paramType);
-        defaultPos = degreesToRadians(minDeg + (maxDeg - minDeg) * defaultPerc);
+        defaultValue = inferValueFromMinMaxAndPercentage(minValue, maxValue, defaultPV, paramType);
+        defaultPos = degreesToRadians(minDeg + (maxDeg - minDeg) * defaultPV);
     } else {
         defaultValue = defaultPV;
         defaultPos = degreesToRadians(
@@ -130,16 +160,91 @@ EncoderRotary::EncoderRotary(
 }
 
 
-void EncoderRotary::paint(Graphics &g) {
-    auto boundsCopy = getLocalBounds();
-    g.setColour(Colours::red);
+EncoderRotary::EncoderRotary(const OptionParam option, const double minDeg, const double maxDeg, const int defaultIndex,
+                             const String &minLabel, const String &maxLabel): isOptionParam(true), isEnumParam(false),
+                                                                              option(option),
+                                                                              paramType(ParamType::LINF),
+                                                                              minValue(0),
+                                                                              minPos(degreesToRadians(minDeg)),
+                                                                              minLabel(minLabel),
+                                                                              maxValue(option.len - 1),
+                                                                              maxPos(degreesToRadians(maxDeg)),
+                                                                              maxLabel(maxLabel),
+                                                                              Slider(
+                                                                                  SliderStyle::RotaryHorizontalVerticalDrag,
+                                                                                  Slider::NoTextBox),
+                                                                              enumParam(_nullEnum) {
+    // Let's set the default value and position
+    setDoubleClickReturnValue(true, defaultIndex);
+    setValue(defaultIndex);
+    setRange(0, option.len - 1, 1); // Set the range from 0 to len - 1 with a step of 1
+}
 
-    auto manualInputBounds = boundsCopy.removeFromBottom(getLocalBounds().getHeight() * 0.1);
+
+EncoderRotary::EncoderRotary(const EnumParam enumParam, const double minDeg, const double maxDeg,
+                             const int defaultIndex, const String &minLabel, const String &maxLabel)
+    : isOptionParam(false), isEnumParam(true),
+      enumParam(enumParam),
+      paramType(ParamType::LINF),
+      minValue(0),
+      minPos(degreesToRadians(minDeg)),
+      minLabel(minLabel),
+      maxValue(option.len - 1),
+      maxPos(degreesToRadians(maxDeg)),
+      maxLabel(maxLabel),
+      Slider(
+          SliderStyle::RotaryHorizontalVerticalDrag,
+          Slider::NoTextBox),
+      option(_nullOption) {
+    // Let's set the default value and position
+    setDoubleClickReturnValue(true, defaultIndex);
+    setValue(defaultIndex);
+    setRange(0, enumParam.len - 1, 1); // Set the range from 0 to len - 1 with a step of 1
+}
+
+
+void EncoderRotary::resized() {
+    // Let's set up our encoder bounds.
+    boundsCopy = getLocalBounds();
+    boundsCopy.removeFromBottom(getLocalBounds().getHeight() * 0.1);
+    // Labels will be drawn at the bottom 10% of the bounds.
     // Use getLocalBounds() as boundsCopy will have change after a removeFromLeft call, meaning the removeFromRight will
     // remove 5% of the remaining 95% width, not the original width.
     boundsCopy.removeFromLeft(getLocalBounds().getWidth() * 0.05);
     boundsCopy.removeFromRight(getLocalBounds().getWidth() * 0.05);
-    const float radius = jmin(boundsCopy.getWidth(), boundsCopy.getHeight()) * 0.5f;
+    encoderRadius = jmin(boundsCopy.getWidth(), boundsCopy.getHeight()) * 0.5f;
+    auto center = boundsCopy.getCentre();
+
+    textHeight = encoderRadius * UICfg::ROTARY_TEXT_HEIGHT;
+
+
+    // Now draw label to image to prevent rerendering every paint call.
+    predrawnLabels = Image(Image::ARGB, getWidth(), getHeight(), true);
+    Graphics g(predrawnLabels);
+
+    g.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
+    auto labelHeights = textHeight * 0.7f;
+    g.setFont(labelHeights);
+
+    // This is the Minimum Label
+    Rectangle<float> textBound;
+    textBound.setSize(GlyphArrangement::getStringWidthInt(g.getCurrentFont(), minLabel), labelHeights);
+    textBound.setCentre(center.getPointOnCircumference(encoderRadius + labelHeights * 0.75f, minPos));
+    textBound.setY(textBound.getY() + labelHeights);
+
+    g.drawFittedText(minLabel, textBound.toNearestInt(), Justification::topLeft, 1);
+
+    // This is the Maximum Label
+    textBound.setSize(GlyphArrangement::getStringWidthInt(g.getCurrentFont(), maxLabel), labelHeights);
+    textBound.setCentre(center.getPointOnCircumference(encoderRadius + labelHeights * 0.75f, maxPos));
+    textBound.setY(textBound.getY() + labelHeights);
+
+    g.drawFittedText(maxLabel, textBound.toNearestInt(), Justification::topRight, 1);
+}
+
+
+void EncoderRotary::paint(Graphics &g) {
+    g.setColour(Colours::red);
 
     auto enabled = isEnabled();
 
@@ -149,19 +254,17 @@ void EncoderRotary::paint(Graphics &g) {
     auto center = boundsCopy.getCentre();
 
     Path pointer;
-    // To figure out the padding for the pointer, we need to know the text height BEFORE the pointer is drawn.
-    const float textHeight = radius * UICfg::ROTARY_TEXT_HEIGHT;
 
     // We'll make a pointer rectangle.
     Rectangle<float> r;
     // Let's figure out the pointer width
-    float ptrWdth = radius * UICfg::ROTARY_POINTER_WIDTH;
+    float ptrWdth = encoderRadius * UICfg::ROTARY_POINTER_WIDTH;
     r.setLeft(center.getX() - ptrWdth);
     r.setRight(center.getX() + ptrWdth);
     r.setTop(boundsCopy.getY());
     r.setBottom(center.getY() - textHeight * UICfg::ROTARY_TEXT_PADDING);
 
-    pointer.addRoundedRectangle(r, ptrWdth); // TODO: Check if this actually remotely makes sense
+    pointer.addRoundedRectangle(r, ptrWdth);
 
     float sliderAngleAsRadian = jmap(getNormalisableRange().convertTo0to1(getValue()),
                                      minPos, maxPos);
@@ -171,24 +274,6 @@ void EncoderRotary::paint(Graphics &g) {
     g.fillPath(pointer);
 
 
-    // Now let's draw the min-max labels.
-    g.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
-
-    // Now to TRY draw the labels. Emphasis on Try.
-    auto labelHeights = textHeight * 0.7f;
-    g.setFont(labelHeights);
-    // This is the Minimum Label
-    Rectangle<float> textBound;
-    textBound.setSize(GlyphArrangement::getStringWidthInt(g.getCurrentFont(), minLabel), labelHeights);
-    textBound.setCentre(center.getPointOnCircumference(radius + labelHeights * 0.75f, minPos));
-    textBound.setY(textBound.getY() + labelHeights);
-
-    g.drawFittedText(minLabel, textBound.toNearestInt(), Justification::topLeft, 1);
-
-    // This is the Maximum Label
-    textBound.setSize(GlyphArrangement::getStringWidthInt(g.getCurrentFont(), maxLabel), labelHeights);
-    textBound.setCentre(center.getPointOnCircumference(radius + labelHeights * 0.75f, maxPos));
-    textBound.setY(textBound.getY() + labelHeights);
-
-    g.drawFittedText(maxLabel, textBound.toNearestInt(), Justification::topRight, 1);
+    // Draw the pre-drawn labels
+    g.drawImage(predrawnLabels, getLocalBounds().toFloat());
 }

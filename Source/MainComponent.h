@@ -11,11 +11,6 @@ inline void loadUICfgIntoStdLnF(LookAndFeel_V4 &lnf) {
 }
 
 
-struct AppLnF: juce::LookAndFeel_V4 {
-    void drawRotarySlider(Graphics &g, int x, int y, int width, int height,
-        float sliderPosProportional, float rotaryStartAngle, float rotaryEndAngle, Slider &slide) override;
-};
-
 
 
 class MainComponent  : public Component
@@ -44,8 +39,9 @@ private:
     Slider rotaryKnob; // [1]
     OSCSender sender; // [2]
     Encoder testRotary {
-        HERTZ, 225.0, 20.0, 135.0, 20000.0, 0.5, 0.0, "20Hz",
+        HERTZ, -135.0, 20.0, 135.0, 20000.0, 0.5, 0.0, "20Hz",
      "20kHz", 2, ParamType::LOGF, true, true};
+
 
     Encoder testRotary2 {
         DB, -135.0, -90.0, 135.0, 10.0, 0.5, 0.0, "-inf",
@@ -56,7 +52,13 @@ private:
         DB, -135.0, -90.0, 135.0, 10.0, 0.5, 0.0, "-inf",
      "+10.0dB", 2, ParamType::LEVEL_1024, true, true};
 
-    std::vector<Component*> activeComps = { &rotaryKnob, &testRotary, &testRotary2, &testRotary3 };
+    Encoder testRotary4 {
+        OptionParam("test", "This is a cool test", "a long winded description", {"Hello", "world", "Bye", "World"}),};
+
+    Encoder testRotary5 {
+        EnumParam("test2", "This is a cool test2", "a very very long winded description", {"I", "Hate", "C++"}),};
+
+    std::vector<Component*> activeComps = { &rotaryKnob, &testRotary, &testRotary2, &testRotary3, &testRotary4, &testRotary5 };
 
     std::vector<Component*> getComponents() {
         return activeComps;
@@ -65,20 +67,6 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };
-
-
-// class OSCMessageCreatorComponent: public Component, public TextEditor::Listener, public TextButton::Listener {
-// public:
-//     OSCMessageCreatorComponent() {
-//         setOpaque(true);
-//         setSize(1000, 800);
-//         setVisible(true);
-//     }
-//
-//     void paint(Graphics& g) override;
-//
-//     void resized() override;
-// };
 
 
 
