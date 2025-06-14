@@ -1,15 +1,72 @@
 #pragma once
 #include <JuceHeader.h>
+#include <juce_gui_basics/buttons/juce_Button.h>
+
 #include "OSCMan.h"
 #include "Helpers.h"
 #include "AppComponents.h"
 
+
+struct ActiveShowOptions {
+    String showName;
+    String showDescription;
+    String currentCueID;
+    int currentCueIndex;
+    int numberOfCueItems;
+};
 
 
 inline void loadUICfgIntoStdLnF(LookAndFeel_V4 &lnf) {
     lnf.setColour(TextEditor::backgroundColourId, UICfg::TEXT_EDITOR_BG_COLOUR);
 }
 
+
+typedef void (*ShowStateChangedListener)(ShowCommand);
+
+
+// The component for the header bar in the main window.
+struct HeaderBar: public Component, public Timer, public TextButton::Listener {
+public:
+    HeaderBar(ActiveShowOptions& activeShowOptions, ShowStateChangedListener& showStateChangeListener):
+    activeShowOptions(activeShowOptions),
+    showStateChangedListener(showStateChangeListener) {
+        setOpaque(true);
+        startTimer(500); // Update every 500ms
+    }
+
+    void timerCallback() override;
+
+    ~HeaderBar() override = default;
+
+    void resized() override;
+    void paint(Graphics& g) override;
+
+
+
+
+    void activeShowOptionsChanged() {
+        repaint();
+    }
+
+private:
+    ShowStateChangedListener& showStateChangedListener;
+
+    ActiveShowOptions& activeShowOptions;
+    Rectangle<int> showNameBox;
+    Rectangle<int> cueIDBox;
+    Rectangle<int> cueNoBox;
+    Rectangle<int> stopBox;
+    ImageButton stopButton;
+    Rectangle<int> downBox;
+    ImageButton downButton;
+    Rectangle<int> upBox;
+    ImageButton upButton;
+    Rectangle<int> playBox;
+    ImageButton playButton;
+    Rectangle<int> timeBox;
+
+    Image borderImage;
+};
 
 
 
@@ -24,6 +81,28 @@ public:
     void paint (Graphics &g) override;
     void resized() override;
 
+    // Used by child components to ensure the parent gotten is valid.
+    void __validMainComponent() {};
+
+
+
+    void stopButtonClicked() {
+        DBG("Stop button clicked");
+    }
+
+    void downButtonClicked() {
+        DBG("Down button clicked");
+    }
+
+    void upButtonClicked() {
+        DBG("Up button clicked");
+    }
+
+    void playButtonClicked() {
+        DBG("Play button clicked");
+    }
+
+
     static void showConnectionErrorMessage (const String& messageText)
     {
         AlertWindow::showMessageBoxAsync (AlertWindow::WarningIcon,
@@ -33,32 +112,35 @@ public:
     }
 
 
+
 private:
     //==============================================================================
     // Your private member variables go here...
     Slider rotaryKnob; // [1]
     OSCSender sender; // [2]
-    Encoder testRotary {
-        HERTZ, -135.0, 20.0, 135.0, 20000.0, 0.5, 0.0, "20Hz",
-     "20kHz", 2, ParamType::LOGF, true, true};
+    // Encoder testRotary {
+    //     HERTZ, -135.0, 20.0, 135.0, 20000.0, 0.5, 0.0, "20Hz",
+    //  "20kHz", 2, ParamType::LOGF, true, true};
+    //
+    //
+    // Encoder testRotary2 {
+    //     DB, -135.0, -90.0, 135.0, 10.0, 0.5, 0.0, "-inf",
+    //  "+10.0dB", 2, ParamType::LEVEL_1024, true, true};
+    //
+    //
+    // EncoderRotary testRotary3 {
+    //     DB, -135.0, -90.0, 135.0, 10.0, 0.5, 0.0, "-inf",
+    //  "+10.0dB", 2, ParamType::LEVEL_1024, true, true};
+    //
+    // Encoder testRotary4 {
+    //     OptionParam("test", "This is a cool test", "a long winded description", {"Hello", "world", "Bye", "World"}),};
+    //
+    // Encoder testRotary5 {
+    //     EnumParam("test2", "This is a cool test2", "a very very long winded description", {"I", "Hate", "C++"}),};
+    //
+    // std::vector<Component*> activeComps = { &rotaryKnob, &testRotary, &testRotary2, &testRotary3, &testRotary4, &testRotary5 };
 
-
-    Encoder testRotary2 {
-        DB, -135.0, -90.0, 135.0, 10.0, 0.5, 0.0, "-inf",
-     "+10.0dB", 2, ParamType::LEVEL_1024, true, true};
-
-
-    EncoderRotary testRotary3 {
-        DB, -135.0, -90.0, 135.0, 10.0, 0.5, 0.0, "-inf",
-     "+10.0dB", 2, ParamType::LEVEL_1024, true, true};
-
-    Encoder testRotary4 {
-        OptionParam("test", "This is a cool test", "a long winded description", {"Hello", "world", "Bye", "World"}),};
-
-    Encoder testRotary5 {
-        EnumParam("test2", "This is a cool test2", "a very very long winded description", {"I", "Hate", "C++"}),};
-
-    std::vector<Component*> activeComps = { &rotaryKnob, &testRotary, &testRotary2, &testRotary3, &testRotary4, &testRotary5 };
+    ActiveShowOptions activeShowOptions {"Test", "Test Description", "CueID123", 1, 10};
 
     std::vector<Component*> getComponents() {
         return activeComps;
@@ -67,6 +149,7 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };
+
 
 
 

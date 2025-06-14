@@ -25,6 +25,7 @@ namespace UICfg {
     const Colour BG_COLOUR (34, 34, 34);
     const Colour TEXT_COLOUR (238, 238, 238);
     const Colour TEXT_COLOUR_DARK (100, 100, 100);
+    const Colour STRONG_BORDER_COLOUR (212, 212, 212);
 
     const Colour POSITIVE_BUTTON_COLOUR (89, 177, 128);
     const Colour POSITIVE_OVER_BUTTON_COLOUR (102, 208, 149);
@@ -51,10 +52,30 @@ namespace UICfg {
 }
 
 
+namespace FileInfo {
+    const File PARENT_DIRECTORY = File::getSpecialLocation(File::currentApplicationFile).getParentDirectory().getParentDirectory();
+    const File RESOURCES_DIRECTORY = PARENT_DIRECTORY.getChildFile("Resources");
+    const File ICONS_DIRECTORY = RESOURCES_DIRECTORY.getChildFile("Icons");
+
+}
+
+namespace Icons {
+
+}
+
+
+
 enum Units {
     HERTZ,
     DB,
     NONE
+};
+
+enum ShowCommand {
+    SHOW_START,
+    SHOW_STOP,
+    SHOW_NEXT_CUE,
+    SHOW_PREVIOUS_CUE
 };
 
 const std::unordered_map<Units, int> ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT = {
