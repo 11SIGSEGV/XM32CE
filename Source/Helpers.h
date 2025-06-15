@@ -26,6 +26,7 @@ namespace UICfg {
     const Colour TEXT_COLOUR (238, 238, 238);
     const Colour TEXT_COLOUR_DARK (100, 100, 100);
     const Colour STRONG_BORDER_COLOUR (212, 212, 212);
+    const Colour HEADER_BG_COLOUR (25, 23, 43);
 
     const Colour POSITIVE_BUTTON_COLOUR (89, 177, 128);
     const Colour POSITIVE_OVER_BUTTON_COLOUR (102, 208, 149);

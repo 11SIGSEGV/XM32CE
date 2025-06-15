@@ -51,7 +51,7 @@ Encoder::Encoder(
     init();
 }
 
-Encoder::Encoder(const OptionParam option, const double minDeg, const double maxDeg, const int defaultIndex,
+Encoder::Encoder(const OptionParam &option, const double minDeg, const double maxDeg, const int defaultIndex,
                  const String &minLabel, const String &maxLabel): unit(Units::NONE),
                                                                   roundTo(-1),
                                                                   paramType(ParamType::LINF),
@@ -69,7 +69,7 @@ Encoder::Encoder(const OptionParam option, const double minDeg, const double max
     init();
 }
 
-Encoder::Encoder(const EnumParam enumParam, const double minDeg, const double maxDeg, const int defaultIndex,
+Encoder::Encoder(const EnumParam &enumParam, const double minDeg, const double maxDeg, const int defaultIndex,
                  const String &minLabel, const String &maxLabel): unit(Units::NONE),
                                                                   roundTo(-1),
                                                                   paramType(ParamType::LINF),
@@ -147,7 +147,7 @@ EncoderRotary::EncoderRotary(
             break;
         case ParamType::LOGF:
             setNormalisableRange(getNormalisableRangeExp(minValue, maxValue));
-            break;
+                break;
         case ParamType::LEVEL_161:
             setNormalisableRange(LEVEL_161_NORMALISABLE_RANGE);
             break;
@@ -160,7 +160,7 @@ EncoderRotary::EncoderRotary(
 }
 
 
-EncoderRotary::EncoderRotary(const OptionParam option, const double minDeg, const double maxDeg, const int defaultIndex,
+EncoderRotary::EncoderRotary(const OptionParam &option, const double minDeg, const double maxDeg, const int defaultIndex,
                              const String &minLabel, const String &maxLabel): isOptionParam(true), isEnumParam(false),
                                                                               option(option),
                                                                               paramType(ParamType::LINF),
@@ -181,7 +181,7 @@ EncoderRotary::EncoderRotary(const OptionParam option, const double minDeg, cons
 }
 
 
-EncoderRotary::EncoderRotary(const EnumParam enumParam, const double minDeg, const double maxDeg,
+EncoderRotary::EncoderRotary(const EnumParam &enumParam, const double minDeg, const double maxDeg,
                              const int defaultIndex, const String &minLabel, const String &maxLabel)
     : isOptionParam(false), isEnumParam(true),
       enumParam(enumParam),

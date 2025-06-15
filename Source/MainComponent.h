@@ -1,7 +1,6 @@
 #pragma once
+#include <any>
 #include <JuceHeader.h>
-#include <juce_gui_basics/buttons/juce_Button.h>
-
 #include "OSCMan.h"
 #include "Helpers.h"
 #include "AppComponents.h"
@@ -21,27 +20,86 @@ inline void loadUICfgIntoStdLnF(LookAndFeel_V4 &lnf) {
 }
 
 
-typedef void (*ShowStateChangedListener)(ShowCommand);
+
+class ShowCommandListener {
+    public:
+    virtual ~ShowCommandListener() = default;
+
+    // Called when command is sent by a child component
+    virtual void commandOccured(ShowCommand) = 0;
+};
 
 
 // The component for the header bar in the main window.
-struct HeaderBar: public Component, public Timer, public TextButton::Listener {
+struct HeaderBar: public Component, public Timer, public DrawableButton::Listener {
 public:
-    HeaderBar(ActiveShowOptions& activeShowOptions, ShowStateChangedListener& showStateChangeListener):
-    activeShowOptions(activeShowOptions),
-    showStateChangedListener(showStateChangeListener) {
+    HeaderBar(ActiveShowOptions& activeShowOptions):
+    activeShowOptions(activeShowOptions) {
         setOpaque(true);
         startTimer(500); // Update every 500ms
+        addAndMakeVisible(stopButton);
+        stopButton.addListener(this);
+        addAndMakeVisible(playButton);
+        playButton.addListener(this);
+        addAndMakeVisible(upButton);
+        upButton.addListener(this);
+        addAndMakeVisible(downButton);
+        downButton.addListener(this);
     }
 
-    void timerCallback() override;
+    ~HeaderBar() override {
+        stopButton.removeListener(this);
+        playButton.removeListener(this);
+        upButton.removeListener(this);
+        downButton.removeListener(this);
+        removeAllChildren();
+    };
 
-    ~HeaderBar() override = default;
+
+    void timerCallback() override {
+        repaint();
+    }
+
+    void reconstructImage();
 
     void resized() override;
     void paint(Graphics& g) override;
 
+    void registerListener(ShowCommandListener* lstnr) {
+        showCommandListeners.push_back(lstnr);
+    }
 
+
+    void unregisterListener(ShowCommandListener* lstnr) {
+        showCommandListeners.erase(
+            std::remove(showCommandListeners.begin(), showCommandListeners.end(), lstnr),
+            showCommandListeners.end());
+    }
+
+    void _dispatchToListeners(ShowCommand command) {
+        for (auto lstnr: showCommandListeners) {
+            lstnr->commandOccured(command);
+        }
+    }
+
+
+    void buttonClicked(Button *btn) override {
+        if (auto *button = dynamic_cast<DrawableButton *>(btn)) {
+            if (button == &stopButton) {
+                _dispatchToListeners(ShowCommand::SHOW_STOP);
+            } else if (button == &playButton) {
+                _dispatchToListeners(ShowCommand::SHOW_START);
+            } else if (button == &upButton) {
+                _dispatchToListeners(ShowCommand::SHOW_PREVIOUS_CUE);
+            } else if (button == &downButton) {
+                _dispatchToListeners(ShowCommand::SHOW_NEXT_CUE);
+            } else {
+                jassertfalse; // Invalid button caught by listener
+            }
+        } else {
+            jassertfalse; // This should never happen! Button listeners should always be DrawableButton
+        }
+    };
 
 
     void activeShowOptionsChanged() {
@@ -49,28 +107,36 @@ public:
     }
 
 private:
-    ShowStateChangedListener& showStateChangedListener;
+    String getCurrentTimeAsFormattedString() const {
+        auto timeNow = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        auto *localTime = std::localtime(&timeNow);
+        return String::formatted("%02d:%02d:%02d", localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+    }
 
+    std::vector<ShowCommandListener*> showCommandListeners;
     ActiveShowOptions& activeShowOptions;
     Rectangle<int> showNameBox;
     Rectangle<int> cueIDBox;
     Rectangle<int> cueNoBox;
     Rectangle<int> stopBox;
-    ImageButton stopButton;
+    DrawableButton stopButton {"HeaderStopButton", DrawableButton::ImageFitted};
     Rectangle<int> downBox;
-    ImageButton downButton;
+    DrawableButton downButton {"HeaderDownButton", DrawableButton::ImageFitted};
     Rectangle<int> upBox;
-    ImageButton upButton;
+    DrawableButton upButton {"HeaderUpButton", DrawableButton::ImageFitted};
     Rectangle<int> playBox;
-    ImageButton playButton;
+    DrawableButton playButton {"HeaderPlayButton", DrawableButton::ImageFitted};
     Rectangle<int> timeBox;
+    Rectangle<float> timeTextBox;
 
     Image borderImage;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HeaderBar)
 };
 
 
 
-class MainComponent  : public Component
+class MainComponent  : public Component, public ShowCommandListener
 {
 public:
     //==============================================================================
@@ -81,27 +147,6 @@ public:
     void paint (Graphics &g) override;
     void resized() override;
 
-    // Used by child components to ensure the parent gotten is valid.
-    void __validMainComponent() {};
-
-
-
-    void stopButtonClicked() {
-        DBG("Stop button clicked");
-    }
-
-    void downButtonClicked() {
-        DBG("Down button clicked");
-    }
-
-    void upButtonClicked() {
-        DBG("Up button clicked");
-    }
-
-    void playButtonClicked() {
-        DBG("Play button clicked");
-    }
-
 
     static void showConnectionErrorMessage (const String& messageText)
     {
@@ -111,6 +156,12 @@ public:
             "OK");
     }
 
+    void localShowCommandReciever(ShowCommand command);
+
+
+    void commandOccured(ShowCommand) override {
+        DBG("Event!");
+    }
 
 
 private:
@@ -118,7 +169,8 @@ private:
     // Your private member variables go here...
     Slider rotaryKnob; // [1]
     OSCSender sender; // [2]
-    // Encoder testRotary {
+
+    /* Encoder testRotary {
     //     HERTZ, -135.0, 20.0, 135.0, 20000.0, 0.5, 0.0, "20Hz",
     //  "20kHz", 2, ParamType::LOGF, true, true};
     //
@@ -139,8 +191,11 @@ private:
     //     EnumParam("test2", "This is a cool test2", "a very very long winded description", {"I", "Hate", "C++"}),};
     //
     // std::vector<Component*> activeComps = { &rotaryKnob, &testRotary, &testRotary2, &testRotary3, &testRotary4, &testRotary5 };
+    */
 
     ActiveShowOptions activeShowOptions {"Test", "Test Description", "CueID123", 1, 10};
+    HeaderBar headerBar = HeaderBar(activeShowOptions);
+    std::vector<Component*> activeComps = { &headerBar };
 
     std::vector<Component*> getComponents() {
         return activeComps;
@@ -327,6 +382,7 @@ public:
 
 
     /* Returns true when inputs are valid, false when not.*/
+
     bool validateTextEditorOutputs() {
         inputErrorsString = String();
         bool noError = true;

@@ -414,7 +414,7 @@ inline OptionParam _nullOption = {"", "", "", {}};
 inline EnumParam _nullEnum = {"", "", "", {}};
 
 
-static std::string stringFromBoolVector(const std::vector<bool> boolVector ) {
+static std::string stringFromBoolVector(const std::vector<bool> &boolVector ) {
     std::stringstream ss;
     for (const auto& b : boolVector) {
         ss << (b ? '1' : '0');

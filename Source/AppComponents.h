@@ -30,7 +30,7 @@ struct EncoderRotary : public Slider {
     );
 
     // We'll also allow Enum and OptionParams
-    EncoderRotary(const OptionParam option,
+    EncoderRotary(const OptionParam &option,
                   const double minDeg = -135.0,
                   const double maxDeg = 135.0,
                   const int defaultIndex = 0,
@@ -38,7 +38,7 @@ struct EncoderRotary : public Slider {
                   const String &maxLabel = ""
     );
 
-    EncoderRotary(const EnumParam enumParam,
+    EncoderRotary(const EnumParam &enumParam,
                   const double minDeg = -135.0,
                   const double maxDeg = 135.0,
                   const int defaultIndex = 0,
@@ -97,14 +97,14 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
             const bool defaultProvidedAsPercentage = true
     );
 
-    Encoder(const OptionParam option,
+    Encoder(const OptionParam &option,
                   const double minDeg = -135.0,
                   const double maxDeg = 135.0,
                   const int defaultIndex = 0,
                   const String &minLabel = "",
                   const String &maxLabel = "");
 
-    Encoder(const EnumParam enumParam,
+    Encoder(const EnumParam &enumParam,
                   const double minDeg = -135.0,
                   const double maxDeg = 135.0,
                   const int defaultIndex = 0,
