@@ -53,17 +53,58 @@ namespace UICfg {
 }
 
 
+namespace IconID {
+    constexpr int DOWN_ARROW = 1;
+    constexpr int UP_ARROW = 2;
+    constexpr int OCTAGON = 3;
+    constexpr int STOP = OCTAGON;
+    constexpr int PLAY = 4;
+}
+
+
+inline const std::unordered_map<int, std::string> ICON_FILE_MAP = {
+    {IconID::DOWN_ARROW, "down.png"},
+    {IconID::UP_ARROW, "up.png"},
+    {IconID::PLAY, "play.png"},
+    {IconID::OCTAGON, "octagon.png"},
+};
+
+
+
+
 namespace FileInfo {
-    const File PARENT_DIRECTORY = File::getSpecialLocation(File::currentApplicationFile).getParentDirectory().getParentDirectory();
+    // NOTE: File::currentApplicationFile is actually executable file built... which will be in ./Builds/LinuxMakeFile/
+    // TODO: On Deployment, change to .getParentDirectory().getParentDirectory() to get the root of the project.
+    const File PARENT_DIRECTORY = File::getSpecialLocation(File::currentApplicationFile).getParentDirectory().getParentDirectory().getParentDirectory().getParentDirectory();
     const File RESOURCES_DIRECTORY = PARENT_DIRECTORY.getChildFile("Resources");
     const File ICONS_DIRECTORY = RESOURCES_DIRECTORY.getChildFile("Icons");
 
 }
 
-namespace Icons {
 
+inline Image getIconImageFile(int iconID) {
+    if (ICON_FILE_MAP.find(iconID) != ICON_FILE_MAP.end()) {
+        auto file = FileInfo::ICONS_DIRECTORY.getChildFile(ICON_FILE_MAP.at(iconID));
+        if (!file.existsAsFile()) {
+            jassertfalse; // Icon file does not exist
+            return {};
+        }
+        Image fileImage = PNGImageFormat::loadFrom(file);
+        // Fun fact, the implementation for isNull is just !isValid()
+        if (fileImage.isNull()) {
+            jassertfalse; // Failed to load image from file
+            return {};
+        }
+        return fileImage; // Return the file if it exists
+    } else {
+        jassertfalse; // Icon ID not found in the map
+        return {};
+    }
 }
 
+// NO LONGER USING ICONS! Just using ridiculously high-res PNGs. Juce really REALLY HATES SVGs. Even the official svg-->path tools in projucer don't work.
+
+// Icons will be loaded by each individual component. If a component requires, it will load it.
 
 
 enum Units {

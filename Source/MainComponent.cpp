@@ -7,8 +7,6 @@ MainComponent::MainComponent() {
     headerBar.registerListener(this);
     setSize(600, 400);
 
-
-
     for (auto *comp: getComponents()) {
         addAndMakeVisible(*comp);
     }
@@ -25,14 +23,18 @@ MainComponent::~MainComponent() {
 
 
 //==============================================================================
-void MainComponent::paint(juce::Graphics &g) {
+void MainComponent::paint(juce::Graphics &g) {;
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
+
+
+
 
     g.setFont(juce::FontOptions(16.0f));
     g.setColour(juce::Colours::white);
     g.drawText("Kewei's bad!", getLocalBounds(), juce::Justification::centred, true);
 }
+
 
 
 void MainComponent::resized() {
@@ -111,6 +113,19 @@ void HeaderBar::reconstructImage() {
     g.drawFittedText("Cue " + String(activeShowOptions.currentCueIndex) + "/" + String(activeShowOptions.numberOfCueItems),
                      cueNoTextBox.toNearestInt(), Justification::centredLeft, 1);
 
+    // Now draw icon images
+    g.drawImage(stopIcon, stopButtonIconBox, RectanglePlacement::centred);
+    g.drawImage(playIcon, playButtonIconBox, RectanglePlacement::centred);
+    g.drawImage(upIcon, upButtonIconBox, RectanglePlacement::centred);
+    g.drawImage(downIcon, downButtonIconBox, RectanglePlacement::centred);
+
+    // For STOP and PLAY buttons, we need text labels
+    g.setFont(stopButtonTextBox.getHeight());;
+    g.drawFittedText("STOP", stopButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
+    g.drawFittedText("PLAY", playButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
+
+
+
 }
 
 
@@ -132,11 +147,42 @@ void HeaderBar::resized() {
     timeTextBox.removeFromLeft(boundWidthTenths * 0.05f);
     timeTextBox.removeFromRight(boundWidthTenths * 0.05f);
 
+
     // Let's set the button bounds
     stopButton.setBounds(stopBox);
+    // For each button, we also have to set the image bounds.
+    stopButtonIconBox = stopBox.toFloat();
+    // Padding of 0.1 of the width tenths for padding
+    auto boundWidth0005 = boundWidthTenths * 0.05f;
+
+
+    stopButtonIconBox.removeFromBottom(boundWidth0005);
+    stopButtonIconBox.removeFromTop(boundWidth0005);
+    stopButtonIconBox.removeFromLeft(boundWidth0005);
+    stopButtonTextBox = stopButtonIconBox.removeFromRight(stopBox.getWidth() - 0.1f * boundWidthTenths - stopButtonIconBox.getHeight());
+    stopButtonTextBox.removeFromLeft(boundWidth0005);
+    stopButtonTextBox.removeFromRight(boundWidth0005);
+
     downButton.setBounds(downBox);
+    downButtonIconBox = downBox.toFloat();
+    // No need to set side padding for the down button as no text beside it. Using RectanglePlacement::centred will
+    // auto-center it to the box
+    downButtonIconBox.removeFromTop(boundWidth0005);
+    downButtonIconBox.removeFromBottom(boundWidth0005);
+
     upButton.setBounds(upBox);
+    upButtonIconBox = upBox.toFloat();
+    upButtonIconBox.removeFromTop(boundWidth0005);
+    upButtonIconBox.removeFromBottom(boundWidth0005);
+
     playButton.setBounds(playBox);
+    playButtonIconBox = playBox.toFloat();
+    playButtonIconBox.removeFromTop(boundWidth0005);
+    playButtonIconBox.removeFromBottom(boundWidth0005);
+    playButtonIconBox.removeFromLeft(boundWidth0005);
+    playButtonTextBox = playButtonIconBox.removeFromRight(playButton.getWidth() - 0.1f * boundWidthTenths - playButtonIconBox.getHeight());
+    playButtonTextBox.removeFromLeft(boundWidth0005);
+    playButtonTextBox.removeFromRight(boundWidth0005);
 
     reconstructImage();
 }

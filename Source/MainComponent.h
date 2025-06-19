@@ -1,5 +1,4 @@
 #pragma once
-#include <any>
 #include <JuceHeader.h>
 #include "OSCMan.h"
 #include "Helpers.h"
@@ -131,6 +130,18 @@ private:
 
     Image borderImage;
 
+    // Let's load iconography!
+    Rectangle<float> stopButtonIconBox;
+    Rectangle<float> stopButtonTextBox;
+    Image stopIcon {getIconImageFile(IconID::STOP)};
+    Rectangle<float> downButtonIconBox;
+    Image downIcon {getIconImageFile(IconID::DOWN_ARROW)};
+    Rectangle<float> upButtonIconBox;
+    Image upIcon {getIconImageFile(IconID::UP_ARROW)};
+    Rectangle<float> playButtonIconBox;
+    Rectangle<float> playButtonTextBox;
+    Image playIcon {getIconImageFile(IconID::PLAY)};
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HeaderBar)
 };
 
@@ -170,6 +181,7 @@ private:
     Slider rotaryKnob; // [1]
     OSCSender sender; // [2]
 
+
     /* Encoder testRotary {
     //     HERTZ, -135.0, 20.0, 135.0, 20000.0, 0.5, 0.0, "20Hz",
     //  "20kHz", 2, ParamType::LOGF, true, true};
@@ -193,13 +205,14 @@ private:
     // std::vector<Component*> activeComps = { &rotaryKnob, &testRotary, &testRotary2, &testRotary3, &testRotary4, &testRotary5 };
     */
 
-    ActiveShowOptions activeShowOptions {"Test", "Test Description", "CueID123", 1, 10};
+    ActiveShowOptions activeShowOptions {"SampleShowName", "Test Description", "CueID123", 1, 10};
     HeaderBar headerBar = HeaderBar(activeShowOptions);
     std::vector<Component*> activeComps = { &headerBar };
 
     std::vector<Component*> getComponents() {
         return activeComps;
     }
+
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
