@@ -5,7 +5,7 @@
 
 MainComponent::MainComponent() {
     headerBar.registerListener(this);
-    setSize(600, 400);
+
 
     for (auto *comp: getComponents()) {
         addAndMakeVisible(*comp);
@@ -14,20 +14,13 @@ MainComponent::MainComponent() {
 
 MainComponent::~MainComponent() {
     removeAllChildren();
-    // for (auto *comp: activeComps) {
-    //     if (comp != nullptr)
-    //         comp->setLookAndFeel(nullptr);
-    // }
-    delete this;
 }
 
 
 //==============================================================================
-void MainComponent::paint(juce::Graphics &g) {;
+void MainComponent::paint(Graphics &g) {;
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
-
-
 
 
     g.setFont(juce::FontOptions(16.0f));
@@ -46,30 +39,38 @@ void MainComponent::resized() {
 
 }
 
-
-void MainComponent::localShowCommandReciever(ShowCommand command) {
-    switch (command) {
-        case ShowCommand::SHOW_STOP:
-            // Handle stop command
-            DBG("Stop!");;
-            break;
-        case ShowCommand::SHOW_START:
-            // Handle play command
-            DBG("Start!");
+void MainComponent::commandOccured(ShowCommand cmd) {
+    switch (cmd) {
+        case ShowCommand::SHOW_NEXT_CUE:
+            std::cout << "Next cue" << std::endl;
+            jassertfalse; // NOT IMPLEMENTED
             break;
         case ShowCommand::SHOW_PREVIOUS_CUE:
-            // Handle up command
-            DBG("Previous Cue!");
+            std::cout << "Previous cue" << std::endl;
+            jassertfalse; // NOT IMPLEMENTED
             break;
-        case ShowCommand::SHOW_NEXT_CUE:
-            // Handle down command
-            DBG("Next Cue!");
+        case ShowCommand::SHOW_PLAY:
+            std::cout << "Play" << std::endl;
+            activeShowOptions.currentCuePlaying = true;
             break;
+        case ShowCommand::SHOW_STOP:
+            std::cout << "Stop" << std::endl;
+            activeShowOptions.currentCuePlaying = false;
+            break;
+        case ShowCommand::SHOW_NAME_CHANGE:
+            std::cout << "Show Name Change" << std::endl;
+            break;
+        case ShowCommand::SHOW_CUE_INDEX_CHANGE:
+            std::cout << "Show Cue Index Change" << std::endl;
+            break;
+
         default:
-            jassertfalse; // Unknown command
+            jassertfalse; // Invalid ShowCommand
+    }
+    for (auto *comp: callbackCompsUponActiveShowOptionsChanged) {
+        comp->commandOccured(cmd);
     }
 }
-
 
 
 void HeaderBar::reconstructImage() {
@@ -197,4 +198,11 @@ void HeaderBar::paint(Graphics &g) {
     g.drawFittedText(getCurrentTimeAsFormattedString(), timeTextBox.toNearestInt(),
                      Justification::centred, 1);
 
+}
+
+
+void HeaderBar::commandOccured(ShowCommand command) {
+    if (_showCommandsRequiringImageReconstruction.find(command) != _showCommandsRequiringImageReconstruction.end()) {
+        reconstructImage();
+    }
 }

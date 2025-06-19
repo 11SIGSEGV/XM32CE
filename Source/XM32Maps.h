@@ -361,11 +361,13 @@ const std::unordered_map<float, float> rtaDecayToFloat = {
 // Use LEVEL_1024 for levels with 1024 values, but use LEVEL_161 for levels with 161 values. They use different implementations.
 enum ParamType {
     LINF, LOGF, ENUM, STRING, INT,
-    LEVEL_1024, LEVEL_161, BITSET, OPTION
+    LEVEL_1024, LEVEL_161, BITSET, OPTION,
+    _GENERIC_FLOAT // ONLY TO BE USED IN ValueStorer. Used for metadata to let OSC Message Constructor know which datatype to use
 };
 
 
 
+// TODO: Considering support for BLOB (binary)?
 struct ValueStorer {
     // When Enum or Int:
     int intValue {};
@@ -374,9 +376,11 @@ struct ValueStorer {
     // When String, Bitset or Option
     std::string stringValue {};
 
-    ValueStorer(int intValue): intValue(intValue) {}
-    ValueStorer(float floatValue): floatValue(floatValue) {}
-    ValueStorer(const std::string &stringValue): stringValue(stringValue) {}
+    const ParamType _meta_PARAMTYPE;
+
+    ValueStorer(int intValue): intValue(intValue), _meta_PARAMTYPE(INT) {};
+    ValueStorer(float floatValue): floatValue(floatValue), _meta_PARAMTYPE(_GENERIC_FLOAT) {};
+    ValueStorer(const std::string &stringValue): stringValue(stringValue), _meta_PARAMTYPE(STRING) {};
 };
 
 

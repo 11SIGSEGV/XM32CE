@@ -19,37 +19,39 @@ namespace UICfg {
     const String DEFAULT_SERIF_FONT_NAME = Font::getDefaultSerifFontName();
     const String DEFAULT_MONOSPACE_FONT_NAME = Font::getDefaultMonospacedFontName();
     constexpr int DEFAULT_TEXT_HEIGHT = 100;
-    const Font DEFAULT_FONT = FontOptions(DEFAULT_SANS_SERIF_FONT_NAME, static_cast<float>(DEFAULT_TEXT_HEIGHT), Font::plain);
-    const Font DEFAULT_MONOSPACE_FONT = FontOptions(DEFAULT_MONOSPACE_FONT_NAME, static_cast<float>(DEFAULT_TEXT_HEIGHT), Font::plain);
+    const Font DEFAULT_FONT = FontOptions(DEFAULT_SANS_SERIF_FONT_NAME, static_cast<float>(DEFAULT_TEXT_HEIGHT),
+                                          Font::plain);
+    const Font DEFAULT_MONOSPACE_FONT = FontOptions(DEFAULT_MONOSPACE_FONT_NAME,
+                                                    static_cast<float>(DEFAULT_TEXT_HEIGHT), Font::plain);
 
-    const Colour BG_COLOUR (34, 34, 34);
-    const Colour TEXT_COLOUR (238, 238, 238);
-    const Colour TEXT_COLOUR_DARK (100, 100, 100);
-    const Colour STRONG_BORDER_COLOUR (212, 212, 212);
-    const Colour HEADER_BG_COLOUR (25, 23, 43);
+    const Colour BG_COLOUR(34, 34, 34);
+    const Colour TEXT_COLOUR(238, 238, 238);
+    const Colour TEXT_COLOUR_DARK(100, 100, 100);
+    const Colour STRONG_BORDER_COLOUR(212, 212, 212);
+    const Colour HEADER_BG_COLOUR(25, 23, 43);
 
-    const Colour POSITIVE_BUTTON_COLOUR (89, 177, 128);
-    const Colour POSITIVE_OVER_BUTTON_COLOUR (102, 208, 149);
-    const Colour POSITIVE_DOWN_BUTTON_COLOUR (102, 208, 149);
-    const Colour NEGATIVE_BUTTON_COLOUR (226, 67, 67);
-    const Colour NEGATIVE_OVER_BUTTON_COLOUR (254, 38, 38);
-    const Colour NEGATIVE_DOWN_BUTTON_COLOUR (132, 10, 10);
+    const Colour POSITIVE_BUTTON_COLOUR(89, 177, 128);
+    const Colour POSITIVE_OVER_BUTTON_COLOUR(102, 208, 149);
+    const Colour POSITIVE_DOWN_BUTTON_COLOUR(102, 208, 149);
+    const Colour NEGATIVE_BUTTON_COLOUR(226, 67, 67);
+    const Colour NEGATIVE_OVER_BUTTON_COLOUR(254, 38, 38);
+    const Colour NEGATIVE_DOWN_BUTTON_COLOUR(132, 10, 10);
 
     constexpr float ROTARY_POINTER_WIDTH = 0.05f; // X% of half the bounding width (i.e., x% of the radius)
-    const Colour ROTARY_POINTER_COLOUR (28U, 21u, 11u); // Darker variant of the background colour
+    const Colour ROTARY_POINTER_COLOUR(28U, 21u, 11u); // Darker variant of the background colour
     constexpr float ROTARY_TEXT_PADDING = 1.4f; // X% of half bounding width (i.e., x% of the radius). Should be >1.f.
     constexpr float ROTARY_TEXT_HEIGHT = 0.25f; // X% of half bounding width (i.e., x% of the radius)
-    const Colour ROTARY_ENABLED_COLOUR (242u, 194u, 63u);
-    const Colour ROTARY_DISABLED_COLOUR (87u, 76u, 48u);
+    const Colour ROTARY_ENABLED_COLOUR(242u, 194u, 63u);
+    const Colour ROTARY_DISABLED_COLOUR(87u, 76u, 48u);
 
     constexpr int ROUND_TO_WHEN_IN_DOUBT = 2; // Round to 2 decimal places when in doubt (e.g., no unit for the value)
 
 
     // For UI element sizes use relative sizes
-    constexpr float STD_PADDING = 1.f/30.f;
+    constexpr float STD_PADDING = 1.f / 30.f;
 
     // Look and feel Configs
-    const Colour TEXT_EDITOR_BG_COLOUR (0.f, 0.f, 0.f, 0.f);
+    const Colour TEXT_EDITOR_BG_COLOUR(0.f, 0.f, 0.f, 0.f);
 }
 
 
@@ -70,41 +72,55 @@ inline const std::unordered_map<int, std::string> ICON_FILE_MAP = {
 };
 
 
-
-
 namespace FileInfo {
     // NOTE: File::currentApplicationFile is actually executable file built... which will be in ./Builds/LinuxMakeFile/
     // TODO: On Deployment, change to .getParentDirectory().getParentDirectory() to get the root of the project.
-    const File PARENT_DIRECTORY = File::getSpecialLocation(File::currentApplicationFile).getParentDirectory().getParentDirectory().getParentDirectory().getParentDirectory();
+    const File PARENT_DIRECTORY = File::getSpecialLocation(File::currentApplicationFile).getParentDirectory().
+            getParentDirectory().getParentDirectory().getParentDirectory();
     const File RESOURCES_DIRECTORY = PARENT_DIRECTORY.getChildFile("Resources");
     const File ICONS_DIRECTORY = RESOURCES_DIRECTORY.getChildFile("Icons");
-
-}
-
-
-inline Image getIconImageFile(int iconID) {
-    if (ICON_FILE_MAP.find(iconID) != ICON_FILE_MAP.end()) {
-        auto file = FileInfo::ICONS_DIRECTORY.getChildFile(ICON_FILE_MAP.at(iconID));
-        if (!file.existsAsFile()) {
-            jassertfalse; // Icon file does not exist
-            return {};
-        }
-        Image fileImage = PNGImageFormat::loadFrom(file);
-        // Fun fact, the implementation for isNull is just !isValid()
-        if (fileImage.isNull()) {
-            jassertfalse; // Failed to load image from file
-            return {};
-        }
-        return fileImage; // Return the file if it exists
-    } else {
-        jassertfalse; // Icon ID not found in the map
-        return {};
-    }
 }
 
 // NO LONGER USING ICONS! Just using ridiculously high-res PNGs. Juce really REALLY HATES SVGs. Even the official svg-->path tools in projucer don't work.
-
 // Icons will be loaded by each individual component. If a component requires, it will load it.
+
+// This function takes the icon ID and returns an Image object of the icon
+Image getIconImageFile(int iconID);
+
+
+struct ActiveShowOptions {
+    String showName; // Should be max-len of 24. Not Strict.
+    String showDescription;
+    String currentCueID;
+    int currentCueIndex; // Zero-indexed (0 --> n)
+    bool currentCuePlaying;
+    int numberOfCueItems;
+};
+
+
+struct CurrentCueInfo {
+    String id;
+    String name;
+    String description;
+    String finalOSCAddress;
+    ValueStorerArray finalOSCValues; // Later unpacked into positional arguments for OSCMessage constructor,
+    OSCMessage _constructedMessageCache { "/" };
+    bool _constructedMessageCacheIsValid{false};
+
+
+    // WARNING: A blank OSC Message Address String WILL RAISE AN EXCEPTION! PROCEED AT YOUR OWN RISK
+    CurrentCueInfo(String id, String name, String description, String finalOSCAddress = "",
+                   ValueStorerArray finalOSCValues = {}): id(id), name(name), description(description),
+                                                          finalOSCAddress(finalOSCAddress),
+                                                          finalOSCValues(finalOSCValues) {}
+
+
+
+    // When finalOSCAddress and finalOSCValues are set and ready to be constructed into a valid OSCMessage,
+    // this function can be used.
+    // Use ignoreAndReconstructCache when variables in CurrentCueInfo have changed.
+    OSCMessage constructMessage(bool ignoreAndReconstructCache = false);
+};
 
 
 enum Units {
@@ -114,10 +130,14 @@ enum Units {
 };
 
 enum ShowCommand {
-    SHOW_START,
+    SHOW_PLAY,
     SHOW_STOP,
     SHOW_NEXT_CUE,
-    SHOW_PREVIOUS_CUE
+    SHOW_PREVIOUS_CUE,
+    SHOW_NAME_CHANGE,
+    SHOW_CUE_INDEX_CHANGE,
+
+    CURRENT_CUE_ID_CHANGE
 };
 
 const std::unordered_map<Units, int> ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT = {
@@ -125,7 +145,6 @@ const std::unordered_map<Units, int> ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT = {
     {NONE, UICfg::ROUND_TO_WHEN_IN_DOUBT},
     {DB, 2}
 };
-
 
 
 /* Structure to hold the output of the validation functions.
@@ -136,6 +155,7 @@ struct ValidatorOutput {
     String errorMessage;
 };
 
+
 ValidatorOutput isValidIPv4(const String &ip);
 
 ValidatorOutput isValidPort(const String &port);
@@ -144,8 +164,6 @@ ValidatorOutput isValidDeviceName(const String &deviceName);
 
 
 std::pair<bool, double> getDoubleValueFromTextEditor(String text);
-
-
 
 
 class XM32 {
@@ -185,7 +203,7 @@ When percentage is between 0 and 1, it uses the specified algorithm to interpola
 If an error occurs (e.g., percentage is out of range), it asserts false and fallbacks by returning minVal.
 */
 const double inferValueFromMinMaxAndPercentage(
-   double minVal, double maxVal, double percentage, ParamType algorithm = ParamType::LINF);
+    double minVal, double maxVal, double percentage, ParamType algorithm = ParamType::LINF);
 
 
 /* Basically, inverse of inferValueFromMinMaxAndPercentage. (i.e., normalises a value).
@@ -195,8 +213,7 @@ const double inferPercentageFromMinMaxAndValue(
 
 
 // Generates a NormalisableRange for a logarithmic slider. From https://forum.juce.com/t/logarithmic-slider-for-frequencies-iir-hpf/37569/10
-static inline NormalisableRange<double> getNormalisableRangeExp(double min, double max)
-{
+static inline NormalisableRange<double> getNormalisableRangeExp(double min, double max) {
     jassert(min > 0.0);
     jassert(max > 0.0);
     jassert(min < max);
@@ -213,21 +230,21 @@ static inline NormalisableRange<double> getNormalisableRangeExp(double min, doub
             normalized = std::max(0.0, std::min(1.0, normalized));
             double value = exp((normalized * logrange) + logmin);
             return std::max(start, std::min(end, value));
-    },
+        },
         [logmin,logrange](double start, double end, double value) {
             value = std::max(start, std::min(end, value));
             double logvalue = std::log(value);
             return (logvalue - logmin) / logrange;
-    },
-    [](double start, double end, double value) {
-        return std::max(start, std::min(end, value));
-    });
+        },
+        [](double start, double end, double value) {
+            return std::max(start, std::min(end, value));
+        });
 }
 
 const inline NormalisableRange<double> LEVEL_161_NORMALISABLE_RANGE(
     -90.0, 10.0,
     [](double start, double end, double normalized) {
-        normalized = std::max(0.0, std::min(1.0, normalized));  // Ensure normalized is between 0 and 1
+        normalized = std::max(0.0, std::min(1.0, normalized)); // Ensure normalized is between 0 and 1
         return XM32::roundToNearest(
             static_cast<float>(jmap(normalized, start, end)), levelValues_161);
     },
@@ -247,7 +264,7 @@ const inline NormalisableRange<double> LEVEL_161_NORMALISABLE_RANGE(
 const inline NormalisableRange<double> LEVEL_1024_NORMALISABLE_RANGE(
     -90.0, 10.0,
     [](double start, double end, double normalized) {
-        normalized = std::max(0.0, std::min(1.0, normalized));  // Ensure normalized is between 0 and 1
+        normalized = std::max(0.0, std::min(1.0, normalized)); // Ensure normalized is between 0 and 1
         return XM32::floatToDb(normalized);
     },
     [](double start, double end, double value) {

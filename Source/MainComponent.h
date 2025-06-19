@@ -5,13 +5,7 @@
 #include "AppComponents.h"
 
 
-struct ActiveShowOptions {
-    String showName;
-    String showDescription;
-    String currentCueID;
-    int currentCueIndex;
-    int numberOfCueItems;
-};
+
 
 
 inline void loadUICfgIntoStdLnF(LookAndFeel_V4 &lnf) {
@@ -29,8 +23,9 @@ class ShowCommandListener {
 };
 
 
+
 // The component for the header bar in the main window.
-struct HeaderBar: public Component, public Timer, public DrawableButton::Listener {
+struct HeaderBar: public Component, public Timer, public DrawableButton::Listener, public ShowCommandListener {
 public:
     HeaderBar(ActiveShowOptions& activeShowOptions):
     activeShowOptions(activeShowOptions) {
@@ -75,23 +70,27 @@ public:
             showCommandListeners.end());
     }
 
+    // For all listeners registered, send the showcommand to the listener
     void _dispatchToListeners(ShowCommand command) {
         for (auto lstnr: showCommandListeners) {
             lstnr->commandOccured(command);
         }
     }
 
+    void showOptionsChanged(ShowCommand command);
+
+    void commandOccured(ShowCommand command) override;
 
     void buttonClicked(Button *btn) override {
         if (auto *button = dynamic_cast<DrawableButton *>(btn)) {
             if (button == &stopButton) {
-                _dispatchToListeners(ShowCommand::SHOW_STOP);
+                _dispatchToListeners(SHOW_STOP);
             } else if (button == &playButton) {
-                _dispatchToListeners(ShowCommand::SHOW_START);
+                _dispatchToListeners(SHOW_PLAY);
             } else if (button == &upButton) {
-                _dispatchToListeners(ShowCommand::SHOW_PREVIOUS_CUE);
+                _dispatchToListeners(SHOW_PREVIOUS_CUE);
             } else if (button == &downButton) {
-                _dispatchToListeners(ShowCommand::SHOW_NEXT_CUE);
+                _dispatchToListeners(SHOW_NEXT_CUE);
             } else {
                 jassertfalse; // Invalid button caught by listener
             }
@@ -111,6 +110,9 @@ private:
         auto *localTime = std::localtime(&timeNow);
         return String::formatted("%02d:%02d:%02d", localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
     }
+
+    const std::set<ShowCommand> _showCommandsRequiringImageReconstruction = {SHOW_CUE_INDEX_CHANGE, SHOW_NAME_CHANGE,
+        CURRENT_CUE_ID_CHANGE};
 
     std::vector<ShowCommandListener*> showCommandListeners;
     ActiveShowOptions& activeShowOptions;
@@ -167,12 +169,9 @@ public:
             "OK");
     }
 
-    void localShowCommandReciever(ShowCommand command);
 
 
-    void commandOccured(ShowCommand) override {
-        DBG("Event!");
-    }
+    void commandOccured(ShowCommand) override;
 
 
 private:
@@ -205,14 +204,14 @@ private:
     // std::vector<Component*> activeComps = { &rotaryKnob, &testRotary, &testRotary2, &testRotary3, &testRotary4, &testRotary5 };
     */
 
-    ActiveShowOptions activeShowOptions {"SampleShowName", "Test Description", "CueID123", 1, 10};
-    HeaderBar headerBar = HeaderBar(activeShowOptions);
-    std::vector<Component*> activeComps = { &headerBar };
+    ActiveShowOptions activeShowOptions {"012345678901234567890123", "Test Description", "CueID123", 1, false, 10};
+    HeaderBar headerBar {activeShowOptions};
+    const std::vector<Component*> activeComps = { &headerBar };
+    const std::vector<ShowCommandListener*> callbackCompsUponActiveShowOptionsChanged = { &headerBar };
 
     std::vector<Component*> getComponents() {
         return activeComps;
     }
-
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
