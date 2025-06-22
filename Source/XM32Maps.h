@@ -362,7 +362,8 @@ const std::unordered_map<float, float> rtaDecayToFloat = {
 enum ParamType {
     LINF, LOGF, ENUM, STRING, INT,
     LEVEL_1024, LEVEL_161, BITSET, OPTION,
-    _GENERIC_FLOAT // ONLY TO BE USED IN ValueStorer. Used for metadata to let OSC Message Constructor know which datatype to use
+    _GENERIC_FLOAT, // ONLY TO BE USED IN ValueStorer. Used for metadata to let OSC Message Constructor know which datatype to use
+    _BLANK // ONLY TO BE USED IN NonIter and ValueStorer acting as nullptr-equivalent for OSCMessageArguments
 };
 
 
@@ -381,6 +382,7 @@ struct ValueStorer {
     ValueStorer(int intValue): intValue(intValue), _meta_PARAMTYPE(INT) {};
     ValueStorer(float floatValue): floatValue(floatValue), _meta_PARAMTYPE(_GENERIC_FLOAT) {};
     ValueStorer(const std::string &stringValue): stringValue(stringValue), _meta_PARAMTYPE(STRING) {};
+    ValueStorer(): _meta_PARAMTYPE(_BLANK) {}; // Used for NonIter, acting as nullptr-equivalent for OSCMessageArguments
 };
 
 
@@ -414,8 +416,6 @@ struct EnumParam {
         name(name), verboseName(verboseName), description(description), value(value), len(value.size()) {}
 };
 
-inline OptionParam _nullOption = {"", "", "", {}};
-inline EnumParam _nullEnum = {"", "", "", {}};
 
 
 static std::string stringFromBoolVector(const std::vector<bool> &boolVector ) {
@@ -465,7 +465,8 @@ struct NonIter {
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const float value,
         const ParamType type, const float minVal = std::numeric_limits<float>::min(), const float maxVal = std::numeric_limits<float>::max()):
     name(name), verboseName(verboseName), description(description), defaultFloatValue(value), _meta_PARAMTYPE(type),
-    floatMin((type == ParamType::LEVEL_161 || type == ParamType::LEVEL_1024) ? 0.f : minVal), floatMax((type == ParamType::LEVEL_161 || type == ParamType::LEVEL_1024) ? 1.f : maxVal) {}
+    floatMin((type == ParamType::LEVEL_161 || type == ParamType::LEVEL_1024) ? -90.f : minVal),
+    floatMax((type == ParamType::LEVEL_161 || type == ParamType::LEVEL_1024) ? 10.f : maxVal) {}
 
 
     // String
@@ -474,6 +475,8 @@ struct NonIter {
     name(name), verboseName(verboseName), description(description), defaultStringValue(value),
     _meta_PARAMTYPE(ParamType::STRING), intMin(minLen), intMax(maxLen) {}
 
+    // Blank
+    NonIter(): name(""), verboseName(""), description(""), _meta_PARAMTYPE(_BLANK) {}
 
 };
 
@@ -490,6 +493,12 @@ typedef std::unordered_map<ArgumentEmbeddedPath*, std::vector<OSCMessageArgument
 //     NonIter("channel", 1, 1, 32), "/mix/fader"};
 
 
+inline const OptionParam _nullOption = {"", "", "", {}};
+inline const EnumParam _nullEnum = {"", "", "", {}};
+inline const NonIter _nullNonIter = {};
+inline const ValueStorerArray _nullValueStorerArray = {};
+inline ValueStorerArray _nullNonConstValueStorerArray = {};
+inline std::vector<OSCMessageArguments> _nullNonConstOSCMessageArguments = {};
 
 
 

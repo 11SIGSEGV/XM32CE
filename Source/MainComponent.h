@@ -205,6 +205,7 @@ private:
     */
 
     ActiveShowOptions activeShowOptions {"012345678901234567890123", "Test Description", "CueID123", 1, false, 10};
+    std::vector<CurrentCueInfo> cuesInfo;
     HeaderBar headerBar {activeShowOptions};
     const std::vector<Component*> activeComps = { &headerBar };
     const std::vector<ShowCommandListener*> callbackCompsUponActiveShowOptionsChanged = { &headerBar };
@@ -212,6 +213,10 @@ private:
     std::vector<Component*> getComponents() {
         return activeComps;
     }
+
+    OSCDeviceSender oscDeviceSender {"192.168.1.103", "10023", "X32 REALDEV"};
+
+
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)

@@ -4,7 +4,33 @@
 
 
 MainComponent::MainComponent() {
+    // exit(1); // DO NOT SEND MESSAGES TO REAL MIXER WITHOUT SAVE.
     headerBar.registerListener(this);
+
+    ValueStorer start = ValueStorer(-90.f);
+    ValueStorer end = ValueStorer(0.f);
+    // ValueStorerArray arguments = {start};
+
+
+    // auto argumentTemplate = NonIter("Low Band", "", "", 0.f, LINF, 0.f, 1.f);
+    auto argumentTemplate = NonIter("Level", "", "", 0.f, LEVEL_1024);
+    // std::vector<OSCMessageArguments> argumentTemplates = {
+        // EnumParam("On", "", "", {"Off", "On"})
+    // };
+
+    CueOSCAction ch2cueAction {String("/ch/02/mix/fader"), 6.f, argumentTemplate, start, end};
+    CueOSCAction ch3cueAction {String("/ch/03/mix/fader"), 6.f, argumentTemplate, start, end};
+    CueOSCAction ch4cueAction {String("/ch/04/mix/fader"), 6.f, argumentTemplate, start, end};
+    CueOSCAction ch5cueAction {String("/ch/05/mix/fader"), 6.f, argumentTemplate, start, end};
+    CueOSCAction ch6cueAction {String("/ch/06/mix/fader"), 6.f, argumentTemplate, start, end};
+
+
+    CurrentCueInfo cci = {"cue1", "Test Cue", "This is a test cue for the MainComponent",
+        {ch2cueAction, ch3cueAction, ch4cueAction, ch5cueAction, ch6cueAction}};
+    OSCCueDispatcherManager dispatcher {oscDeviceSender};
+    dispatcher.addCueToMessageQueue(ch2cueAction);
+
+    sleep(1000);  // Don't let the memory addresses die!
 
 
     for (auto *comp: getComponents()) {
@@ -41,26 +67,26 @@ void MainComponent::resized() {
 
 void MainComponent::commandOccured(ShowCommand cmd) {
     switch (cmd) {
-        case ShowCommand::SHOW_NEXT_CUE:
+        case SHOW_NEXT_CUE:
             std::cout << "Next cue" << std::endl;
             jassertfalse; // NOT IMPLEMENTED
             break;
-        case ShowCommand::SHOW_PREVIOUS_CUE:
+        case SHOW_PREVIOUS_CUE:
             std::cout << "Previous cue" << std::endl;
             jassertfalse; // NOT IMPLEMENTED
             break;
-        case ShowCommand::SHOW_PLAY:
+        case SHOW_PLAY:
             std::cout << "Play" << std::endl;
             activeShowOptions.currentCuePlaying = true;
             break;
-        case ShowCommand::SHOW_STOP:
+        case SHOW_STOP:
             std::cout << "Stop" << std::endl;
             activeShowOptions.currentCuePlaying = false;
             break;
-        case ShowCommand::SHOW_NAME_CHANGE:
+        case SHOW_NAME_CHANGE:
             std::cout << "Show Name Change" << std::endl;
             break;
-        case ShowCommand::SHOW_CUE_INDEX_CHANGE:
+        case SHOW_CUE_INDEX_CHANGE:
             std::cout << "Show Cue Index Change" << std::endl;
             break;
 
@@ -126,12 +152,14 @@ void HeaderBar::reconstructImage() {
     g.drawFittedText("PLAY", playButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
 
 
-
 }
 
 
 void HeaderBar::resized() {
     auto bounds = getLocalBounds();
+    if (bounds.getWidth() <= 0 || bounds.getHeight() <= 0) {
+        return; // The window is still loading!
+    }
     // The bounds passed should be the bounds of ONLY the intended header bar.
     auto boundWidthTenths = bounds.getWidth() / 10;
     float fontSize = bounds.getHeight() * 0.6f;
@@ -151,37 +179,40 @@ void HeaderBar::resized() {
 
     // Let's set the button bounds
     stopButton.setBounds(stopBox);
+    downButton.setBounds(downBox);
+    upButton.setBounds(upBox);
+    playButton.setBounds(playBox);
+
+
     // For each button, we also have to set the image bounds.
-    stopButtonIconBox = stopBox.toFloat();
-    // Padding of 0.1 of the width tenths for padding
+    // Padding of total 0.1 of the width tenths (i.e., 0.05 each side) for padding
     auto boundWidth0005 = boundWidthTenths * 0.05f;
 
-
+    stopButtonIconBox = stopBox.toFloat();
     stopButtonIconBox.removeFromBottom(boundWidth0005);
     stopButtonIconBox.removeFromTop(boundWidth0005);
     stopButtonIconBox.removeFromLeft(boundWidth0005);
-    stopButtonTextBox = stopButtonIconBox.removeFromRight(stopBox.getWidth() - 0.1f * boundWidthTenths - stopButtonIconBox.getHeight());
+    stopButtonTextBox = stopButtonIconBox.removeFromRight(
+        stopBox.getWidth() - 0.1f * boundWidthTenths - stopButtonIconBox.getHeight());
     stopButtonTextBox.removeFromLeft(boundWidth0005);
     stopButtonTextBox.removeFromRight(boundWidth0005);
 
-    downButton.setBounds(downBox);
     downButtonIconBox = downBox.toFloat();
     // No need to set side padding for the down button as no text beside it. Using RectanglePlacement::centred will
     // auto-center it to the box
     downButtonIconBox.removeFromTop(boundWidth0005);
     downButtonIconBox.removeFromBottom(boundWidth0005);
 
-    upButton.setBounds(upBox);
     upButtonIconBox = upBox.toFloat();
     upButtonIconBox.removeFromTop(boundWidth0005);
     upButtonIconBox.removeFromBottom(boundWidth0005);
 
-    playButton.setBounds(playBox);
     playButtonIconBox = playBox.toFloat();
     playButtonIconBox.removeFromTop(boundWidth0005);
     playButtonIconBox.removeFromBottom(boundWidth0005);
     playButtonIconBox.removeFromLeft(boundWidth0005);
-    playButtonTextBox = playButtonIconBox.removeFromRight(playButton.getWidth() - 0.1f * boundWidthTenths - playButtonIconBox.getHeight());
+    playButtonTextBox = playButtonIconBox.removeFromRight(
+        playButton.getWidth() - 0.1f * boundWidthTenths - playButtonIconBox.getHeight());
     playButtonTextBox.removeFromLeft(boundWidth0005);
     playButtonTextBox.removeFromRight(boundWidth0005);
 

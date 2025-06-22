@@ -12,6 +12,8 @@
 #include <JuceHeader.h>
 #include <unordered_map>
 #include "XM32Maps.h"
+#include "modules.h"
+
 
 
 namespace UICfg {
@@ -98,13 +100,97 @@ struct ActiveShowOptions {
 };
 
 
+// Abbreviated as OAT
+enum OSCActionType {
+    OAT_COMMAND,
+    OAT_FADE,
+    _EXIT_THREAD
+};
+
+
+struct CueOSCAction {
+    CueOSCAction(bool exitThread): oat(_EXIT_THREAD), oscAddress("/"), oatCommandOSCArgumentTemplate(_nullNonConstOSCMessageArguments), arguments(_nullNonConstValueStorerArray) {
+    }
+
+    // For OAT_COMMAND, the arguments are used to fill in the OSC Message.
+    CueOSCAction(String oscAddress, std::vector<OSCMessageArguments>& argumentTemplates, ValueStorerArray& arguments):
+    oat(OAT_COMMAND), arguments(arguments), oatCommandOSCArgumentTemplate(argumentTemplates),
+                                                                 oscAddress(oscAddress) {
+    }
+
+    CueOSCAction(OSCAddressPattern oscAddress, std::vector<OSCMessageArguments>& argumentTemplates, ValueStorerArray& arguments):
+    oat(OAT_COMMAND), arguments(arguments), oatCommandOSCArgumentTemplate(argumentTemplates),
+                                                                     oscAddress(oscAddress) {
+    }
+
+    void _checks() {
+        if (oat == OAT_FADE) {
+            if (oscArgumentTemplate._meta_PARAMTYPE == INT &&
+                (startValue.intValue < oscArgumentTemplate.intMin ||
+                 startValue.intValue > oscArgumentTemplate.intMax ||
+                 endValue.intValue < oscArgumentTemplate.intMin ||
+                 endValue.intValue > oscArgumentTemplate.intMax)
+            ) {
+                jassertfalse; // Start and end values must be within the NonIter template's intMin and intMax
+            } else if (oscArgumentTemplate._meta_PARAMTYPE == _GENERIC_FLOAT &&
+                       (startValue.floatValue < oscArgumentTemplate.floatMin ||
+                        startValue.floatValue > oscArgumentTemplate.floatMax ||
+                        endValue.floatValue < oscArgumentTemplate.floatMin ||
+                        endValue.floatValue > oscArgumentTemplate.floatMax)
+            ) {
+                jassertfalse; // Start and end values must be within the NonIter template's floatMin and floatMax
+            }
+        }
+
+        if (oat == OAT_COMMAND) {
+            if (arguments.size() != oatCommandOSCArgumentTemplate.size()) {
+                jassertfalse; // The number of arguments must match the number of argument templates
+            }
+        }
+    }
+
+    // For OAT_FADE, the fadeTime is used to determine the fade time in seconds.
+    CueOSCAction(String oscAddress, float fadeTime, NonIter oscArgumentTemplate, ValueStorer startValue,
+                 ValueStorer endValue): oscAddress(oscAddress), oat(OAT_FADE), fadeTime(fadeTime),
+                                        oscArgumentTemplate(oscArgumentTemplate),
+                                        startValue(startValue), endValue(endValue), arguments(_nullNonConstValueStorerArray),
+    oatCommandOSCArgumentTemplate(_nullNonConstOSCMessageArguments) {
+        _checks();
+    }
+    CueOSCAction(OSCAddressPattern oscAddress, float fadeTime, NonIter oscArgumentTemplate, ValueStorer startValue,
+                 ValueStorer endValue): oscAddress(oscAddress), oat(OAT_FADE), fadeTime(fadeTime),
+                                        oscArgumentTemplate(oscArgumentTemplate),
+                                        startValue(startValue), endValue(endValue), arguments(_nullNonConstValueStorerArray),
+    oatCommandOSCArgumentTemplate(_nullNonConstOSCMessageArguments) {
+        _checks();
+    }
+
+    OSCActionType oat;
+    OSCAddressPattern oscAddress;
+
+    std::vector<OSCMessageArguments>& oatCommandOSCArgumentTemplate;
+    ValueStorerArray& arguments; // The arguments to send with the OSC Message, only used for OAT_COMMAND
+
+
+    float fadeTime{0.f}; // The fade time in seconds, only used for OAT_FADE
+
+    // Argument template should only ever be NonIter when fading is used.
+    NonIter oscArgumentTemplate = _nullNonIter; // Used to find algorithm and type for parameter
+
+    ValueStorer startValue;
+    ValueStorer endValue; // Used to find algorithm and type for parameter
+};
+
+
 struct CurrentCueInfo {
     String id;
     String name;
     String description;
-    String finalOSCAddress;
+    std::vector<CueOSCAction> actions;
+
+    /*
     ValueStorerArray finalOSCValues; // Later unpacked into positional arguments for OSCMessage constructor,
-    OSCMessage _constructedMessageCache { "/" };
+    OSCMessage _constructedMessageCache{"/"};
     bool _constructedMessageCacheIsValid{false};
 
 
@@ -112,14 +198,21 @@ struct CurrentCueInfo {
     CurrentCueInfo(String id, String name, String description, String finalOSCAddress = "",
                    ValueStorerArray finalOSCValues = {}): id(id), name(name), description(description),
                                                           finalOSCAddress(finalOSCAddress),
-                                                          finalOSCValues(finalOSCValues) {}
-
+                                                          finalOSCValues(finalOSCValues) {
+    }
 
 
     // When finalOSCAddress and finalOSCValues are set and ready to be constructed into a valid OSCMessage,
     // this function can be used.
     // Use ignoreAndReconstructCache when variables in CurrentCueInfo have changed.
     OSCMessage constructMessage(bool ignoreAndReconstructCache = false);
+    */
+
+    // WARNING: A blank OSC Message Address String WILL RAISE AN EXCEPTION! PROCEED AT YOUR OWN RISK
+    CurrentCueInfo(String id, String name, String description,
+                   std::vector<CueOSCAction> actions): id(id), name(name), description(description),
+                                                       actions(actions) {
+    }
 };
 
 

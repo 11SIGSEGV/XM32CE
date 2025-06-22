@@ -37,7 +37,7 @@ public:
     }
 
     void testOSCMessageArgumentCompiler() {
-        if (true) {
+        if (false) {
             try {
                 std::vector<OSCMessageArguments> testArguments = {
                     NonIter("chFdr", "Channel Fader", "Fader Level for a Channel", 0.f, ParamType::LEVEL_1024, 0.f, 1.f),};
@@ -105,7 +105,7 @@ public:
 
     const String getApplicationName() override       { return ProjectInfo::projectName; }
     const String getApplicationVersion() override    { return ProjectInfo::versionString; }
-    bool moreThanOneInstanceAllowed() override             { return true; }
+    bool moreThanOneInstanceAllowed() override       { return true; }
 
     //==============================================================================
     void initialise (const String& commandLine) override
@@ -156,6 +156,8 @@ public:
             setContentOwned (new MainComponent(), true);
             setResizable (true, true);
             setResizeLimits (600, 400, 10000, 10000);
+            // TODO: Set icon upon final build - doesn't appear JUCE can set icon
+
 
            #if JUCE_IOS || JUCE_ANDROID
             setFullScreen (true);

@@ -33,7 +33,7 @@ Image getIconImageFile(int iconID) {
 
 
 
-
+/*
 OSCMessage CurrentCueInfo::constructMessage(bool ignoreAndReconstructCache) {
     if (!ignoreAndReconstructCache && _constructedMessageCacheIsValid) {
         return _constructedMessageCache;
@@ -44,7 +44,7 @@ OSCMessage CurrentCueInfo::constructMessage(bool ignoreAndReconstructCache) {
     }
     try {
         OSCMessage msg { finalOSCAddress };
-        for (auto valueStore: finalOSCValues) {
+        for (const auto& valueStore: finalOSCValues) {
             switch (valueStore._meta_PARAMTYPE) {
                 case INT:
                     msg.addInt32(valueStore.intValue);
@@ -68,7 +68,7 @@ OSCMessage CurrentCueInfo::constructMessage(bool ignoreAndReconstructCache) {
         return {"/"};
     }
 }
-
+*/
 
 
 
@@ -170,6 +170,7 @@ float XM32::dbToFloat(float db) {
 }
 
 
+// This function (and its oppsite) are both actually quite fast. They can be used for realtime applications
 const double inferValueFromMinMaxAndPercentage(double minVal, double maxVal, double percentage, ParamType algorithm) {
     if (percentage == 0.0) {
         // If default is 0, then we can assume that the value is just the min.
