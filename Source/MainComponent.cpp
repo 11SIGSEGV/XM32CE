@@ -4,20 +4,21 @@
 
 
 MainComponent::MainComponent() {
+    dispatcher.startRealtimeThread(Thread::RealtimeOptions().withPriority(8));
     // exit(1); // DO NOT SEND MESSAGES TO REAL MIXER WITHOUT SAVE.
     headerBar.registerListener(this);
 
-    ValueStorer start = ValueStorer(-90.f);
-    ValueStorer end = ValueStorer(0.f);
     // ValueStorerArray arguments = {start};
 
 
     // auto argumentTemplate = NonIter("Low Band", "", "", 0.f, LINF, 0.f, 1.f);
-    auto argumentTemplate = NonIter("Level", "", "", 0.f, LEVEL_1024);
     // std::vector<OSCMessageArguments> argumentTemplates = {
         // EnumParam("On", "", "", {"Off", "On"})
     // };
+    ValueStorer start = ValueStorer(-90.f);
+    ValueStorer end = ValueStorer(0.f);
 
+    auto argumentTemplate = NonIter("Level", "", "", 0.f, LEVEL_1024);
     CueOSCAction ch2cueAction {String("/ch/02/mix/fader"), 6.f, argumentTemplate, start, end};
     CueOSCAction ch3cueAction {String("/ch/03/mix/fader"), 6.f, argumentTemplate, start, end};
     CueOSCAction ch4cueAction {String("/ch/04/mix/fader"), 6.f, argumentTemplate, start, end};
@@ -27,18 +28,25 @@ MainComponent::MainComponent() {
 
     CurrentCueInfo cci = {"cue1", "Test Cue", "This is a test cue for the MainComponent",
         {ch2cueAction, ch3cueAction, ch4cueAction, ch5cueAction, ch6cueAction}};
-    OSCCueDispatcherManager dispatcher {oscDeviceSender};
-    dispatcher.addCueToMessageQueue(ch2cueAction);
 
-    sleep(1000);  // Don't let the memory addresses die!
-
-
+    // std::cout << ch2cueAction.oscAddress.toString() << "\n";
+    // std::cout << ch3cueAction.oscAddress.toString() << "\n";
+    // std::cout << ch4cueAction.oscAddress.toString() << "\n";
+    // std::cout << ch5cueAction.oscAddress.toString() << "\n";
+    // std::cout << ch6cueAction.oscAddress.toString() << "\n";
+    // std::cout << cci.id << "\n";
     for (auto *comp: getComponents()) {
         addAndMakeVisible(*comp);
     }
+
+    dispatcher.addCueToMessageQueue(cci);
 }
 
 MainComponent::~MainComponent() {
+    auto m = OSCMessage("/shutdown");
+    oscDeviceSender.send(m);
+
+    dispatcher.stopThread(5000);
     removeAllChildren();
 }
 

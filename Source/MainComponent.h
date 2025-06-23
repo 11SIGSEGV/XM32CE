@@ -214,9 +214,8 @@ private:
         return activeComps;
     }
 
-    OSCDeviceSender oscDeviceSender {"192.168.1.103", "10023", "X32 REALDEV"};
-
-
+    OSCDeviceSender oscDeviceSender {"127.0.0.1", "10023", "X32"};
+    OSCCueDispatcherManager dispatcher {oscDeviceSender};
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)

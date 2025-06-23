@@ -86,7 +86,7 @@ public:
      * oatFadeMillisecondsMinimumIterationDuration - The minimum duration for each iteration of the fade in milliseconds.
      *  Basically acts like a frame limiter.
      */
-    OSCSingleActionDispatcher(CueOSCAction &cueAction, OSCDeviceSender &oscDevice, String jobName = "",
+    OSCSingleActionDispatcher(CueOSCAction cueAction, OSCDeviceSender &oscDevice, String jobName = "",
         int oatFadeMillisecondsMinimumIterationDuration = 50):
     ThreadPoolJob(jobName), oscSender(oscDevice), cueAction(cueAction), FMMID(oatFadeMillisecondsMinimumIterationDuration) {
     }
@@ -101,7 +101,7 @@ public:
 
 private:
     const unsigned int FMMID; // The minimum duration passed before next increment for OAT_FADE actions (ms)
-    CueOSCAction &cueAction;
+    CueOSCAction cueAction;
     OSCDeviceSender &oscSender; // The OSC Device Sender to use for sending messages
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OSCSingleActionDispatcher)
@@ -116,32 +116,29 @@ public:
 
 
     ~OSCCueDispatcherManager() override {
-        stopThread(5000); // Wait 5s to finish any ongoing tasks
-        messageDispatcherPool.removeAllJobs(true, 5000);
+        singleActionDispatcherPool.removeAllJobs(true, 1000);
     }
 
 
     void exitSignalSent() override {
-        actionQueue.push(_stopThread);
-        stopThread(5000);
+        removeListener(this);
+        actionQueue.emplace(true);
         messageDispatcherPool.removeAllJobs(true, 5000);
     }
 
     void run() override;
 
-    void addCueToMessageQueue(CueOSCAction cueAction);
+    void addCueToMessageQueue(const CueOSCAction& cueAction);
 
-    void addCueToMessageQueue(CurrentCueInfo cueInfo);
+    void addCueToMessageQueue(const CurrentCueInfo& cueInfo);
 
 private:
-    const CueOSCAction _stopThread {true}; // run() only checks _stopThread.oat == action.oat
     ThreadPool messageDispatcherPool;
-    TSQueue<CueOSCAction> actionQueue;
+    std::queue<CueOSCAction> actionQueue;
     const unsigned int maximumSimultaneousMessageThreads;
-    const unsigned int waitFormsWhenActionQueueIsEmpty; // Time to wait when action queue is empty
+    const unsigned int waitMSFromWhenActionQueueIsEmpty; // Time to wait when action queue is empty
     OSCDeviceSender &oscSender; // The OSC Device Sender to use for sending messages
     ThreadPool singleActionDispatcherPool; // Pool for single action dispatchers
-    ThreadID threadID; // ID of the thread running the dispatcher manager
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OSCCueDispatcherManager)
 };

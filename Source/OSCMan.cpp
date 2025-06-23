@@ -380,6 +380,12 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
                 DBG("Warning: OAT_FADE iteration took longer than minimum duration. Consider increasing FMMID.");
             }
         }
+
+        // If exited because of shouldExit(), we will not send the end message.
+        if (shouldExit()) {
+            return JobStatus::jobHasFinished; // Exit the job if the thread should exit
+        }
+
         // Finally, we need to send the end value to ensure the fade is complete... but to be safe, let's check if the
         // normalisedPercentage is not already at the end value.
         if (normalisedPercentage < normalisedEndPercentage) {
@@ -397,7 +403,6 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
                         minVal, maxVal, normalisedPercentage, cueAction.oscArgumentTemplate._meta_PARAMTYPE)));
             }
             oscSender.send(endMsg);
-
         }
     } else {
         jassertfalse; // Unsupported OSC Action Type
@@ -411,46 +416,46 @@ OSCCueDispatcherManager::OSCCueDispatcherManager(OSCDeviceSender &oscDevice,
                                                  unsigned int maximumSimultaneousMessageThreads,
                                                  unsigned int waitFormsWhenActionQueueIsEmpty): oscSender(oscDevice),
     maximumSimultaneousMessageThreads(maximumSimultaneousMessageThreads), Thread("oscCueDispatcherManager"),
-    waitFormsWhenActionQueueIsEmpty(waitFormsWhenActionQueueIsEmpty) {
+    waitMSFromWhenActionQueueIsEmpty(waitFormsWhenActionQueueIsEmpty) {
     if (maximumSimultaneousMessageThreads == 0 || maximumSimultaneousMessageThreads > 511) {
         jassertfalse; // Maximum simultaneous message threads must be above 1 and should be below 512.
     }
-    startThread();
+    addListener(this);
+    // setPriority(Priority::high); // Set a higher priority for the thread to ensure it processes messages quickly
+};
 
-    setPriority(Priority::high); // Set a higher priority for the thread to ensure it processes messages quickly
-}
 
-
-void OSCCueDispatcherManager::addCueToMessageQueue(CurrentCueInfo cueInfo) {
-    for (auto action: cueInfo.actions) {
+void OSCCueDispatcherManager::addCueToMessageQueue(const CurrentCueInfo& cueInfo) {
+    for (const auto& action: cueInfo.actions) {
         addCueToMessageQueue(action);
     }
 }
 
 
-void OSCCueDispatcherManager::addCueToMessageQueue(CueOSCAction cueAction) {
+void OSCCueDispatcherManager::addCueToMessageQueue(const CueOSCAction& cueAction) {
     actionQueue.push(cueAction);
 }
 
 
 void OSCCueDispatcherManager::run() {
     while (!threadShouldExit()) {
-        auto action = actionQueue.pop();
-        if (action.oat == _stopThread.oat) {
-            break;
+        while (actionQueue.empty()) {
+            // ReSharper disable once CppExpressionWithoutSideEffects
+            wait(waitMSFromWhenActionQueueIsEmpty);
         }
+        auto action = actionQueue.front();
+        actionQueue.pop();
+        if (action.oat == _EXIT_THREAD) {
+            return;
+        }
+
         // Process the action here
         // For example, send the OSC message
         // oscSender.send(action.constructMessage());
         // Note: You need to implement the send method in your OSCDeviceSender class
-        OSCSingleActionDispatcher singleActionDispatcher(action, oscSender);
-        singleActionDispatcherPool.addJob(&singleActionDispatcher, true);
-        // If no operations, wait for a short period to avoid busy waiting
-        // ReSharper disable once CppExpressionWithoutSideEffects
-        wait(waitFormsWhenActionQueueIsEmpty);
+        auto* dispatcher = new OSCSingleActionDispatcher(action, oscSender);
+        singleActionDispatcherPool.addJob(dispatcher, true);
     }
-    // Exit signal sent, clean up
-    singleActionDispatcherPool.removeAllJobs(true, 5000); // Wait for all jobs to finish
 }
 
 
