@@ -111,7 +111,7 @@ public:
     void initialise (const String& commandLine) override
     {
         // This method is where you should put your application's initialisation code..
-        // oscDevSelWin.reset(new OSCDeviceSelectorWindow("OSC Device Selector"));
+        oscDevSelWin.reset(new OSCDeviceSelectorWindow("OSC Device Selector"));
         mainWindow.reset (new MainWindow (getApplicationName()));
     }
 
@@ -142,13 +142,13 @@ public:
         This class implements the desktop window that contains an instance of
         our MainComponent class.
     */
-    class MainWindow    : public juce::DocumentWindow
+    class MainWindow    : public DocumentWindow
     {
     public:
-        MainWindow (juce::String name)
+        MainWindow (const String &name)
             : DocumentWindow (name,
-                              juce::Desktop::getInstance().getDefaultLookAndFeel()
-                                                          .findColour (juce::ResizableWindow::backgroundColourId),
+                              Desktop::getInstance().getDefaultLookAndFeel()
+                                                          .findColour (backgroundColourId),
                               DocumentWindow::allButtons)
         {
             setUsingNativeTitleBar (true);
@@ -192,7 +192,7 @@ public:
 
 private:
     std::unique_ptr<MainWindow> mainWindow;
-    // std::unique_ptr<OSCDeviceSelectorWindow> oscDevSelWin;
+    std::unique_ptr<OSCDeviceSelectorWindow> oscDevSelWin;
     OSCDeviceSender testOscDevice = OSCDeviceSender {String("192.168.1.100"), 20023, String("Test")};
 
 };

@@ -358,7 +358,8 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
                     incrementedMsg.addInt32(static_cast<int>(inferValueFromMinMaxAndPercentage(
                         minVal, maxVal, normalisedPercentage, LINF)));
                     break;
-                case LEVEL_161: case LEVEL_1024:
+                case LEVEL_161:
+                case LEVEL_1024:
                     incrementedMsg.addFloat32(normalisedPercentage);
                     break;
                 default:
@@ -395,7 +396,8 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
                     endMsg.addInt32(static_cast<int>(inferValueFromMinMaxAndPercentage(
                         minVal, maxVal, normalisedPercentage, LINF)));
                     break;
-                case LEVEL_161: case LEVEL_1024:
+                case LEVEL_161:
+                case LEVEL_1024:
                     endMsg.addFloat32(normalisedPercentage);
                     break;
                 default:
@@ -425,14 +427,14 @@ OSCCueDispatcherManager::OSCCueDispatcherManager(OSCDeviceSender &oscDevice,
 };
 
 
-void OSCCueDispatcherManager::addCueToMessageQueue(const CurrentCueInfo& cueInfo) {
-    for (const auto& action: cueInfo.actions) {
+void OSCCueDispatcherManager::addCueToMessageQueue(const CurrentCueInfo &cueInfo) {
+    for (const auto &action: cueInfo.actions) {
         addCueToMessageQueue(action);
     }
 }
 
 
-void OSCCueDispatcherManager::addCueToMessageQueue(const CueOSCAction& cueAction) {
+void OSCCueDispatcherManager::addCueToMessageQueue(const CueOSCAction &cueAction) {
     actionQueue.push(cueAction);
 }
 
@@ -453,7 +455,7 @@ void OSCCueDispatcherManager::run() {
         // For example, send the OSC message
         // oscSender.send(action.constructMessage());
         // Note: You need to implement the send method in your OSCDeviceSender class
-        auto* dispatcher = new OSCSingleActionDispatcher(action, oscSender);
+        auto *dispatcher = new OSCSingleActionDispatcher(action, oscSender);
         singleActionDispatcherPool.addJob(dispatcher, true);
     }
 }
@@ -469,4 +471,173 @@ bool OSCDeviceSender::disconnect() {
 
 OSCDeviceSender::~OSCDeviceSender() {
     disconnect();
+}
+
+
+void OSCDeviceSelectorComponent::initaliseComponents() {
+    ipAddressTextEditor.setTextToShowWhenEmpty("XXX.XXX.XXX.XXX", UICfg::TEXT_COLOUR_DARK);
+    ipAddressTextEditor.addListener(this);
+    portTextEditor.setTextToShowWhenEmpty("0-65535", UICfg::TEXT_COLOUR_DARK);
+    portTextEditor.addListener(this);
+    deviceNameTextEditor.setTextToShowWhenEmpty("Device Name", UICfg::TEXT_COLOUR_DARK);
+    deviceNameTextEditor.addListener(this);
+
+    inputErrors.setReadOnly(true);
+    inputErrors.setMultiLine(true);
+    inputErrors.setColour(TextEditor::backgroundColourId, UICfg::TEXT_EDITOR_BG_COLOUR);
+
+    // Don't use Look and Feel for colours as applyButton and cancelButton use different colours
+    applyButton.setColour(TextButton::buttonColourId, UICfg::POSITIVE_BUTTON_COLOUR);
+    applyButton.setColour(TextButton::buttonOver, UICfg::POSITIVE_OVER_BUTTON_COLOUR);
+    applyButton.addListener(this);
+    cancelButton.setColour(TextButton::buttonColourId, UICfg::NEGATIVE_BUTTON_COLOUR);
+    cancelButton.setColour(TextButton::buttonOver, UICfg::NEGATIVE_OVER_BUTTON_COLOUR);
+    cancelButton.addListener(this);
+
+    ipAddressTextEditor.setJustification(Justification::centredLeft);
+    portTextEditor.setJustification(Justification::centredLeft);
+    deviceNameTextEditor.setJustification(Justification::centredLeft);
+
+    addAndMakeVisible(applyButton);
+    addAndMakeVisible(cancelButton);
+    addAndMakeVisible(ipAddressTextEditor);
+    addAndMakeVisible(portTextEditor);
+    addAndMakeVisible(deviceNameTextEditor);
+    addAndMakeVisible(inputErrors);
+}
+
+
+void OSCDeviceSelectorComponent::resized() {
+    resizeReady = false;
+
+    auto winBounds = getLocalBounds();
+
+    // Ok, let's go one by one.
+    // First, let's do the area of the window title. Let's also use relative sizes
+    // to make it easier to resize the window.
+    backgroundImage = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
+    Graphics g(backgroundImage);
+    g.fillAll(UICfg::BG_COLOUR);
+    g.setColour(UICfg::TEXT_COLOUR);
+
+    Rectangle<int> tempBox;
+
+    // Deal with Padding
+    auto contentBounds = winBounds;
+    auto standardPaddingAsPixels = UICfg::STD_PADDING * winBounds.getHeight();
+    contentBounds.removeFromBottom(standardPaddingAsPixels);
+    contentBounds.removeFromTop(standardPaddingAsPixels);
+    contentBounds.removeFromLeft(standardPaddingAsPixels);
+    contentBounds.removeFromRight(standardPaddingAsPixels);
+
+    // One tenth of the window width and height
+    int widthTenth = contentBounds.getWidth() / 10;
+    int heightTenth = contentBounds.getHeight() / 10;
+
+
+    // Title
+    auto titleArea = contentBounds.removeFromTop(heightTenth);
+    auto titleFont = FontOptions(
+        UICfg::DEFAULT_SANS_SERIF_FONT_NAME,
+        titleArea.getHeight() / 2.f,
+        Font::bold);
+    g.setFont(titleFont);
+    g.drawFittedText(
+        "OSC Device Selector", titleArea.toNearestInt(),
+        Justification::centredLeft, 1);
+
+    // Input boxes fonts
+    auto inputBoxFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, heightTenth * 0.9, Font::plain);
+    auto errorBoxFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, heightTenth * 0.4, Font::plain);
+
+    ipAddressTextEditor.setFont(inputBoxFont);
+    portTextEditor.setFont(inputBoxFont);
+    deviceNameTextEditor.setFont(inputBoxFont);
+    inputErrors.setFont(errorBoxFont);
+
+
+    // There is a bug where the font size is not set correctly when the window is resized for text already painted.
+    // So, let's clear the text editor text, and set the text again
+    ipAddressTextEditor.setText("");
+    ipAddressTextEditor.setText(ipAddressString);
+    portTextEditor.setText("");
+    portTextEditor.setText(portString);
+    deviceNameTextEditor.setText("");
+    deviceNameTextEditor.setText(deviceNameString);
+
+
+    // Now IP address bar and Port bar
+    // The height of these bars are 2/10 of the window heightFont
+    // The width for IP Addr. is 7/10, the width for Port is 3/10
+    // Labels
+    tempBox = contentBounds.removeFromTop(heightTenth);
+    auto ipAddrLabelBox = tempBox.removeFromLeft(widthTenth * 7);
+    auto portLabelBox = tempBox;
+
+    g.drawFittedText(
+        "IP Address",
+        ipAddrLabelBox.toNearestInt(), Justification::centredLeft, 1);
+    g.drawFittedText("Port",
+        portLabelBox.toNearestInt(), Justification::centredLeft, 1);
+
+
+    // Boxes
+    tempBox = contentBounds.removeFromTop(heightTenth * 2);
+    auto ipAddrBox = tempBox.removeFromLeft(widthTenth * 7);
+    auto portBox = tempBox;
+    ipAddressTextEditor.setBounds(ipAddrBox);
+    portTextEditor.setBounds(portBox);
+
+
+    // Device name bar
+    auto deviceNameLabelBox = contentBounds.removeFromTop(heightTenth);
+    auto deviceNameBox = contentBounds.removeFromTop(heightTenth * 2);
+    g.drawFittedText(
+        "Device Name",
+        deviceNameLabelBox.toNearestInt(), Justification::centredLeft, 1);
+    deviceNameTextEditor.setBounds(deviceNameBox);
+
+    // 1/10 of the window height for padding
+    contentBounds.removeFromTop(heightTenth);
+
+    // Apply and Cancel buttons
+    applyButton.setBounds(contentBounds.removeFromLeft(widthTenth * 2));
+    contentBounds.removeFromLeft(widthTenth);
+    cancelButton.setBounds(contentBounds.removeFromLeft(widthTenth * 2));
+    contentBounds.removeFromLeft(widthTenth);
+
+    // Input errors box
+    inputErrors.setBounds(contentBounds.removeFromTop(heightTenth * 2));
+
+
+    resizeReady = true;
+}
+
+
+bool OSCDeviceSelectorComponent::validateTextEditorOutputs() {
+    inputErrorsString = String();
+    bool noError = true;
+
+    // Check if IP is valid
+    auto validatorOut = isValidIPv4(ipAddressString);
+    if (!validatorOut.isValid) {
+        inputErrorsString << "Invalid IP Address: " << validatorOut.errorMessage << "\n";
+        noError = false;
+    }
+
+    // Check if the port is valid
+    validatorOut = isValidPort(portString);
+    if (!validatorOut.isValid) {
+        inputErrorsString << "Invalid Port: " << validatorOut.errorMessage << "\n";
+        noError = false;
+    }
+
+    // Check if the device name is valid
+    validatorOut = isValidDeviceName(deviceNameString);
+    if (!validatorOut.isValid) {
+        inputErrorsString << "Invalid Device Name: " << validatorOut.errorMessage << "\n";
+        noError = false;
+    }
+
+    return noError;
 }
