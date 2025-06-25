@@ -20,6 +20,14 @@ class ShowCommandListener {
 };
 
 
+// Current Cue Information Side Panel
+struct CCISidePanel: public Component, public ShowCommandListener, public Timer {
+public:
+    CCISidePanel(ActiveShowOptions& activeShowOptions);
+};
+
+
+
 
 // The component for the header bar in the main window.
 struct HeaderBar: public Component, public Timer, public DrawableButton::Listener, public ShowCommandListener {
@@ -29,14 +37,21 @@ public:
     activeShowOptions(activeShowOptions) {
         setOpaque(true);
         startTimer(500); // Update every 500ms. For clock.
-        addAndMakeVisible(stopButton);
+
         stopButton.addListener(this);
-        addAndMakeVisible(playButton);
+        // stopButton.setOpaque(true/);
+        addAndMakeVisible(stopButton);
         playButton.addListener(this);
-        addAndMakeVisible(upButton);
+        // playButton.setOpaque(false);
+        addAndMakeVisible(playButton);
         upButton.addListener(this);
-        addAndMakeVisible(downButton);
+        // upButton.setOpaque(false);
+        addAndMakeVisible(upButton);
         downButton.addListener(this);
+        // downButton.setOpaque(false);
+        addAndMakeVisible(downButton);
+
+        commandOccurred(FULL_SHOW_RESET);
     }
 
 
@@ -59,6 +74,8 @@ public:
     // Should only realistically be called when relevant activeShowOptions (e.g., title) and on resize.
     // paint() should hence never draw anything except the clock and the image drawn by this function.
     void reconstructImage();
+
+    void reconstructButtonBackgroundImage();
 
     void resized() override;
     void paint(Graphics& g) override;
@@ -101,10 +118,7 @@ public:
         } else {
             jassertfalse; // This should never happen! Button listeners should always be DrawableButton
         }
-    };
-
-
-
+    }
 
 private:
     // For all listeners registered, send the ShowCommand to the listener
@@ -118,7 +132,10 @@ private:
         repaint();
     }
 
-
+    // TODO: remove function, refactor calls
+    void setButtonEnabled(DrawableButton &btn, bool enabled) {
+        btn.setEnabled(enabled);
+    }
 
 
     static String getCurrentTimeAsFormattedString() {
@@ -127,11 +144,21 @@ private:
         return String::formatted("%02d:%02d:%02d", localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
     }
 
-    const std::set<ShowCommand> _showCommandsRequiringImageReconstruction = {SHOW_CUE_INDEX_CHANGE, SHOW_NAME_CHANGE,
-        CURRENT_CUE_ID_CHANGE};
+    // If LocalBounds dimensions are zero for width and/or height, will return true.
+    bool localBoundsIsInvalid() {
+        auto lbnds = getLocalBounds();
+        return lbnds.getWidth() <= 0 || lbnds.getHeight() <= 0;
+    }
+
+    const std::set<ShowCommand> _showCommandsRequiringImageReconstruction = {SHOW_NEXT_CUE, SHOW_PREVIOUS_CUE, SHOW_NAME_CHANGE,
+        CURRENT_CUE_ID_CHANGE, FULL_SHOW_RESET};
+    const std::set<ShowCommand> _showCommandsRequiringButtonReconstruction = {SHOW_STOP, SHOW_PLAY};
 
     std::vector<ShowCommandListener*> showCommandListeners;
     ActiveShowOptions& activeShowOptions;
+
+    Rectangle<int> buttonsBox;
+
     Rectangle<int> showNameBox;
     Rectangle<int> cueIDBox;
     Rectangle<int> cueNoBox;
@@ -146,6 +173,8 @@ private:
     Rectangle<int> timeBox;
     Rectangle<float> timeTextBox;
 
+    Image buttonsFGImage;
+    Image buttonsBGImage;
     Image borderImage;
 
     // Let's load iconography!
@@ -175,6 +204,11 @@ public:
     //==============================================================================
     void paint (Graphics &g) override;
     void resized() override;
+
+
+    void updateActiveShowOptionsFromCCIIndex(int newIndex);
+
+    void setPlayStatusForCurrentCue(bool isPlaying);
 
 
     // Implemented to listen for ShowCommands. Broadcasts all commands to registered callbacks.
@@ -211,8 +245,19 @@ private:
     // std::vector<Component*> activeComps = { &rotaryKnob, &testRotary, &testRotary2, &testRotary3, &testRotary4, &testRotary5 };
     */
 
-    ActiveShowOptions activeShowOptions {"012345678901234567890123", "Test Description", "CueID123", 1, false, 10};
-    std::vector<CurrentCueInfo> cuesInfo;
+    // NOTE: When switching from numberOfCueItems==0 to any other value, a FULL_SHOW_RESET command must be sent.
+    // A reminder that currentCueIndex is 0-indexed... but numberOfCueItems is NOT.
+    ActiveShowOptions activeShowOptions {"012345678901234567890123", "Test Description"};
+    std::vector<CurrentCueInfo> cuesInfo = {
+        {"TerrenceFat", "Test Cue Info", "",
+            {}},
+        {"TerrenceRealFat", "Test Cue", "",
+            {},
+        },
+        {"FATTerrence", "Terrence is actually so fat", "",
+            {},
+        }
+    }; // May replace with custom struct in future
     HeaderBar headerBar {activeShowOptions};
     const std::vector<Component*> activeComps = { &headerBar };
     const std::vector<ShowCommandListener*> callbackCompsUponActiveShowOptionsChanged = { &headerBar };

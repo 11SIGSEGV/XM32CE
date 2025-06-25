@@ -31,6 +31,7 @@ namespace UICfg {
     const Colour TEXT_COLOUR_DARK(100, 100, 100);
     const Colour STRONG_BORDER_COLOUR(212, 212, 212);
     const Colour HEADER_BG_COLOUR(25, 23, 43);
+    const Colour HEADER_BTN_DISABLED_BG_COLOUR(15, 14, 27);
 
     const Colour POSITIVE_BUTTON_COLOUR(89, 177, 128);
     const Colour POSITIVE_OVER_BUTTON_COLOUR(102, 208, 149);
@@ -88,16 +89,6 @@ namespace FileInfo {
 
 // This function takes the icon ID and returns an Image object of the icon
 Image getIconImageFile(int iconID);
-
-
-struct ActiveShowOptions {
-    String showName; // Should be max-len of 24. Not Strict.
-    String showDescription;
-    String currentCueID;
-    int currentCueIndex; // Zero-indexed (0 --> n)
-    bool currentCuePlaying;
-    int numberOfCueItems;
-};
 
 
 // Abbreviated as OAT
@@ -187,6 +178,7 @@ struct CurrentCueInfo {
     String name;
     String description;
     std::vector<CueOSCAction> actions;
+    bool currentlyPlaying {false};
 
     /*
     ValueStorerArray finalOSCValues; // Later unpacked into positional arguments for OSCMessage constructor,
@@ -209,9 +201,40 @@ struct CurrentCueInfo {
     */
 
     // WARNING: A blank OSC Message Address String WILL RAISE AN EXCEPTION! PROCEED AT YOUR OWN RISK
-    CurrentCueInfo(String id, String name, String description,
-                   std::vector<CueOSCAction> actions): id(id), name(name), description(description),
+    CurrentCueInfo(const String &id, const String &name, const String &description,
+                   const std::vector<CueOSCAction>& actions): id(id), name(name), description(description),
                                                        actions(actions) {
+    }
+};
+
+
+struct ActiveShowOptions {
+    String showName; // Should be max-len of 24. Not Strict.
+    String showDescription;
+    String currentCueID;
+    int currentCueIndex; // Zero-indexed (0 --> n)
+    bool currentCuePlaying;
+    int numberOfCueItems; // NOT Zero-indexed
+
+
+    // Modifies currentCueID, currentCueIndex, currentCuePlaying and numberOfCueItems from cciVector.
+    // If useIndex is out of range, it will default to 0, not the last element of cciVector.
+    void loadCueValuesFromCCIVector(const std::vector<CurrentCueInfo>& cciVector, unsigned int useIndex = 0) {
+        auto cciVSize = cciVector.size();
+        if (cciVSize == 0) {
+            currentCueIndex = 0;
+            currentCuePlaying = false;
+            numberOfCueItems = 0;
+            currentCueID = "";
+            return;
+        }
+        if (useIndex >= cciVSize) {
+            useIndex = 0;
+        }
+        currentCueIndex = useIndex;
+        currentCuePlaying = cciVector[useIndex].currentlyPlaying;
+        currentCueID = cciVector[useIndex].id;
+        numberOfCueItems = cciVSize;
     }
 };
 
@@ -228,7 +251,7 @@ enum ShowCommand {
     SHOW_NEXT_CUE,
     SHOW_PREVIOUS_CUE,
     SHOW_NAME_CHANGE,
-    SHOW_CUE_INDEX_CHANGE,
+    FULL_SHOW_RESET, // Reset all UI and local variables
 
     CURRENT_CUE_ID_CHANGE
 };
@@ -317,7 +340,7 @@ static inline NormalisableRange<double> getNormalisableRangeExp(double min, doub
 
     jassert(logrange > 0.0);
 
-    return NormalisableRange<double>(
+    return {
         min, max,
         [logmin,logrange](double start, double end, double normalized) {
             normalized = std::max(0.0, std::min(1.0, normalized));
@@ -331,8 +354,9 @@ static inline NormalisableRange<double> getNormalisableRangeExp(double min, doub
         },
         [](double start, double end, double value) {
             return std::max(start, std::min(end, value));
-        });
+        }};
 }
+
 
 const inline NormalisableRange<double> LEVEL_161_NORMALISABLE_RANGE(
     -90.0, 10.0,

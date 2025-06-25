@@ -135,25 +135,28 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
 
         if (_isOptionParam) {
             return String(_option.value.at(static_cast<int>(value)));
-        } else if (_isEnumParam) {
+        } if (_isEnumParam) {
             return String(_enumParam.value.at(static_cast<int>(value)));
-        } else {
-            switch (unit) {
-                case HERTZ: {
-                    if (value < 1000.0) {
-                        return String(value, roundTo) + " Hz";
-                    }
-                    return String(value / 1000.0, roundTo) + " kHz";
-                }
-                case DB: {
-                    if (value <= -90.0) {
-                        return "-inf";
-                    }
-                    return ((value > 0) ? "+" + String(value, roundTo) : String(value, roundTo)) + " dB";
-                }
-                case NONE: default:
-                    return String(value, roundTo);
+        }
+        switch (unit) {
+            case HERTZ: {
+                return value < 1000.0 ?
+                    String(value, roundTo) + " Hz" :
+                    String(value / 1000.0, roundTo) + " kHz";
             }
+            case DB: {
+                if (value <= -90.0) {
+                    return "-inf";
+                }
+                return value <= -90.0 ? "-inf" :
+                    (
+                        (value > 0) ?
+                            "+" + String(value, roundTo) :
+                            String(value, roundTo)
+                        ) + " dB";
+            }
+            case NONE: default:
+                return String(value, roundTo);
         }
     }
 

@@ -4,7 +4,9 @@
 
 
 MainComponent::MainComponent() {
+    activeShowOptions.loadCueValuesFromCCIVector(cuesInfo);
     headerBar.registerListener(this);
+    commandOccurred(FULL_SHOW_RESET);
 
     for (auto *comp: getComponents()) {
         addAndMakeVisible(*comp);
@@ -25,7 +27,7 @@ void MainComponent::paint(Graphics &g) {;
 
     g.setFont(FontOptions(16.0f));
     g.setColour(Colours::white);
-    g.drawText("Kewei's bad!", getLocalBounds(), juce::Justification::centred, true);
+    g.drawText("Kewei's bad!", getLocalBounds(), Justification::centred, true);
 }
 
 
@@ -39,31 +41,58 @@ void MainComponent::resized() {
 
 }
 
+
+void MainComponent::updateActiveShowOptionsFromCCIIndex(int newIndex) {
+    auto ccisInfoSize = cuesInfo.size();
+    if (ccisInfoSize == 0) {
+        // Set cue info to default
+        activeShowOptions.currentCueIndex = 0;
+        activeShowOptions.currentCueID = "";
+        activeShowOptions.currentCuePlaying = false;
+        activeShowOptions.numberOfCueItems = 0;
+        return;
+    }
+    if (newIndex < 0 || newIndex >= ccisInfoSize) {
+        return; // Nothing to update - max index
+    }
+    auto cci = cuesInfo[newIndex];
+
+    activeShowOptions.currentCueIndex = newIndex;
+    activeShowOptions.currentCueID = cci.id;
+    activeShowOptions.currentCuePlaying = cci.currentlyPlaying;
+    activeShowOptions.numberOfCueItems = ccisInfoSize;
+}
+
+
+void MainComponent::setPlayStatusForCurrentCue(bool isPlaying) {
+    if (activeShowOptions.numberOfCueItems == 0) {
+        return;
+    }
+    activeShowOptions.currentCuePlaying = isPlaying;
+    cuesInfo[activeShowOptions.currentCueIndex].currentlyPlaying = isPlaying;
+}
+
+
+
 void MainComponent::commandOccurred(ShowCommand cmd) {
     switch (cmd) {
         case SHOW_NEXT_CUE:
-            std::cout << "Next cue" << std::endl;
-            jassertfalse; // NOT IMPLEMENTED
+            updateActiveShowOptionsFromCCIIndex(activeShowOptions.currentCueIndex + 1);
             break;
         case SHOW_PREVIOUS_CUE:
-            std::cout << "Previous cue" << std::endl;
-            jassertfalse; // NOT IMPLEMENTED
+            updateActiveShowOptionsFromCCIIndex(activeShowOptions.currentCueIndex - 1);
             break;
         case SHOW_PLAY:
-            std::cout << "Play" << std::endl;
-            activeShowOptions.currentCuePlaying = true;
+            setPlayStatusForCurrentCue(true);
             break;
         case SHOW_STOP:
-            std::cout << "Stop" << std::endl;
-            activeShowOptions.currentCuePlaying = false;
+            setPlayStatusForCurrentCue(false);
             break;
         case SHOW_NAME_CHANGE:
             std::cout << "Show Name Change" << std::endl;
             break;
-        case SHOW_CUE_INDEX_CHANGE:
-            std::cout << "Show Cue Index Change" << std::endl;
-            break;
-
+        case FULL_SHOW_RESET:
+            break; // Don't need to do anything, but we still need to broadcast it to all callbacks.'
         default:
             jassertfalse; // Invalid ShowCommand
     }
@@ -73,8 +102,44 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
 }
 
 
+void HeaderBar::reconstructButtonBackgroundImage() {
+    if (localBoundsIsInvalid())
+        return;
+
+    buttonsBGImage = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
+
+    Graphics gBG(buttonsBGImage);
+
+
+    gBG.setColour(stopButton.isEnabled() ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
+    gBG.fillRect(stopBox);
+    gBG.setColour(UICfg::STRONG_BORDER_COLOUR);
+    gBG.drawRect(stopBox, 1);
+
+    gBG.setColour(downButton.isEnabled() ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
+    gBG.fillRect(downBox);
+    gBG.setColour(UICfg::STRONG_BORDER_COLOUR);
+    gBG.drawRect(downBox, 1);
+
+    gBG.setColour(upButton.isEnabled() ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
+    gBG.fillRect(upBox);
+    gBG.setColour(UICfg::STRONG_BORDER_COLOUR);
+    gBG.drawRect(upBox, 1);
+
+    gBG.setColour(playButton.isEnabled() ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
+    gBG.fillRect(playBox);
+    gBG.setColour(UICfg::STRONG_BORDER_COLOUR);
+    gBG.drawRect(playBox, 1);
+}
+
+
+
 void HeaderBar::reconstructImage() {
+    if (localBoundsIsInvalid())
+        return;
+
     auto bounds = getLocalBounds();
+
     auto boundWidthTenths = bounds.getWidth() / 10;
     float fontSize = bounds.getHeight() * 0.6f;
 
@@ -93,47 +158,66 @@ void HeaderBar::reconstructImage() {
     // Let's start drawing!
     borderImage = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
     Graphics g(borderImage);
+
+
+    // Fill boxes manually
+    g.setColour(UICfg::HEADER_BG_COLOUR);
+    g.fillRect(showNameBox);
+    g.fillRect(cueIDBox);
+    g.fillRect(cueNoBox);
+    g.fillRect(timeBox);
+
     // Box Borders
-    g.fillAll(UICfg::HEADER_BG_COLOUR);
     g.setColour(UICfg::STRONG_BORDER_COLOUR);
     g.drawRect(showNameBox, 1);
     g.drawRect(cueIDBox, 1);
     g.drawRect(cueNoBox, 1);
-    g.drawRect(stopBox, 1);
-    g.drawRect(downBox, 1);
-    g.drawRect(upBox, 1);
-    g.drawRect(playBox, 1);
     g.drawRect(timeBox, 1);
+
+
+
+    // Buttons - we use a separate method for this.
+    reconstructButtonBackgroundImage();
+
 
     // Now, let's draw the Showname, CueID and CueNo.
     g.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
     g.setFont(fontSize);
     g.setColour(UICfg::TEXT_COLOUR);
+
     g.drawFittedText(activeShowOptions.showName, showNameTextBox.toNearestInt(), Justification::centredLeft, 1);
     g.drawFittedText("ID: " + String(activeShowOptions.currentCueID), cueIDTextBox.toNearestInt(), Justification::centredLeft, 1);
-    g.drawFittedText("Cue " + String(activeShowOptions.currentCueIndex) + "/" + String(activeShowOptions.numberOfCueItems),
+    g.drawFittedText("Cue " + String(activeShowOptions.currentCueIndex + 1) + "/" + String(activeShowOptions.numberOfCueItems),
                      cueNoTextBox.toNearestInt(), Justification::centredLeft, 1);
 
+
+
+    // Button Foregrounds
+    buttonsFGImage = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
+    Graphics gFG(buttonsFGImage);
     // Now draw icon images
-    g.drawImage(stopIcon, stopButtonIconBox, RectanglePlacement::centred);
-    g.drawImage(playIcon, playButtonIconBox, RectanglePlacement::centred);
-    g.drawImage(upIcon, upButtonIconBox, RectanglePlacement::centred);
-    g.drawImage(downIcon, downButtonIconBox, RectanglePlacement::centred);
+    gFG.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
+    gFG.setFont(fontSize);;
+    gFG.setColour(UICfg::TEXT_COLOUR);
+    gFG.drawImage(stopIcon, stopButtonIconBox, RectanglePlacement::centred);
+    gFG.drawImage(playIcon, playButtonIconBox, RectanglePlacement::centred);
+    gFG.drawImage(upIcon, upButtonIconBox, RectanglePlacement::centred);
+    gFG.drawImage(downIcon, downButtonIconBox, RectanglePlacement::centred);
 
     // For STOP and PLAY buttons, we need text labels
-    g.setFont(stopButtonTextBox.getHeight());;
-    g.drawFittedText("STOP", stopButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
-    g.drawFittedText("PLAY", playButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
-
+    gFG.setFont(stopButtonTextBox.getHeight());;
+    gFG.drawFittedText("STOP", stopButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
+    gFG.drawFittedText("PLAY", playButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
 
 }
 
 
 void HeaderBar::resized() {
+    if (localBoundsIsInvalid())
+        return;
+
     auto bounds = getLocalBounds();
-    if (bounds.getWidth() <= 0 || bounds.getHeight() <= 0) {
-        return; // The window is still loading!
-    }
+
     // The bounds passed should be the bounds of ONLY the intended header bar.
     auto boundWidthTenths = bounds.getWidth() / 10;
     float fontSize = bounds.getHeight() * 0.6f;
@@ -149,6 +233,10 @@ void HeaderBar::resized() {
     timeTextBox = timeBox.toFloat();
     timeTextBox.removeFromLeft(boundWidthTenths * 0.05f);
     timeTextBox.removeFromRight(boundWidthTenths * 0.05f);
+
+
+    buttonsBox = Rectangle<int>(stopBox.getX(), stopBox.getY(),
+        boundWidthTenths * 3, getLocalBounds().getHeight());
 
 
     // Let's set the button bounds
@@ -195,10 +283,15 @@ void HeaderBar::resized() {
 
 
 void HeaderBar::paint(Graphics &g) {
-    g.drawImage(borderImage, getLocalBounds().toFloat());
+    auto localBoundsToFloat = getLocalBounds().toFloat();
+    g.drawImage(borderImage, localBoundsToFloat);
+    g.drawImage(buttonsBGImage, localBoundsToFloat);
+    g.drawImage(buttonsFGImage, localBoundsToFloat);
+
+
     // We'll need to manually draw the time.
     g.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
-    g.setFont(getLocalBounds().getHeight() * 0.8f); // Larger font size for the time text
+    g.setFont(localBoundsToFloat.getHeight() * 0.8f); // Larger font size for the time text
     g.setColour(UICfg::TEXT_COLOUR);
     g.drawFittedText(getCurrentTimeAsFormattedString(), timeTextBox.toNearestInt(),
                      Justification::centred, 1);
@@ -207,7 +300,55 @@ void HeaderBar::paint(Graphics &g) {
 
 
 void HeaderBar::commandOccurred(ShowCommand command) {
+    if (activeShowOptions.numberOfCueItems == 0) {
+        setButtonEnabled(upButton, false);
+        setButtonEnabled(downButton, false);
+        setButtonEnabled(playButton, false);
+        setButtonEnabled(downButton, false);
+    } else {
+        switch (command) {
+            case SHOW_PLAY:
+                setButtonEnabled(playButton, false);
+                setButtonEnabled(stopButton, true);
+                break;
+            case SHOW_STOP:
+                setButtonEnabled(playButton, true);
+                setButtonEnabled(stopButton, false);
+                break;
+            case SHOW_NEXT_CUE: case SHOW_PREVIOUS_CUE:
+                if (activeShowOptions.currentCueIndex == 0) {
+                    // First Cue Selected
+                    setButtonEnabled(upButton, false);
+                    setButtonEnabled(downButton, true);
+                } else if ((activeShowOptions.currentCueIndex + 1) == activeShowOptions.numberOfCueItems) {
+                    // Last Cue Selected
+                    setButtonEnabled(upButton, true);
+                    setButtonEnabled(downButton, false);
+                } else {
+                    setButtonEnabled(upButton, true);
+                    setButtonEnabled(downButton, true);
+                }
+                // Now we're on another cue, we also need to set the play button state.
+                setButtonEnabled(playButton, !activeShowOptions.currentCuePlaying);
+                setButtonEnabled(stopButton, activeShowOptions.currentCuePlaying);
+                break;
+            case SHOW_NAME_CHANGE: case CURRENT_CUE_ID_CHANGE:
+                break;
+            case FULL_SHOW_RESET:
+                // The requirement in this case is to reset the buttons enabled state. If we trigger a
+                // next/previous cue command manually, it can reset all the buttons relevant to this
+                // header bar.
+                commandOccurred(SHOW_NEXT_CUE);
+                break;
+        }
+    }
+
     if (_showCommandsRequiringImageReconstruction.find(command) != _showCommandsRequiringImageReconstruction.end()) {
         reconstructImage();
+        repaint();
+    } else if (
+        _showCommandsRequiringButtonReconstruction.find(command) != _showCommandsRequiringButtonReconstruction.end()) {
+        reconstructButtonBackgroundImage();
+        repaint();
     }
 }

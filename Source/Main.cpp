@@ -111,7 +111,7 @@ public:
     void initialise (const String& commandLine) override
     {
         // This method is where you should put your application's initialisation code..
-        oscDevSelWin.reset(new OSCDeviceSelectorWindow("OSC Device Selector"));
+        // oscDevSelWin.reset(new OSCDeviceSelectorWindow("OSC Device Selector"));
         mainWindow.reset (new MainWindow (getApplicationName()));
     }
 
@@ -176,7 +176,7 @@ public:
             // This is called when the user tries to close this window. Here, we'll just
             // ask the app to quit when this happens, but you can change this to do
             // whatever you need."OSC Device Selector"
-            JUCEApplication::getInstance()->systemRequestedQuit();
+            getInstance()->systemRequestedQuit();
         }
 
         /* Note: Be careful if you override any DocumentWindow methods - the base
@@ -192,7 +192,7 @@ public:
 
 private:
     std::unique_ptr<MainWindow> mainWindow;
-    std::unique_ptr<OSCDeviceSelectorWindow> oscDevSelWin;
+    // std::unique_ptr<OSCDeviceSelectorWindow> oscDevSelWin;
     OSCDeviceSender testOscDevice = OSCDeviceSender {String("192.168.1.100"), 20023, String("Test")};
 
 };
