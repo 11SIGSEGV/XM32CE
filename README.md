@@ -1,3 +1,5 @@
+![Image of an X32 Console](https://github.com/user-attachments/assets/7d64a87e-0f17-4001-9129-11fba84c0852)
+
 # Welcome to XM32CE!
 
 XM32CE is a program built in C++ (using the JUCE Framework) that provides realtime OSC cues designed for live
