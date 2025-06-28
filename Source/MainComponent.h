@@ -21,9 +21,38 @@ class ShowCommandListener {
 
 
 // Current Cue Information Side Panel
-struct CCISidePanel: public Component, public ShowCommandListener, public Timer {
+struct CCISidePanel: public Component, public ShowCommandListener {
 public:
-    CCISidePanel(ActiveShowOptions& activeShowOptions);
+    CCISidePanel(ActiveShowOptions& activeShowOptions, std::vector<CurrentCueInfo>& currentCueInfos);
+    ~CCISidePanel() = default;
+
+
+    void constructImage();
+    void paint (Graphics& g) override;
+    void resized() override;
+    void commandOccurred(ShowCommand) override;
+
+private:
+    ActiveShowOptions& activeShowOptions;
+    std::vector<CurrentCueInfo>& currentCueInfos;
+
+    Image panelImage;
+
+    Image playingIndicatorImage;
+    Image stoppedIndicatorImage;
+
+    Rectangle<int> cueNameBox;
+    Rectangle<int> cueDescriptionBox;
+    Rectangle<int> stoppedPlayingIndicatorBox;
+
+    Viewport cueActionInformation;
+
+    // If LocalBounds dimensions are zero for width and/or height, will return true.
+    bool localBoundsIsInvalid() {
+        auto lbnds = getLocalBounds();
+        return lbnds.getWidth() <= 0 || lbnds.getHeight() <= 0;
+    }
+
 };
 
 
@@ -249,25 +278,28 @@ private:
     // A reminder that currentCueIndex is 0-indexed... but numberOfCueItems is NOT.
     ActiveShowOptions activeShowOptions {"012345678901234567890123", "Test Description"};
     std::vector<CurrentCueInfo> cuesInfo = {
-        {"TerrenceFat", "Test Cue Info", "",
+        {"TerrenceFat", "Test Cue Info", "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae. Ex sapien vitae pellentesque sem placerat in id. Placerat in id cursus mi pretium tellus duis. Pretium tellus duis convallis tempus leo eu aenean.",
             {}},
-        {"TerrenceRealFat", "Test Cue", "",
+        {"TerrenceRealFat", "Test Cue With Very Very Long Title Which is Unreasonable", "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae.",
             {},
         },
         {"FATTerrence", "Terrence is actually so fat", "",
             {},
         }
     }; // May replace with custom struct in future
-    HeaderBar headerBar {activeShowOptions};
-    const std::vector<Component*> activeComps = { &headerBar };
-    const std::vector<ShowCommandListener*> callbackCompsUponActiveShowOptionsChanged = { &headerBar };
-
     std::vector<Component*> getComponents() {
         return activeComps;
     }
 
+
+    HeaderBar headerBar {activeShowOptions};
+    CCISidePanel sidePanel {activeShowOptions, cuesInfo};
+
+    const std::vector<ShowCommandListener*> callbackCompsUponActiveShowOptionsChanged = { &headerBar, &sidePanel };
+
     OSCDeviceSender oscDeviceSender {"127.0.0.1", "10023", "X32"};
     OSCCueDispatcherManager dispatcher {oscDeviceSender};
+    const std::vector<Component*> activeComps = { &headerBar, &sidePanel };
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)

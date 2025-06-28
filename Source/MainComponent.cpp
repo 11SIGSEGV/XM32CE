@@ -19,7 +19,6 @@ MainComponent::~MainComponent() {
 }
 
 
-//==============================================================================
 void MainComponent::paint(Graphics &g) {;
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
@@ -38,7 +37,7 @@ void MainComponent::resized() {
     // update their positions.
     auto bounds = getLocalBounds();
     headerBar.setBounds(bounds.removeFromTop(bounds.getHeight() * 0.05f));
-
+    sidePanel.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.2f));
 }
 
 
@@ -101,6 +100,140 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
     }
 }
 
+// ==========================================================================
+
+
+CCISidePanel::CCISidePanel(ActiveShowOptions &activeShowOptions, std::vector<CurrentCueInfo>& currentCueInfos):
+    activeShowOptions(activeShowOptions), currentCueInfos(currentCueInfos) {
+}
+
+
+void CCISidePanel::constructImage() {
+    panelImage = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
+    Graphics g(panelImage);
+
+    g.fillAll(UICfg::BG_COLOUR);
+
+    g.setColour(UICfg::TEXT_COLOUR);
+    g.setFont(UICfg::DEFAULT_FONT);
+
+    if (activeShowOptions.numberOfCueItems == 0) {
+        return; // Don't draw nothing!
+     }
+
+    // Assumes currentCueIndex is valid!
+    auto currentCueInfo = currentCueInfos[activeShowOptions.currentCueIndex];
+
+    // Cue Name
+    g.setFont(cueNameBox.getHeight()*0.7);
+    // Figure out string width
+    // If the name is too long, then scale down and use two lines
+    if (GlyphArrangement::getStringWidthInt(g.getCurrentFont(), currentCueInfo.name) <= cueNameBox.getWidth()) {
+        g.drawFittedText(currentCueInfo.name, cueNameBox.toNearestInt(), Justification::bottomLeft, 1);
+    } else {
+        g.setFont(cueNameBox.getHeight()*0.4);
+        g.drawFittedText(currentCueInfo.name, cueNameBox.toNearestInt(), Justification::bottomLeft, 2);
+    }
+
+
+    // Cue Description
+    g.setFont(cueDescriptionBox.getHeight()*0.15);
+    g.drawFittedText(currentCueInfo.description, cueDescriptionBox.toNearestInt(), Justification::topLeft, 6);
+
+
+    auto stoppedPlayingIndicatorBoxWidth = stoppedPlayingIndicatorBox.getWidth();
+    auto stoppedPlayingIndicatorBoxHeight = stoppedPlayingIndicatorBox.getHeight();
+    // Draw for Playing
+    playingIndicatorImage = Image(Image::ARGB, stoppedPlayingIndicatorBoxWidth,
+        stoppedPlayingIndicatorBoxHeight, true);
+    Graphics pII(playingIndicatorImage);
+
+    pII.fillAll(UICfg::POSITIVE_BUTTON_COLOUR);
+    pII.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
+    pII.setFont(stoppedPlayingIndicatorBoxHeight * 0.7);
+    pII.setColour(UICfg::TEXT_COLOUR);
+    pII.drawFittedText("PLAYING",
+        0, 0, stoppedPlayingIndicatorBoxWidth, stoppedPlayingIndicatorBoxHeight,
+        Justification::centred, 1);
+
+    // Draw for Stopped
+    stoppedIndicatorImage = Image(Image::ARGB, stoppedPlayingIndicatorBoxWidth,
+    stoppedPlayingIndicatorBoxHeight, true);
+    Graphics sII(stoppedIndicatorImage);
+
+    sII.fillAll(UICfg::NEGATIVE_BUTTON_COLOUR);
+    sII.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
+    sII.setFont(stoppedPlayingIndicatorBoxHeight * 0.7);
+    sII.setColour(UICfg::TEXT_COLOUR);
+    sII.drawFittedText("STOPPED",
+        0, 0, stoppedPlayingIndicatorBoxWidth, stoppedPlayingIndicatorBoxHeight,
+        Justification::centred, 1);
+
+}
+
+
+
+void CCISidePanel::resized() {
+    if (localBoundsIsInvalid())
+        return;
+
+    auto bounds = getLocalBounds();
+    auto padding = UICfg::STD_PADDING * bounds.getWidth();
+    bounds.removeFromTop(padding);
+    bounds.removeFromLeft(padding);
+    bounds.removeFromBottom(padding);
+    bounds.removeFromRight(padding);
+
+
+    auto heightTenths = bounds.getHeight() * 0.1f;
+    auto widthTenths = bounds.getWidth() * 0.1f;
+
+    stoppedPlayingIndicatorBox = Rectangle<double>(
+        bounds.getRight() - widthTenths * 2.5, bounds.getY(), widthTenths * 2, heightTenths * 0.3).toNearestInt();
+
+
+    cueNameBox = bounds.removeFromTop(heightTenths);
+    // Padding
+    bounds.removeFromTop(padding);
+    // Description
+    cueDescriptionBox = bounds.removeFromTop(heightTenths * 2);
+    // Padding
+    bounds.removeFromTop(padding);
+
+    constructImage();
+}
+
+
+void CCISidePanel::paint(Graphics &g) {
+    g.drawImage(panelImage, getLocalBounds().toFloat());
+    if (activeShowOptions.currentCuePlaying) {
+        g.drawImage(playingIndicatorImage, stoppedPlayingIndicatorBox.toFloat());
+    } else {
+        g.drawImage(stoppedIndicatorImage, stoppedPlayingIndicatorBox.toFloat());
+    }
+}
+
+
+void CCISidePanel::commandOccurred(ShowCommand command) {
+    switch (command) {
+        case SHOW_PLAY: case SHOW_STOP:
+            repaint();
+            break;
+        case SHOW_NEXT_CUE: case SHOW_PREVIOUS_CUE:
+            constructImage();
+            repaint();
+            break;
+        case SHOW_NAME_CHANGE:
+            break;
+        case FULL_SHOW_RESET:
+            break;
+        case CURRENT_CUE_ID_CHANGE:
+            break;
+    }
+}
+
+
+// ==========================================================================
 
 void HeaderBar::reconstructButtonBackgroundImage() {
     if (localBoundsIsInvalid())
