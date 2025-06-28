@@ -302,3 +302,25 @@ public:
     }
 };
 #endif
+
+
+#ifndef ROUND
+#define ROUND
+template<class T>
+static T Round(T a)
+{
+    static_assert(std::is_floating_point<T>::value, "Round<T>: T must be floating point");
+
+    return (a > 0) ? ::floor(a + static_cast<T>(0.5)) : ::ceil(a - static_cast<T>(0.5));
+}
+
+
+template<typename T>
+static T roundTo(T value, int digits) {
+    static_assert(std::is_floating_point<T>::value, "Round<T>: T must be floating point");
+
+    const T shift = pow(static_cast<T>(10.0), digits);
+
+    return Round(value * shift) / shift;
+}
+#endif

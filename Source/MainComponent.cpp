@@ -13,11 +13,6 @@ MainComponent::MainComponent() {
     }
 }
 
-MainComponent::~MainComponent() {
-    dispatcher.stopThread(5000);
-    removeAllChildren();
-}
-
 
 void MainComponent::paint(Graphics &g) {;
     // (Our component is opaque, so we must completely fill the background with a solid colour)
@@ -28,7 +23,6 @@ void MainComponent::paint(Graphics &g) {;
     g.setColour(Colours::white);
     g.drawText("Kewei's bad!", getLocalBounds(), Justification::centred, true);
 }
-
 
 
 void MainComponent::resized() {
@@ -72,7 +66,6 @@ void MainComponent::setPlayStatusForCurrentCue(bool isPlaying) {
 }
 
 
-
 void MainComponent::commandOccurred(ShowCommand cmd) {
     switch (cmd) {
         case SHOW_NEXT_CUE:
@@ -100,11 +93,370 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
     }
 }
 
+
+// ==========================================================================
+
+
+int CCIActionList::getTheoreticallyRequiredHeight(float usingFontSize) {
+    if (usingFontSize <= 0) {
+        usingFontSize = targetFontSize;
+    }
+    float eachLinePadding = usingFontSize * UICfg::STD_PADDING;
+    float eachActionPadding = usingFontSize * UICfg::STD_PADDING * 2;
+    float height = 0;
+    // We don't actually need to check if getCCI() is valid because an invalid one would just have an empty actions vector.
+    for (auto &action: getCCI().actions) {
+        // /path/to/osc/arg
+        // COMMAND / FADE COMMAND (this line is 0.7 times fontsize)
+        height += usingFontSize + usingFontSize * 0.7f + eachLinePadding * 2;
+        switch (action.oat) {
+            case OAT_COMMAND:
+                // Verbose Name         Val (s/f/i)
+                // ...
+                height += (usingFontSize + eachActionPadding) * action.oatCommandOSCArgumentTemplate.size();
+                break;
+            case OAT_FADE:
+                // Verbose Name         0.0 >> 1.0
+                // Fade Time            0.0
+                height += 2 * (usingFontSize + eachLinePadding);
+                break;
+            case _EXIT_THREAD:
+                jassertfalse; // Why is an _EXIT_THREAD command being passed to CCIActionList...?
+                break;
+        }
+        height -= eachLinePadding - eachActionPadding; // i.e., height = height - eachLinePadding + eachActionPadding
+    }
+    return static_cast<int>(std::ceil(height));
+}
+
+
+void CCIActionList::resized() {
+    auto boundsWidth = getWidth();
+    if (boundsWidth == 0 || getHeight() == 0) {
+        return;
+    }
+    auto widthTenths = boundsWidth * 0.1;
+    /* Vertical scaling and horizonal scaling should be separate but:
+    - Font size should be purely determined by component height
+    - Widths should be purely determined by component width
+    */
+    valueAndTypeMaxWidth = widthTenths * 3;
+    // The width minus the valueAndType width and minus the standard padding
+    argumentVerboseNameMaxWidth = boundsWidth - valueAndTypeMaxWidth - boundsWidth * UICfg::STD_PADDING;
+
+    // For value of ValueStorer
+    oscArgumentValueFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, targetFontSize, Font::italic);
+    // Find how many single characters can fit in the width for valueAndTypeMaxWidth
+    oscArgumentValueMaxChars = std::floor(valueAndTypeMaxWidth / GlyphArrangement::getStringWidth(oscArgumentValueFont, "W"));
+
+    // For COMMAND/FADE
+    oatFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, targetFontSize * 0.7f, Font::plain);
+    oatFontMaxChars = std::floor(boundsWidth / GlyphArrangement::getStringWidth(oatFont, "W"));
+
+    // For verbose name of the argument
+    verboseNameFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, targetFontSize, Font::plain);
+    verboseNameMaxChars = std::floor(argumentVerboseNameMaxWidth / GlyphArrangement::getStringWidth(oscArgumentValueFont, "W"));
+
+    // For Path of OSC Argument (e.g., /path/to/command)
+    pathFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, targetFontSize, Font::bold);
+    pathMaxChars = std::floor(boundsWidth / GlyphArrangement::getStringWidth(pathFont, "W"));
+}
+
+
+String CCIActionList::getWidthAdjustedArgumentValueString(const String& value, const String& typeAlias) {
+    auto finalTypeAlias = typeAlias;
+    if (typeAlias.length() != 1) {
+        jassertfalse; // It's a type alias, not a typename... only meant to be one character.
+        finalTypeAlias = "?";
+    }
+    // First, test value & type as just exactly provides values
+    String aliasedStr = value + " (" + finalTypeAlias + ")";
+    int aliasedStrLen = aliasedStr.length();
+
+    if (aliasedStrLen <= oscArgumentValueMaxChars) {
+        // Str width is within bounds, let's return
+        return aliasedStr;
+    }
+
+    // Otherwise kill some children.
+    // Start by removing type hint - 4 chars (i.e., " (x)"
+    if (aliasedStrLen - 4 <= oscArgumentValueMaxChars) {
+        return value; // I.e., un-aliased value
+    }
+
+    // Ok, that clearly doesn't work. Let's concatenate the value.
+    // Luckily monospace fonts have the same character width YAYAYYAYAYYAYYAYY
+
+    if (oscArgumentValueMaxChars < 3) {return "";}           // We can't even fit "..." anyway sooo.... return nothing ig?
+    if (oscArgumentValueMaxChars == 3) {return "...";}       // Well at least we can fit ellipses right?
+
+    // Otherwise, simply return a concatenated version with ... at the end
+    return value.substring(0, oscArgumentValueMaxChars - 3) + "..."; // At least 4 characters
+    // The above substring should always be in range as:
+    // - oscArgumentMaxChars must be > 3 to reach here
+    // - value.length() > oscArgumentMaxChars
+    // - hence, value.length() >= 4 to reach here.
+}
+
+
+String CCIActionList::getWidthAdjustedArgumentValueString(const ValueStorer &value, ParamType type) {
+    String valueAsString;
+    String typeAlias;
+    switch (type) {
+        case STRING:
+            valueAsString = value.stringValue;
+            typeAlias = "s";
+            break;
+        case INT:
+            valueAsString = String(value.intValue);
+            typeAlias = "i";
+            break;
+        case _GENERIC_FLOAT: {
+            auto rounded = roundTo(value.floatValue, UICfg::ROUND_TO_WHEN_IN_DOUBT);
+            valueAsString = String(rounded, UICfg::ROUND_TO_WHEN_IN_DOUBT);
+            typeAlias = "f";
+            break;
+        }
+        case LINF: case LOGF: case ENUM: case LEVEL_1024: case LEVEL_161: case BITSET: case OPTION: case _BLANK:
+            jassertfalse; // Why are you passing invalid types here?
+            break;
+    }
+    return getWidthAdjustedArgumentValueString(valueAsString, typeAlias);
+}
+
+
+String CCIActionList::getWidthAdjustedVerboseName(const String &verboseName) {
+    int strLen = verboseName.length();
+    if (strLen <= verboseNameMaxChars) {
+        return verboseName;
+    }
+    // Ok, let's start killing children
+    // We start by checking if we reasonably fit anything into the width.
+    if (verboseNameMaxChars < 3) { return ""; }
+    if (verboseNameMaxChars == 3) { return "..."; }
+    // Ok let's now replace with _______...
+    return verboseName.substring(0, verboseNameMaxChars - 3) + "...";
+}
+
+
+String CCIActionList::oatAppropriateForWidth(OSCActionType oat) {
+    switch (oat) {
+        case OAT_COMMAND:
+            if (oatFontMaxChars >= 8) { return "COMMANDS"; }
+            if (oatFontMaxChars >= 4) { return "CMDS"; }
+            if (oatFontMaxChars == 3) { return "CMD"; }
+            return "";
+        case OAT_FADE:
+            if (oatFontMaxChars >= 12) { return "FADE COMMAND"; }
+            if (oatFontMaxChars >= 4) { return "FADE"; }
+            if (oatFontMaxChars == 3) { return "FDE"; }
+            return "";
+        case _EXIT_THREAD:
+            jassertfalse; // PLEASE.
+            // FOR. THE. LAST. TIME.
+            // STOP.
+    }
+    return "";
+}
+
+
+Rectangle<int> CCIActionList::drawArgumentNameAndValue(Graphics &g, int leftmostX, float currentHeight,
+    const String &formattedVerboseName, const String &formattedArgumentValue,
+    int verboseNameFontHeightRounded, int oatArgumentFontHeightRounded) {
+
+    if (verboseNameFontHeightRounded == -1) {
+        verboseNameFontHeightRounded = static_cast<int>(std::ceil(verboseNameFont.getHeight()));
+    }
+    if (oatArgumentFontHeightRounded == -1) {
+        oatArgumentFontHeightRounded = static_cast<int>(std::ceil(oscArgumentValueFont.getHeight()));
+    }
+    int currentHeightCeil = static_cast<int>(std::ceil(currentHeight));
+
+    Rectangle<int> verboseNameBox = {
+        leftmostX,
+        currentHeightCeil,
+        static_cast<int>(std::floor(argumentVerboseNameMaxWidth)),
+        verboseNameFontHeightRounded
+    };
+
+    g.setFont(oscArgumentValueFont);
+    g.drawFittedText(formattedVerboseName, verboseNameBox, Justification::centredLeft, 1);
+
+    Rectangle<int> argumentValueBox {
+        static_cast<int>(std::ceil(getWidth() - valueAndTypeMaxWidth)), // We actually want the ceil as this will be closer to the right
+        currentHeightCeil,
+        static_cast<int>(std::ceil(valueAndTypeMaxWidth)), // Same here!
+        oatArgumentFontHeightRounded
+    };
+
+    g.setFont(oscArgumentValueFont);
+    g.drawFittedText(formattedArgumentValue, argumentValueBox, Justification::centredRight, 1);
+
+    // Now return a new rectangle encompassing both texts we just drew.
+    return {
+        leftmostX,
+        currentHeightCeil,
+        getWidth(),
+        (oatArgumentFontHeightRounded > verboseNameFontHeightRounded) ?
+            oatArgumentFontHeightRounded: verboseNameFontHeightRounded // Whichever height is higher
+    };
+}
+
+
+void CCIActionList::commandOccurred(ShowCommand command) {
+    switch (command) {
+        case SHOW_NEXT_CUE: case SHOW_PREVIOUS_CUE: case FULL_SHOW_RESET:
+            repaint();
+            break;
+        case SHOW_PLAY: case SHOW_STOP: case SHOW_NAME_CHANGE: case CURRENT_CUE_ID_CHANGE:
+            break;
+    }
+}
+
+
+void CCIActionList::paint(Graphics &g) {
+    auto cci = getCCI();
+    if (cci.id.isEmpty()) {
+        return; // Don't bother drawing: an empty ID implies a null CCI.
+    }
+    int localBoundsWidth = getWidth();
+    int leftmostX = getX();
+    float currentHeight = 0.f;
+
+    const float EACH_LINE_PADDING = targetFontSize * UICfg::STD_PADDING;
+    const float EACH_ACTION_PADDING = targetFontSize * UICfg::STD_PADDING * 2;
+
+
+    int pathFontHeight = static_cast<int>(std::ceil(pathFont.getHeight()));
+    int oscArgumentFontHeight = static_cast<int>(std::ceil(oscArgumentValueFont.getHeight()));
+    int oatFontHeight = static_cast<int>(std::ceil(oatFont.getHeight()));
+    int verboseNameFontHeight = static_cast<int>(std::ceil(verboseNameFont.getHeight()));
+
+    g.setColour(UICfg::TEXT_COLOUR);
+
+    for (CueOSCAction &action: cci.actions) {
+        // We have to draw the command for both COMMAND and FADE.
+
+        // First draw the address path
+        String addr = action.oscAddress.toString();
+        int addrLen = addr.length();
+        if (addrLen > pathMaxChars) {
+            if (pathMaxChars < 3) { addr = ""; }
+            else if (pathMaxChars == 3) { addr = "..."; }
+            else { addr = addr.substring(0, pathMaxChars - 3) + "..."; }
+        }
+        Rectangle<int> pathBox = {
+            leftmostX,
+            static_cast<int>(std::ceil(currentHeight)),
+            localBoundsWidth,
+            pathFontHeight
+        };
+        g.setFont(pathFont);
+        g.drawFittedText(addr, pathBox, Justification::topLeft, 1);
+        currentHeight += pathBox.getHeight();
+        currentHeight += EACH_LINE_PADDING;
+
+        // Now draw COMMAND/FADE
+        Rectangle<int> commandTypeBox = {
+            leftmostX,
+            static_cast<int>(std::ceil(currentHeight)),
+            localBoundsWidth,
+            oatFontHeight
+        };
+        g.setFont(oatFont);
+        g.drawFittedText(oatAppropriateForWidth(action.oat), commandTypeBox, Justification::topLeft, 1);
+        currentHeight += EACH_LINE_PADDING + commandTypeBox.getHeight();
+
+        // Now, draw each/the osc argument(s) associated with each action
+        switch (action.oat) {
+            case OAT_COMMAND: {
+                // For OAT_COMMAND, we could have numerous parameters.
+                // First check the len of templates and valuestorers is the same.
+                if (action.oatCommandOSCArgumentTemplate.size() != action.arguments.size()) {
+                    jassertfalse; // OSC Action Argument Templates and Argument ValueStorer Vector must be the same size
+                    break;
+                }
+                // This loop draws the argument verbose name and value for each argument in the action
+                for (int i = 0; i < action.oatCommandOSCArgumentTemplate.size(); i++) {
+                    OSCMessageArguments &currentTemplate = action.oatCommandOSCArgumentTemplate[i];
+                    // Figure out which template type this is to get the verbose name
+                    String verboseName;
+                    if (auto *optVal = std::get_if<OptionParam>(&currentTemplate)) {
+                        verboseName = optVal->verboseName;
+                    } else if (auto *enumVal = std::get_if<EnumParam>(&currentTemplate)) {
+                        verboseName = enumVal->verboseName;
+                    } else if (auto *nonIter = std::get_if<NonIter>(&currentTemplate)) {
+                        verboseName = nonIter->verboseName;
+                    }
+                    auto currentArgument = action.arguments[i];
+
+                    // Draw the verbose name and value
+                    auto drawnTextBox = drawArgumentNameAndValue(
+                        g, leftmostX, currentHeight,
+                        getWidthAdjustedVerboseName(verboseName),
+                        getWidthAdjustedArgumentValueString(currentArgument, currentArgument._meta_PARAMTYPE),
+                        verboseNameFontHeight, oscArgumentFontHeight
+                        );
+
+                    currentHeight += drawnTextBox.getHeight() + EACH_LINE_PADDING;
+                }
+                break;
+            }
+            case OAT_FADE: {
+                // Required as getWidthAdjustedVerboseName requires juce::String&, not std::string
+                String verboseName = action.oscArgumentTemplate.verboseName;
+                String idealArgumentValueStr;
+                String typeAlias = "?";
+                switch (action.oscArgumentTemplate._meta_PARAMTYPE) {
+                    case INT: {
+                        idealArgumentValueStr = String(action.startValue.intValue) + " >> " + String(action.endValue.intValue);
+                        typeAlias = "i";
+                        break;
+                    }
+                    case LINF: case LOGF: case LEVEL_1024: case LEVEL_161: {
+                        idealArgumentValueStr = String(action.startValue.floatValue) + " >> " + String(action.endValue.floatValue);
+                        typeAlias = "f";
+                        break;
+                    }
+                    default:
+                        jassertfalse; // WHAT IS YOUR PROBLEM WITH PASSING INCORRECT PARAMTYPES AHHAHAHAHHAHHHHHAAHAAAHHHHAHHHAAHHHAHAHHAHHHHHHHHHHHHHHHHHHHHHHHHHHAHHAHHAHAHHAHHAHHAHHAHHHAHAAHAHHAHAHHAAAAHHAHAHHAHHHHHH
+                }
+                auto drawnTextBox = drawArgumentNameAndValue(
+                    g, leftmostX, currentHeight,
+                    getWidthAdjustedVerboseName(verboseName),
+                    getWidthAdjustedArgumentValueString(idealArgumentValueStr, typeAlias),
+                    verboseNameFontHeight, oscArgumentFontHeight);
+
+                currentHeight += drawnTextBox.getHeight() + EACH_LINE_PADDING;
+                // We also need to draw another one to indicate the fade time.
+                verboseName = "Fade Time";
+                typeAlias = "f";
+                idealArgumentValueStr = String(roundTo(action.fadeTime, UICfg::ROUND_TO_WHEN_IN_DOUBT));
+                drawnTextBox = drawArgumentNameAndValue(
+                    g, leftmostX, currentHeight,
+                    getWidthAdjustedVerboseName(verboseName),
+                    getWidthAdjustedArgumentValueString(idealArgumentValueStr, typeAlias),
+                    verboseNameFontHeight, oscArgumentFontHeight);
+                break;
+            }
+            case _EXIT_THREAD:
+                jassertfalse; // ...you realise no matter how many times you insist on passing an invalid ParamType,
+                // I'm still not implementing a special case for it?
+                break;
+        }
+
+        currentHeight += EACH_ACTION_PADDING;
+    }
+}
+
+
 // ==========================================================================
 
 
 CCISidePanel::CCISidePanel(ActiveShowOptions &activeShowOptions, std::vector<CurrentCueInfo>& currentCueInfos):
-    activeShowOptions(activeShowOptions), currentCueInfos(currentCueInfos) {
+    activeShowOptions(activeShowOptions), currentCueInfos(currentCueInfos),
+    actionList(activeShowOptions, currentCueInfos, 1.f) {
+    addAndMakeVisible(actionList);
 }
 
 
@@ -199,6 +551,11 @@ void CCISidePanel::resized() {
     cueDescriptionBox = bounds.removeFromTop(heightTenths * 2);
     // Padding
     bounds.removeFromTop(padding);
+
+    // Action List - we'll give it rest of the bounds
+    actionList.setBounds(bounds);
+    // We also have to figure out its font size
+    actionList.setTargetFontSize(cueNameBox.getHeight() * 0.2f);
 
     constructImage();
 }

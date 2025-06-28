@@ -104,12 +104,7 @@ struct CueOSCAction {
     }
 
     // For OAT_COMMAND, the arguments are used to fill in the OSC Message.
-    CueOSCAction(String oscAddress, std::vector<OSCMessageArguments>& argumentTemplates, ValueStorerArray& arguments):
-    oat(OAT_COMMAND), arguments(arguments), oatCommandOSCArgumentTemplate(argumentTemplates),
-                                                                 oscAddress(oscAddress) {
-    }
-
-    CueOSCAction(OSCAddressPattern oscAddress, std::vector<OSCMessageArguments>& argumentTemplates, ValueStorerArray& arguments):
+    CueOSCAction(OSCAddressPattern oscAddress, std::vector<OSCMessageArguments>& argumentTemplates, ValueStorerArray arguments):
     oat(OAT_COMMAND), arguments(arguments), oatCommandOSCArgumentTemplate(argumentTemplates),
                                                                      oscAddress(oscAddress) {
     }
@@ -141,13 +136,6 @@ struct CueOSCAction {
     }
 
     // For OAT_FADE, the fadeTime is used to determine the fade time in seconds.
-    CueOSCAction(String oscAddress, float fadeTime, NonIter oscArgumentTemplate, ValueStorer startValue,
-                 ValueStorer endValue): oscAddress(oscAddress), oat(OAT_FADE), fadeTime(fadeTime),
-                                        oscArgumentTemplate(oscArgumentTemplate),
-                                        startValue(startValue), endValue(endValue), arguments(_nullNonConstValueStorerArray),
-    oatCommandOSCArgumentTemplate(_nullNonConstOSCMessageArguments) {
-        _checks();
-    }
     CueOSCAction(OSCAddressPattern oscAddress, float fadeTime, NonIter oscArgumentTemplate, ValueStorer startValue,
                  ValueStorer endValue): oscAddress(oscAddress), oat(OAT_FADE), fadeTime(fadeTime),
                                         oscArgumentTemplate(oscArgumentTemplate),
@@ -159,22 +147,23 @@ struct CueOSCAction {
     OSCActionType oat;
     OSCAddressPattern oscAddress;
 
+    // For OAT_COMMAND
     std::vector<OSCMessageArguments>& oatCommandOSCArgumentTemplate;
-    ValueStorerArray& arguments; // The arguments to send with the OSC Message, only used for OAT_COMMAND
+    // We're not using a pointer to a ValueStorerArray because the values should be stored in the CueOSCAction as they
+    // should be unique to this action. The vector above on the other hand can be shared between multiple actions.
+    ValueStorerArray arguments; // The arguments to send with the OSC Message, only used for OAT_COMMAND
 
 
+    // For OAT_FADE
     float fadeTime{0.f}; // The fade time in seconds, only used for OAT_FADE
-
-    // Argument template should only ever be NonIter when fading is used.
     NonIter oscArgumentTemplate = _nullNonIter; // Used to find algorithm and type for parameter
-
     ValueStorer startValue;
-    ValueStorer endValue; // Used to find algorithm and type for parameter
+    ValueStorer endValue;
 };
 
 
 struct CurrentCueInfo {
-    String id;
+    String id; // When ID is empty, it is implied the CCI is not valid. This can be used when no CCIs are in a CCI Vector, so a blank CCI can be used.
     String name;
     String description;
     std::vector<CueOSCAction> actions;
@@ -200,10 +189,13 @@ struct CurrentCueInfo {
     OSCMessage constructMessage(bool ignoreAndReconstructCache = false);
     */
 
-    // WARNING: A blank OSC Message Address String WILL RAISE AN EXCEPTION! PROCEED AT YOUR OWN RISK
     CurrentCueInfo(const String &id, const String &name, const String &description,
                    const std::vector<CueOSCAction>& actions): id(id), name(name), description(description),
                                                        actions(actions) {
+    }
+
+    // Used for blank CCI (i.e., invalid CCI)
+    CurrentCueInfo(): id(""), name(""), description(""), actions({}) {
     }
 };
 

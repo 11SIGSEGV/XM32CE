@@ -20,6 +20,85 @@ class ShowCommandListener {
 };
 
 
+struct CCIActionList: public Component, public ShowCommandListener {
+    public:
+    CCIActionList(ActiveShowOptions &activeShowOptions, std::vector<CurrentCueInfo>& currentCueInfos, double targetFontSize):
+        targetFontSize(targetFontSize), activeShowOptions(activeShowOptions), currentCueInfos(currentCueInfos) {
+    }
+    ~CCIActionList() = default;
+
+    void resized() override;
+    // A side note... paint() is actually the only function that access getCCI(), so when the CCI changes, realistically
+    // we only need to call repaint().
+    void paint (Graphics &g) override;
+    void commandOccurred(ShowCommand) override;
+    // TODO: Verify if repaint() also calls resized()
+    void setTargetFontSize(float newFontSize) { targetFontSize = newFontSize; resized(); repaint(); }
+
+    /* As this component should be inside a viewport, to determine the height required to set the content
+    component without compressing or cropping this component, use this function.
+    usingFontSize should be slightly smaller compared to the other UI fonts. Will use default value specified in
+    construction if not specifically specified.
+    NOTE: The returned value is ONLY APPROXIMATE.*/
+    int getTheoreticallyRequiredHeight(float usingFontSize = -1);
+
+
+private:
+    /* Changes string based on width available for ValueStorer value. If the width is too short,
+    it will adjust the string to '...', '', or concatenate the value.
+    NOTE: typeAlias must only be ONE character long.
+    NOTE: standarised typealiases include:
+    - s: string
+    - f: float
+    - i: integer
+    - ?: unknown (though... you should probably not use it)
+    */
+    String getWidthAdjustedArgumentValueString(const String& value, const String& typeAlias);
+    String getWidthAdjustedArgumentValueString(const ValueStorer &value, ParamType type);
+
+    String getWidthAdjustedVerboseName(const String &verboseName);
+    String oatAppropriateForWidth(OSCActionType oat);
+
+
+    CurrentCueInfo& getCCI() {
+        if (activeShowOptions.numberOfCueItems == 0) {
+            // Guys... we don't have a CCI... ummm
+            // We return a blank!
+            return _blankCCI;
+        }
+        // We're gonna be optimistic and assume that the currentCueIndex is valid.
+        return currentCueInfos[activeShowOptions.currentCueIndex];
+    }
+
+
+    // Draws the formatted argument names and values to the graphics context (i.e., width-adjusted strings)
+    // Returns the rectangle box in which the text was drawn - this rectangle will encompass BOTH texts drawn
+    // It is recommended to specify the rounded height for the verbose name font and oat argument font, as it will save
+    // a repetitive computation for every time this function is called
+    Rectangle<int> drawArgumentNameAndValue(Graphics &g, int leftmostX, float currentHeight,
+        const String &formattedVerboseName, const String &formattedArgumentValue,
+        int verboseNameFontHeightRounded = -1, int oatArgumentFontHeightRounded = -1);
+
+    float valueAndTypeMaxWidth;
+    float argumentVerboseNameMaxWidth;
+
+    ActiveShowOptions& activeShowOptions;
+    std::vector<CurrentCueInfo>& currentCueInfos;
+
+    CurrentCueInfo _blankCCI {};
+
+    float targetFontSize;
+    Font oscArgumentValueFont = FontOptions();
+    int oscArgumentValueMaxChars;
+    Font oatFont = FontOptions(); // OSC Argument Type Font (COMMANDS/FADE)
+    int oatFontMaxChars;
+    Font verboseNameFont = FontOptions();
+    int verboseNameMaxChars;
+    Font pathFont = FontOptions();
+    int pathMaxChars; // These widths assume that the font is monospace
+};
+
+
 // Current Cue Information Side Panel
 struct CCISidePanel: public Component, public ShowCommandListener {
 public:
@@ -35,6 +114,7 @@ public:
 private:
     ActiveShowOptions& activeShowOptions;
     std::vector<CurrentCueInfo>& currentCueInfos;
+    CCIActionList actionList;
 
     Image panelImage;
 
@@ -52,7 +132,6 @@ private:
         auto lbnds = getLocalBounds();
         return lbnds.getWidth() <= 0 || lbnds.getHeight() <= 0;
     }
-
 };
 
 
@@ -228,7 +307,10 @@ class MainComponent  : public Component, public ShowCommandListener
 public:
     //==============================================================================
     MainComponent();
-    ~MainComponent() override;
+    ~MainComponent() override {
+        dispatcher.stopThread(5000);
+        removeAllChildren();
+    }
 
     //==============================================================================
     void paint (Graphics &g) override;
@@ -277,9 +359,12 @@ private:
     // NOTE: When switching from numberOfCueItems==0 to any other value, a FULL_SHOW_RESET command must be sent.
     // A reminder that currentCueIndex is 0-indexed... but numberOfCueItems is NOT.
     ActiveShowOptions activeShowOptions {"012345678901234567890123", "Test Description"};
+    std::vector<OSCMessageArguments> testTemplates = {
+        NonIter("Level", "Level", "Level", -90.f, LEVEL_1024, -90.f, 10.f)
+    };
     std::vector<CurrentCueInfo> cuesInfo = {
         {"TerrenceFat", "Test Cue Info", "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae. Ex sapien vitae pellentesque sem placerat in id. Placerat in id cursus mi pretium tellus duis. Pretium tellus duis convallis tempus leo eu aenean.",
-            {}},
+            {CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)})}},
         {"TerrenceRealFat", "Test Cue With Very Very Long Title Which is Unreasonable", "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae.",
             {},
         },
