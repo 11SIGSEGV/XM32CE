@@ -242,12 +242,14 @@ String CCIActionList::getWidthAdjustedVerboseName(const String &verboseName) {
 String CCIActionList::oatAppropriateForWidth(OSCActionType oat) {
     switch (oat) {
         case OAT_COMMAND:
-            if (oatFontMaxChars >= 8) { return "COMMANDS"; }
-            if (oatFontMaxChars >= 4) { return "CMDS"; }
-            if (oatFontMaxChars == 3) { return "CMD"; }
+            // It's actually meant to say arguments... not commands. Fixed!
+            if (oatFontMaxChars >= 8) { return "ARGUMENTS"; }
+            if (oatFontMaxChars >= 4) { return "ARGS"; }
+            if (oatFontMaxChars == 3) { return "ARG"; }
             return "";
         case OAT_FADE:
-            if (oatFontMaxChars >= 12) { return "FADE COMMAND"; }
+            if (oatFontMaxChars >= 12) { return "FADE ARGUMENTS"; }
+            if (oatFontMaxChars >= 9) { return "FADE ARGS"; }
             if (oatFontMaxChars >= 4) { return "FADE"; }
             if (oatFontMaxChars == 3) { return "FDE"; }
             return "";
@@ -323,8 +325,8 @@ void CCIActionList::paint(Graphics &g) {
     int leftmostX = getX();
     float currentHeight = 0.f;
 
-    const float EACH_LINE_PADDING = targetFontSize * UICfg::STD_PADDING;
-    const float EACH_ACTION_PADDING = targetFontSize * UICfg::STD_PADDING * 2;
+    const float EACH_LINE_PADDING = targetFontSize * UICfg::STD_PADDING * 3;
+    const float EACH_ACTION_PADDING = targetFontSize * UICfg::STD_PADDING * 20;
 
 
     int pathFontHeight = static_cast<int>(std::ceil(pathFont.getHeight()));
@@ -444,7 +446,6 @@ void CCIActionList::paint(Graphics &g) {
                 // I'm still not implementing a special case for it?
                 break;
         }
-
         currentHeight += EACH_ACTION_PADDING;
     }
 }
@@ -467,7 +468,6 @@ void CCISidePanel::constructImage() {
     g.fillAll(UICfg::BG_COLOUR);
 
     g.setColour(UICfg::TEXT_COLOUR);
-    g.setFont(UICfg::DEFAULT_FONT);
 
     if (activeShowOptions.numberOfCueItems == 0) {
         return; // Don't draw nothing!
@@ -477,6 +477,7 @@ void CCISidePanel::constructImage() {
     auto currentCueInfo = currentCueInfos[activeShowOptions.currentCueIndex];
 
     // Cue Name
+    g.setFont(titleFont);
     g.setFont(cueNameBox.getHeight()*0.7);
     // Figure out string width
     // If the name is too long, then scale down and use two lines
@@ -487,26 +488,34 @@ void CCISidePanel::constructImage() {
         g.drawFittedText(currentCueInfo.name, cueNameBox.toNearestInt(), Justification::bottomLeft, 2);
     }
 
+    // "COMMANDS" (dear github copilot, please be smart. It is not that hard to generate a line of code to draw this text. How are you struggling at this?)
+    g.setFont(commandsTitleBox.getHeight() * 0.8);
+    g.drawFittedText("COMMANDS", commandsTitleBox.toNearestInt(), Justification::centredLeft, 1);
+
 
     // Cue Description
+    g.setFont(textFont);
     g.setFont(cueDescriptionBox.getHeight()*0.15);
     g.drawFittedText(currentCueInfo.description, cueDescriptionBox.toNearestInt(), Justification::topLeft, 6);
 
 
+
     auto stoppedPlayingIndicatorBoxWidth = stoppedPlayingIndicatorBox.getWidth();
     auto stoppedPlayingIndicatorBoxHeight = stoppedPlayingIndicatorBox.getHeight();
+
     // Draw for Playing
     playingIndicatorImage = Image(Image::ARGB, stoppedPlayingIndicatorBoxWidth,
         stoppedPlayingIndicatorBoxHeight, true);
     Graphics pII(playingIndicatorImage);
 
     pII.fillAll(UICfg::POSITIVE_BUTTON_COLOUR);
-    pII.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
-    pII.setFont(stoppedPlayingIndicatorBoxHeight * 0.7);
+    pII.setFont(monospaceFont);
+    pII.setFont(stoppedPlayingIndicatorBoxHeight * 0.6);
     pII.setColour(UICfg::TEXT_COLOUR);
     pII.drawFittedText("PLAYING",
         0, 0, stoppedPlayingIndicatorBoxWidth, stoppedPlayingIndicatorBoxHeight,
         Justification::centred, 1);
+
 
     // Draw for Stopped
     stoppedIndicatorImage = Image(Image::ARGB, stoppedPlayingIndicatorBoxWidth,
@@ -514,15 +523,13 @@ void CCISidePanel::constructImage() {
     Graphics sII(stoppedIndicatorImage);
 
     sII.fillAll(UICfg::NEGATIVE_BUTTON_COLOUR);
-    sII.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
-    sII.setFont(stoppedPlayingIndicatorBoxHeight * 0.7);
+    sII.setFont(monospaceFont);
+    sII.setFont(stoppedPlayingIndicatorBoxHeight * 0.6);
     sII.setColour(UICfg::TEXT_COLOUR);
     sII.drawFittedText("STOPPED",
         0, 0, stoppedPlayingIndicatorBoxWidth, stoppedPlayingIndicatorBoxHeight,
         Justification::centred, 1);
-
 }
-
 
 
 void CCISidePanel::resized() {
@@ -549,6 +556,12 @@ void CCISidePanel::resized() {
     bounds.removeFromTop(padding);
     // Description
     cueDescriptionBox = bounds.removeFromTop(heightTenths * 2);
+    // Padding
+    bounds.removeFromTop(padding);
+
+    // "COMMANDS"
+    commandsTitleBox = bounds.removeFromTop(heightTenths * 0.3f);
+
     // Padding
     bounds.removeFromTop(padding);
 
@@ -592,6 +605,7 @@ void CCISidePanel::commandOccurred(ShowCommand command) {
 
 // ==========================================================================
 
+
 void HeaderBar::reconstructButtonBackgroundImage() {
     if (localBoundsIsInvalid())
         return;
@@ -621,7 +635,6 @@ void HeaderBar::reconstructButtonBackgroundImage() {
     gBG.setColour(UICfg::STRONG_BORDER_COLOUR);
     gBG.drawRect(playBox, 1);
 }
-
 
 
 void HeaderBar::reconstructImage() {

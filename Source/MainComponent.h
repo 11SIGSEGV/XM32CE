@@ -20,6 +20,9 @@ class ShowCommandListener {
 };
 
 
+//==============================================================================
+
+
 struct CCIActionList: public Component, public ShowCommandListener {
     public:
     CCIActionList(ActiveShowOptions &activeShowOptions, std::vector<CurrentCueInfo>& currentCueInfos, double targetFontSize):
@@ -99,6 +102,9 @@ private:
 };
 
 
+//==============================================================================
+
+
 // Current Cue Information Side Panel
 struct CCISidePanel: public Component, public ShowCommandListener {
 public:
@@ -124,6 +130,11 @@ private:
     Rectangle<int> cueNameBox;
     Rectangle<int> cueDescriptionBox;
     Rectangle<int> stoppedPlayingIndicatorBox;
+    Rectangle<int> commandsTitleBox; // Literally just for the word "COMMANDS".
+
+    Font titleFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::bold);
+    Font textFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::plain);
+    Font monospaceFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::plain);
 
     Viewport cueActionInformation;
 
@@ -135,6 +146,7 @@ private:
 };
 
 
+//==============================================================================
 
 
 // The component for the header bar in the main window.
@@ -301,9 +313,10 @@ private:
 };
 
 
+//==============================================================================
 
-class MainComponent  : public Component, public ShowCommandListener
-{
+
+class MainComponent  : public Component, public ShowCommandListener {
 public:
     //==============================================================================
     MainComponent();
@@ -362,9 +375,19 @@ private:
     std::vector<OSCMessageArguments> testTemplates = {
         NonIter("Level", "Level", "Level", -90.f, LEVEL_1024, -90.f, 10.f)
     };
+    std::vector<OSCMessageArguments> testTemplates2 = {
+        NonIter("Pan", "Channel Pan", "Channel Panning", 0.5, LINF, 0.f, 1.f)
+    };
+
     std::vector<CurrentCueInfo> cuesInfo = {
-        {"TerrenceFat", "Test Cue Info", "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae. Ex sapien vitae pellentesque sem placerat in id. Placerat in id cursus mi pretium tellus duis. Pretium tellus duis convallis tempus leo eu aenean.",
-            {CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)})}},
+        {"TerrenceFat", "Test Cue Info", "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae. Ex sapien vitae pellentesque sem placerat in id. Placerat in id cursus mi pretium tes.",
+            {
+                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
+                CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
+                CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Channel Level", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
+                    ValueStorer(-90.f), ValueStorer(0.f))
+    }
+},
         {"TerrenceRealFat", "Test Cue With Very Very Long Title Which is Unreasonable", "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae.",
             {},
         },
