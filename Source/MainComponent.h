@@ -22,7 +22,7 @@ class ShowCommandListener {
 
 //==============================================================================
 
-
+// Action List for Current Cue Information
 struct CCIActionList: public Component, public ShowCommandListener {
     public:
     CCIActionList(ActiveShowOptions &activeShowOptions, std::vector<CurrentCueInfo>& currentCueInfos, double targetFontSize):
@@ -35,8 +35,15 @@ struct CCIActionList: public Component, public ShowCommandListener {
     // we only need to call repaint().
     void paint (Graphics &g) override;
     void commandOccurred(ShowCommand) override;
+
     // TODO: Verify if repaint() also calls resized()
-    void setTargetFontSize(float newFontSize) { targetFontSize = newFontSize; resized(); repaint(); }
+    void setTargetFontSize(float newFontSize, bool requiresRepaint = true) {
+        targetFontSize = newFontSize;
+        if (requiresRepaint) {
+            resized();
+            repaint();
+        }
+    }
 
     /* As this component should be inside a viewport, to determine the height required to set the content
     component without compressing or cropping this component, use this function.
@@ -45,6 +52,9 @@ struct CCIActionList: public Component, public ShowCommandListener {
     NOTE: The returned value is ONLY APPROXIMATE.*/
     int getTheoreticallyRequiredHeight(float usingFontSize = -1);
 
+    int getLastRenderHeight() const {
+        return lastRenderHeight;
+    }
 
 private:
     /* Changes string based on width available for ValueStorer value. If the width is too short,
@@ -99,6 +109,8 @@ private:
     int verboseNameMaxChars;
     Font pathFont = FontOptions();
     int pathMaxChars; // These widths assume that the font is monospace
+
+    int lastRenderHeight = 0; // The height last rendered by paint() for this component. Rounded up.
 };
 
 
@@ -132,11 +144,12 @@ private:
     Rectangle<int> stoppedPlayingIndicatorBox;
     Rectangle<int> commandsTitleBox; // Literally just for the word "COMMANDS".
 
+
     Font titleFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::bold);
     Font textFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::plain);
     Font monospaceFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::plain);
 
-    Viewport cueActionInformation;
+    Viewport cueActionListViewport;
 
     // If LocalBounds dimensions are zero for width and/or height, will return true.
     bool localBoundsIsInvalid() {
@@ -385,7 +398,29 @@ private:
                 CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
                 CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
                 CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Channel Level", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
-                    ValueStorer(-90.f), ValueStorer(0.f))
+                    ValueStorer(-90.f), ValueStorer(0.f)),
+                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
+CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
+CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Channel Level", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
+    ValueStorer(-90.f), ValueStorer(0.f)),
+                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
+CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
+CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Channel Level", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
+    ValueStorer(-90.f), ValueStorer(0.f)),
+                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
+CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
+CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Channel Level", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
+    ValueStorer(-90.f), ValueStorer(0.f)),
+                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
+CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
+CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Channel Level", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
+    ValueStorer(-90.f), ValueStorer(0.f)),
+                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
+CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
+CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Last", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
+    ValueStorer(-90.f), ValueStorer(0.f))
+
+
     }
 },
         {"TerrenceRealFat", "Test Cue With Very Very Long Title Which is Unreasonable", "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae.",

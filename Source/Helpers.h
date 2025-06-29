@@ -27,7 +27,9 @@ namespace UICfg {
                                                     static_cast<float>(DEFAULT_TEXT_HEIGHT), Font::plain);
 
     const Colour BG_COLOUR(34, 34, 34);
+    const Colour LIGHT_BG_COLOUR(100, 100, 100);
     const Colour TEXT_COLOUR(238, 238, 238);
+    const Colour TEXT_ACCENTED_COLOUR(212, 235, 255);
     const Colour TEXT_COLOUR_DARK(100, 100, 100);
     const Colour STRONG_BORDER_COLOUR(212, 212, 212);
     const Colour HEADER_BG_COLOUR(25, 23, 43);

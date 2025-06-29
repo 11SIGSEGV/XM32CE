@@ -101,8 +101,8 @@ int CCIActionList::getTheoreticallyRequiredHeight(float usingFontSize) {
     if (usingFontSize <= 0) {
         usingFontSize = targetFontSize;
     }
-    float eachLinePadding = usingFontSize * UICfg::STD_PADDING;
-    float eachActionPadding = usingFontSize * UICfg::STD_PADDING * 2;
+    float eachLinePadding = usingFontSize * UICfg::STD_PADDING * 3;
+    float eachActionPadding = usingFontSize * UICfg::STD_PADDING * 30;
     float height = 0;
     // We don't actually need to check if getCCI() is valid because an invalid one would just have an empty actions vector.
     for (auto &action: getCCI().actions) {
@@ -124,7 +124,7 @@ int CCIActionList::getTheoreticallyRequiredHeight(float usingFontSize) {
                 jassertfalse; // Why is an _EXIT_THREAD command being passed to CCIActionList...?
                 break;
         }
-        height -= eachLinePadding - eachActionPadding; // i.e., height = height - eachLinePadding + eachActionPadding
+        height += eachActionPadding;
     }
     return static_cast<int>(std::ceil(height));
 }
@@ -326,7 +326,7 @@ void CCIActionList::paint(Graphics &g) {
     float currentHeight = 0.f;
 
     const float EACH_LINE_PADDING = targetFontSize * UICfg::STD_PADDING * 3;
-    const float EACH_ACTION_PADDING = targetFontSize * UICfg::STD_PADDING * 20;
+    const float EACH_ACTION_PADDING = targetFontSize * UICfg::STD_PADDING * 30;
 
 
     int pathFontHeight = static_cast<int>(std::ceil(pathFont.getHeight()));
@@ -334,7 +334,6 @@ void CCIActionList::paint(Graphics &g) {
     int oatFontHeight = static_cast<int>(std::ceil(oatFont.getHeight()));
     int verboseNameFontHeight = static_cast<int>(std::ceil(verboseNameFont.getHeight()));
 
-    g.setColour(UICfg::TEXT_COLOUR);
 
     for (CueOSCAction &action: cci.actions) {
         // We have to draw the command for both COMMAND and FADE.
@@ -353,10 +352,10 @@ void CCIActionList::paint(Graphics &g) {
             localBoundsWidth,
             pathFontHeight
         };
+        g.setColour(UICfg::TEXT_ACCENTED_COLOUR);
         g.setFont(pathFont);
         g.drawFittedText(addr, pathBox, Justification::topLeft, 1);
-        currentHeight += pathBox.getHeight();
-        currentHeight += EACH_LINE_PADDING;
+        currentHeight += pathBox.getHeight() + EACH_LINE_PADDING;
 
         // Now draw COMMAND/FADE
         Rectangle<int> commandTypeBox = {
@@ -365,9 +364,10 @@ void CCIActionList::paint(Graphics &g) {
             localBoundsWidth,
             oatFontHeight
         };
+        g.setColour(UICfg::TEXT_COLOUR);
         g.setFont(oatFont);
         g.drawFittedText(oatAppropriateForWidth(action.oat), commandTypeBox, Justification::topLeft, 1);
-        currentHeight += EACH_LINE_PADDING + commandTypeBox.getHeight();
+        currentHeight += commandTypeBox.getHeight() + EACH_LINE_PADDING;
 
         // Now, draw each/the osc argument(s) associated with each action
         switch (action.oat) {
@@ -431,7 +431,7 @@ void CCIActionList::paint(Graphics &g) {
 
                 currentHeight += drawnTextBox.getHeight() + EACH_LINE_PADDING;
                 // We also need to draw another one to indicate the fade time.
-                verboseName = "Fade Time";
+                verboseName = "Fade Time (s)";
                 typeAlias = "f";
                 idealArgumentValueStr = String(roundTo(action.fadeTime, UICfg::ROUND_TO_WHEN_IN_DOUBT));
                 drawnTextBox = drawArgumentNameAndValue(
@@ -439,6 +439,7 @@ void CCIActionList::paint(Graphics &g) {
                     getWidthAdjustedVerboseName(verboseName),
                     getWidthAdjustedArgumentValueString(idealArgumentValueStr, typeAlias),
                     verboseNameFontHeight, oscArgumentFontHeight);
+                currentHeight += drawnTextBox.getHeight() + EACH_LINE_PADDING;
                 break;
             }
             case _EXIT_THREAD:
@@ -448,6 +449,7 @@ void CCIActionList::paint(Graphics &g) {
         }
         currentHeight += EACH_ACTION_PADDING;
     }
+    lastRenderHeight = static_cast<int>(std::ceil(currentHeight));
 }
 
 
@@ -457,7 +459,12 @@ void CCIActionList::paint(Graphics &g) {
 CCISidePanel::CCISidePanel(ActiveShowOptions &activeShowOptions, std::vector<CurrentCueInfo>& currentCueInfos):
     activeShowOptions(activeShowOptions), currentCueInfos(currentCueInfos),
     actionList(activeShowOptions, currentCueInfos, 1.f) {
-    addAndMakeVisible(actionList);
+    cueActionListViewport.setViewedComponent(&actionList, false);
+    cueActionListViewport.setScrollBarsShown(true, false, true, false);
+    // cueActionListViewport.setColour(ScrollBar::thumbColourId, UICfg::LIGHT_BG_COLOUR); // Can't seem to change colour?
+    addAndMakeVisible(cueActionListViewport);
+
+
 }
 
 
@@ -565,10 +572,15 @@ void CCISidePanel::resized() {
     // Padding
     bounds.removeFromTop(padding);
 
+    // Viewport
+    cueActionListViewport.setScrollBarThickness(widthTenths * 0.15f);
+    cueActionListViewport.setBounds(bounds);
+
     // Action List - we'll give it rest of the bounds
-    actionList.setBounds(bounds);
     // We also have to figure out its font size
-    actionList.setTargetFontSize(cueNameBox.getHeight() * 0.2f);
+    actionList.setTargetFontSize(cueNameBox.getHeight() * 0.2f, false);
+    actionList.setBounds(bounds.getX(), bounds.getY(), bounds.getWidth() - cueActionListViewport.getScrollBarThickness(), actionList.getTheoreticallyRequiredHeight());
+
 
     constructImage();
 }
