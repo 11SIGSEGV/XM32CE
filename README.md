@@ -1,10 +1,25 @@
 ![Image of an X32 Console](https://github.com/user-attachments/assets/7d64a87e-0f17-4001-9129-11fba84c0852)
 
+# Progress Updates...!
+
+The current iteration! We now not only have a a functioning header bar, but also a functioning sidebar! This only took
+like 48 hours to figure out over the past month... thanks C++. Do you understand my username now?
+![UI with Sidebar and commands](Readmeassets/img.png)
+
+
 # Welcome to XM32CE!
 
 XM32CE is a program built in C++ (using the JUCE Framework) that provides realtime OSC cues designed for live
 production use. It's designed with realtime performance, stability and precision in mind and as the name suggests, is
-specially designed to be compatiable with the Behringer and Midas X/M32 lineup of consoles.
+specially designed to be compatible with the Behringer and Midas X/M32 lineup of consoles.
+
+## How does XM32CE work?
+
+OSC! Open Sound Control 1.0 is the specification used by X/M32 consoles to communicate with other network devices. 
+You'll be shocked to hear that XM32CE uses OSC!11!!!1! In all seriousness, all commands are manually sent as individual
+commands using a "translation layer" between the program's action data and the actual OSC commands. For example, a
+fade command is represented in the `CueOSCAction` struct, but is then translated into individual OSC commands to make
+the fade possible.
 
 ## What's the difference? X/M32 consoles already have cue & scene support...
 
