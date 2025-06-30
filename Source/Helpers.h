@@ -13,7 +13,10 @@
 #include <unordered_map>
 #include "XM32Maps.h"
 #include "modules.h"
+#include "X32Templates.h"
 
+
+inline UUIDGenerator uuidGen;
 
 
 namespace UICfg {
@@ -102,14 +105,28 @@ enum OSCActionType {
 
 
 struct CueOSCAction {
-    CueOSCAction(bool exitThread): oat(_EXIT_THREAD), oscAddress("/"), oatCommandOSCArgumentTemplate(_nullNonConstOSCMessageArguments), arguments(_nullNonConstValueStorerArray) {
+    CueOSCAction(bool exitThread): oat(_EXIT_THREAD), oscAddress("/") {
     }
 
     // For OAT_COMMAND, the arguments are used to fill in the OSC Message.
-    CueOSCAction(OSCAddressPattern oscAddress, std::vector<OSCMessageArguments>& argumentTemplates, ValueStorerArray arguments):
+    CueOSCAction(OSCAddressPattern oscAddress, std::vector<OSCMessageArguments> argumentTemplates, ValueStorerArray arguments):
     oat(OAT_COMMAND), arguments(arguments), oatCommandOSCArgumentTemplate(argumentTemplates),
-                                                                     oscAddress(oscAddress) {
+                                                                     oscAddress(oscAddress), ID(uuidGen.generate()) {
     }
+    // A lot of OAT_COMMANDs only have one OSCMessageArgument, so let's allow a single argument template
+    CueOSCAction(OSCAddressPattern oscAddress, OSCMessageArguments argumentTemplate, ValueStorer argument): oat(OAT_COMMAND),
+        oatCommandOSCArgumentTemplate({argumentTemplate}), arguments({std::move(argument)}), oscAddress(oscAddress), ID(uuidGen.generate()) {
+    }
+
+
+    // For OAT_FADE, the fadeTime is used to determine the fade time in seconds.
+    CueOSCAction(OSCAddressPattern oscAddress, float fadeTime, NonIter oscArgumentTemplate, ValueStorer startValue,
+                 ValueStorer endValue): oscAddress(oscAddress), oat(OAT_FADE), fadeTime(fadeTime),
+                                        oscArgumentTemplate(oscArgumentTemplate),
+                                        startValue(startValue), endValue(endValue), ID(uuidGen.generate()) {
+        _checks();
+    }
+
 
     void _checks() {
         if (oat == OAT_FADE) {
@@ -137,22 +154,14 @@ struct CueOSCAction {
         }
     }
 
-    // For OAT_FADE, the fadeTime is used to determine the fade time in seconds.
-    CueOSCAction(OSCAddressPattern oscAddress, float fadeTime, NonIter oscArgumentTemplate, ValueStorer startValue,
-                 ValueStorer endValue): oscAddress(oscAddress), oat(OAT_FADE), fadeTime(fadeTime),
-                                        oscArgumentTemplate(oscArgumentTemplate),
-                                        startValue(startValue), endValue(endValue), arguments(_nullNonConstValueStorerArray),
-    oatCommandOSCArgumentTemplate(_nullNonConstOSCMessageArguments) {
-        _checks();
-    }
+    const std::string ID;
 
     OSCActionType oat;
     OSCAddressPattern oscAddress;
 
     // For OAT_COMMAND
-    std::vector<OSCMessageArguments>& oatCommandOSCArgumentTemplate;
-    // We're not using a pointer to a ValueStorerArray because the values should be stored in the CueOSCAction as they
-    // should be unique to this action. The vector above on the other hand can be shared between multiple actions.
+    // Let's sacrifice the extra memory for the sake of reliability and stability.
+    std::vector<OSCMessageArguments> oatCommandOSCArgumentTemplate;
     ValueStorerArray arguments; // The arguments to send with the OSC Message, only used for OAT_COMMAND
 
 

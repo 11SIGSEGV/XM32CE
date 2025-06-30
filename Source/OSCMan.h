@@ -119,7 +119,7 @@ public:
     void exitSignalSent() override {
         removeListener(this);
         actionQueue.emplace(true);
-        messageDispatcherPool.removeAllJobs(true, 5000);
+        singleActionDispatcherPool.removeAllJobs(true, 5000);
     }
 
     void run() override;
@@ -128,8 +128,14 @@ public:
 
     void addCueToMessageQueue(const CurrentCueInfo &cueInfo);
 
+    void stopAction(const std::string& actionID);
+
+    void stopAction(const CueOSCAction& cueAction) { stopAction(cueAction.ID); }
+
+    void stopAllActionsInCCI(const CurrentCueInfo &cueInfo);
+
 private:
-    ThreadPool messageDispatcherPool;
+    std::unordered_map<std::string, OSCSingleActionDispatcher*> actionIDToJobMap; // Maps action ID to the job pointer
     std::queue<CueOSCAction> actionQueue;
     const unsigned int maximumSimultaneousMessageThreads;
     const unsigned int waitMSFromWhenActionQueueIsEmpty; // Time to wait when action queue is empty

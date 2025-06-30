@@ -453,27 +453,27 @@ struct NonIter {
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const int value,
         const int minVal = std::numeric_limits<int>::min(), const int maxVal = std::numeric_limits<int>::max()):
     name(name), verboseName(verboseName), description(description), defaultIntValue(value),
-    _meta_PARAMTYPE(ParamType::INT), intMin(minVal), intMax(maxVal) {}
+    _meta_PARAMTYPE(INT), intMin(minVal), intMax(maxVal) {}
 
     // Bitset
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description,
         const std::vector<bool> &value):
     name(name), verboseName(verboseName), description(description),
-    defaultStringValue(stringFromBoolVector(value)), intMin(value.size()), intMax(value.size()), _meta_PARAMTYPE(ParamType::BITSET) {}
+    defaultStringValue(stringFromBoolVector(value)), intMin(value.size()), intMax(value.size()), _meta_PARAMTYPE(BITSET) {}
 
     // LINF, LOGF, LEVEL_1024, LEVEL_161
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const float value,
         const ParamType type, const float minVal = std::numeric_limits<float>::min(), const float maxVal = std::numeric_limits<float>::max()):
     name(name), verboseName(verboseName), description(description), defaultFloatValue(value), _meta_PARAMTYPE(type),
-    floatMin((type == ParamType::LEVEL_161 || type == ParamType::LEVEL_1024) ? -90.f : minVal),
-    floatMax((type == ParamType::LEVEL_161 || type == ParamType::LEVEL_1024) ? 10.f : maxVal) {}
+    floatMin((type == LEVEL_161 || type == LEVEL_1024) ? -90.f : minVal),
+    floatMax((type == LEVEL_161 || type == LEVEL_1024) ? 10.f : maxVal) {}
 
 
     // String
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const std::string &value,
         const int minLen = 0, const int maxLen = -1):
     name(name), verboseName(verboseName), description(description), defaultStringValue(value),
-    _meta_PARAMTYPE(ParamType::STRING), intMin(minLen), intMax(maxLen) {}
+    _meta_PARAMTYPE(STRING), intMin(minLen), intMax(maxLen) {}
 
     // Blank
     NonIter(): name(""), verboseName(""), description(""), _meta_PARAMTYPE(_BLANK) {}
@@ -486,6 +486,11 @@ typedef std::vector<std::variant<std::string, OptionParam, EnumParam, NonIter>> 
 typedef std::vector<ValueStorer> ValueStorerArray;
 typedef std::variant<OptionParam, NonIter, EnumParam> OSCMessageArguments;
 typedef std::unordered_map<ArgumentEmbeddedPath*, std::vector<OSCMessageArguments>> PathToArgumentMap;
+typedef std::pair<ArgumentEmbeddedPath, std::vector<OSCMessageArguments>> PathToArgumentPair;
+// The below are the same as PathToArgumentPair, but for when one type of argument is used. This makes dealing with types infintely easier.
+typedef std::pair<ArgumentEmbeddedPath, std::vector<NonIter>> NonIter_PathToArgumentPair;
+typedef std::pair<ArgumentEmbeddedPath, std::vector<EnumParam>> EnumParam_PathToArgumentPair;
+typedef std::pair<ArgumentEmbeddedPath, std::vector<OptionParam>> OptionParam_PathToArgumentPair;
 
 
 // An example. This assumes const std::string& basePath = "/ch".

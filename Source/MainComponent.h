@@ -6,7 +6,7 @@
 
 
 class ShowCommandListener {
-    public:
+public:
     virtual ~ShowCommandListener() = default;
 
     /* Called when command is sent by a child component.
@@ -23,17 +23,21 @@ class ShowCommandListener {
 //==============================================================================
 
 // Action List for Current Cue Information
-struct CCIActionList: public Component, public ShowCommandListener {
-    public:
-    CCIActionList(ActiveShowOptions &activeShowOptions, std::vector<CurrentCueInfo>& currentCueInfos, double targetFontSize):
-        targetFontSize(targetFontSize), activeShowOptions(activeShowOptions), currentCueInfos(currentCueInfos) {
+struct CCIActionList : public Component, public ShowCommandListener {
+public:
+    CCIActionList(ActiveShowOptions &activeShowOptions, std::vector<CurrentCueInfo> &currentCueInfos,
+                  double targetFontSize): targetFontSize(targetFontSize), activeShowOptions(activeShowOptions),
+                                          currentCueInfos(currentCueInfos) {
     }
+
     ~CCIActionList() = default;
 
     void resized() override;
+
     // A side note... paint() is actually the only function that access getCCI(), so when the CCI changes, realistically
     // we only need to call repaint().
-    void paint (Graphics &g) override;
+    void paint(Graphics &g) override;
+
     void commandOccurred(ShowCommand) override;
 
     // TODO: Verify if repaint() also calls resized()
@@ -66,14 +70,16 @@ private:
     - i: integer
     - ?: unknown (though... you should probably not use it)
     */
-    String getWidthAdjustedArgumentValueString(const String& value, const String& typeAlias);
+    String getWidthAdjustedArgumentValueString(const String &value, const String &typeAlias);
+
     String getWidthAdjustedArgumentValueString(const ValueStorer &value, ParamType type);
 
     String getWidthAdjustedVerboseName(const String &verboseName);
+
     String oatAppropriateForWidth(OSCActionType oat);
 
 
-    CurrentCueInfo& getCCI() {
+    CurrentCueInfo &getCCI() {
         if (activeShowOptions.numberOfCueItems == 0) {
             // Guys... we don't have a CCI... ummm
             // We return a blank!
@@ -89,16 +95,17 @@ private:
     // It is recommended to specify the rounded height for the verbose name font and oat argument font, as it will save
     // a repetitive computation for every time this function is called
     Rectangle<int> drawArgumentNameAndValue(Graphics &g, int leftmostX, float currentHeight,
-        const String &formattedVerboseName, const String &formattedArgumentValue,
-        int verboseNameFontHeightRounded = -1, int oatArgumentFontHeightRounded = -1);
+                                            const String &formattedVerboseName, const String &formattedArgumentValue,
+                                            int verboseNameFontHeightRounded = -1,
+                                            int oatArgumentFontHeightRounded = -1);
 
     float valueAndTypeMaxWidth;
     float argumentVerboseNameMaxWidth;
 
-    ActiveShowOptions& activeShowOptions;
-    std::vector<CurrentCueInfo>& currentCueInfos;
+    ActiveShowOptions &activeShowOptions;
+    std::vector<CurrentCueInfo> &currentCueInfos;
 
-    CurrentCueInfo _blankCCI {};
+    CurrentCueInfo _blankCCI{};
 
     float targetFontSize;
     Font oscArgumentValueFont = FontOptions();
@@ -118,20 +125,25 @@ private:
 
 
 // Current Cue Information Side Panel
-struct CCISidePanel: public Component, public ShowCommandListener {
+struct CCISidePanel : public Component, public ShowCommandListener {
 public:
-    CCISidePanel(ActiveShowOptions& activeShowOptions, std::vector<CurrentCueInfo>& currentCueInfos);
+    CCISidePanel(ActiveShowOptions &activeShowOptions, std::vector<CurrentCueInfo> &currentCueInfos);
+
     ~CCISidePanel() = default;
 
 
     void constructImage();
-    void paint (Graphics& g) override;
+
+    void paint(Graphics &g) override;
+
     void resized() override;
+    void resizeActionList();
+
     void commandOccurred(ShowCommand) override;
 
 private:
-    ActiveShowOptions& activeShowOptions;
-    std::vector<CurrentCueInfo>& currentCueInfos;
+    ActiveShowOptions &activeShowOptions;
+    std::vector<CurrentCueInfo> &currentCueInfos;
     CCIActionList actionList;
 
     Image panelImage;
@@ -143,11 +155,13 @@ private:
     Rectangle<int> cueDescriptionBox;
     Rectangle<int> stoppedPlayingIndicatorBox;
     Rectangle<int> commandsTitleBox; // Literally just for the word "COMMANDS".
+    Rectangle<int> viewportBox; // We use this as resizeActionList() needs to know its X, Y and Width. Technically, we don't need this to set the bounds of the viewport, but we do need it for the actionList.
 
 
     Font titleFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::bold);
     Font textFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::plain);
     Font monospaceFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::plain);
+
 
     Viewport cueActionListViewport;
 
@@ -163,11 +177,10 @@ private:
 
 
 // The component for the header bar in the main window.
-struct HeaderBar: public Component, public Timer, public DrawableButton::Listener, public ShowCommandListener {
+struct HeaderBar : public Component, public Timer, public DrawableButton::Listener, public ShowCommandListener {
 public:
     // Constructor for HeaderBar object. Expect an active show options struct.
-    HeaderBar(ActiveShowOptions& activeShowOptions):
-    activeShowOptions(activeShowOptions) {
+    HeaderBar(ActiveShowOptions &activeShowOptions): activeShowOptions(activeShowOptions) {
         setOpaque(true);
         startTimer(500); // Update every 500ms. For clock.
 
@@ -211,17 +224,18 @@ public:
     void reconstructButtonBackgroundImage();
 
     void resized() override;
-    void paint(Graphics& g) override;
+
+    void paint(Graphics &g) override;
 
 
     // Register show command listener
-    void registerListener(ShowCommandListener* lstnr) {
+    void registerListener(ShowCommandListener *lstnr) {
         showCommandListeners.push_back(lstnr);
     }
 
 
     // Unregister show command listener
-    void unregisterListener(ShowCommandListener* lstnr) {
+    void unregisterListener(ShowCommandListener *lstnr) {
         showCommandListeners.erase(
             std::remove(showCommandListeners.begin(), showCommandListeners.end(), lstnr),
             showCommandListeners.end());
@@ -283,12 +297,14 @@ private:
         return lbnds.getWidth() <= 0 || lbnds.getHeight() <= 0;
     }
 
-    const std::set<ShowCommand> _showCommandsRequiringImageReconstruction = {SHOW_NEXT_CUE, SHOW_PREVIOUS_CUE, SHOW_NAME_CHANGE,
-        CURRENT_CUE_ID_CHANGE, FULL_SHOW_RESET};
+    const std::set<ShowCommand> _showCommandsRequiringImageReconstruction = {
+        SHOW_NEXT_CUE, SHOW_PREVIOUS_CUE, SHOW_NAME_CHANGE,
+        CURRENT_CUE_ID_CHANGE, FULL_SHOW_RESET
+    };
     const std::set<ShowCommand> _showCommandsRequiringButtonReconstruction = {SHOW_STOP, SHOW_PLAY};
 
-    std::vector<ShowCommandListener*> showCommandListeners;
-    ActiveShowOptions& activeShowOptions;
+    std::vector<ShowCommandListener *> showCommandListeners;
+    ActiveShowOptions &activeShowOptions;
 
     Rectangle<int> buttonsBox;
 
@@ -296,13 +312,13 @@ private:
     Rectangle<int> cueIDBox;
     Rectangle<int> cueNoBox;
     Rectangle<int> stopBox;
-    DrawableButton stopButton {"HeaderStopButton", DrawableButton::ImageFitted};
+    DrawableButton stopButton{"HeaderStopButton", DrawableButton::ImageFitted};
     Rectangle<int> downBox;
-    DrawableButton downButton {"HeaderDownButton", DrawableButton::ImageFitted};
+    DrawableButton downButton{"HeaderDownButton", DrawableButton::ImageFitted};
     Rectangle<int> upBox;
-    DrawableButton upButton {"HeaderUpButton", DrawableButton::ImageFitted};
+    DrawableButton upButton{"HeaderUpButton", DrawableButton::ImageFitted};
     Rectangle<int> playBox;
-    DrawableButton playButton {"HeaderPlayButton", DrawableButton::ImageFitted};
+    DrawableButton playButton{"HeaderPlayButton", DrawableButton::ImageFitted};
     Rectangle<int> timeBox;
     Rectangle<float> timeTextBox;
 
@@ -313,33 +329,35 @@ private:
     // Let's load iconography!
     Rectangle<float> stopButtonIconBox;
     Rectangle<float> stopButtonTextBox;
-    Image stopIcon {getIconImageFile(IconID::STOP)};
+    Image stopIcon{getIconImageFile(IconID::STOP)};
     Rectangle<float> downButtonIconBox;
-    Image downIcon {getIconImageFile(IconID::DOWN_ARROW)};
+    Image downIcon{getIconImageFile(IconID::DOWN_ARROW)};
     Rectangle<float> upButtonIconBox;
-    Image upIcon {getIconImageFile(IconID::UP_ARROW)};
+    Image upIcon{getIconImageFile(IconID::UP_ARROW)};
     Rectangle<float> playButtonIconBox;
     Rectangle<float> playButtonTextBox;
-    Image playIcon {getIconImageFile(IconID::PLAY)};
+    Image playIcon{getIconImageFile(IconID::PLAY)};
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HeaderBar)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HeaderBar)
 };
 
 
 //==============================================================================
 
 
-class MainComponent  : public Component, public ShowCommandListener {
+class MainComponent : public Component, public ShowCommandListener {
 public:
     //==============================================================================
     MainComponent();
+
     ~MainComponent() override {
         dispatcher.stopThread(5000);
         removeAllChildren();
     }
 
     //==============================================================================
-    void paint (Graphics &g) override;
+    void paint(Graphics &g) override;
+
     void resized() override;
 
 
@@ -350,7 +368,6 @@ public:
 
     // Implemented to listen for ShowCommands. Broadcasts all commands to registered callbacks.
     void commandOccurred(ShowCommand) override;
-
 
 private:
     //==============================================================================
@@ -384,66 +401,46 @@ private:
 
     // NOTE: When switching from numberOfCueItems==0 to any other value, a FULL_SHOW_RESET command must be sent.
     // A reminder that currentCueIndex is 0-indexed... but numberOfCueItems is NOT.
-    ActiveShowOptions activeShowOptions {"012345678901234567890123", "Test Description"};
-    std::vector<OSCMessageArguments> testTemplates = {
-        NonIter("Level", "Level", "Level", -90.f, LEVEL_1024, -90.f, 10.f)
-    };
+    ActiveShowOptions activeShowOptions{"012345678901234567890123", "Test Description"};
     std::vector<OSCMessageArguments> testTemplates2 = {
+
         NonIter("Pan", "Channel Pan", "Channel Panning", 0.5, LINF, 0.f, 1.f)
     };
 
     std::vector<CurrentCueInfo> cuesInfo = {
-        {"TerrenceFat", "Test Cue Info", "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae. Ex sapien vitae pellentesque sem placerat in id. Placerat in id cursus mi pretium tes.",
+        {
+            "FT1", "Speaker 2",
+            "Switch to Speaker 2. Fades channel level to -inf, changes name, icon and colour.",
             {
-                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
-                CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
-                CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Channel Level", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
-                    ValueStorer(-90.f), ValueStorer(0.f)),
-                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
-CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
-CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Channel Level", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
-    ValueStorer(-90.f), ValueStorer(0.f)),
-                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
-CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
-CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Channel Level", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
-    ValueStorer(-90.f), ValueStorer(0.f)),
-                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
-CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
-CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Channel Level", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
-    ValueStorer(-90.f), ValueStorer(0.f)),
-                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
-CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
-CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Channel Level", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
-    ValueStorer(-90.f), ValueStorer(0.f)),
-                CueOSCAction("/test/osc/action", testTemplates, {ValueStorer(20.f)}),
-CueOSCAction("/test/osc/pan", testTemplates2, {ValueStorer(0.7f)}),
-CueOSCAction("/test/other/level", 10.2f, NonIter("chLvl", "Last", "Channel Level", -90.f, LEVEL_1024, -90.f, 10.f),
-    ValueStorer(-90.f), ValueStorer(0.f))
-
-
-    }
-},
-        {"TerrenceRealFat", "Test Cue With Very Very Long Title Which is Unreasonable", "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae.",
+                CueOSCAction("/ch/02/config/name", Channel::NAME.second[0], ValueStorer("Speaker 2")),
+                CueOSCAction("/ch/02/config/icon", Channel::ICON.second[0], ValueStorer(52)),
+                CueOSCAction("/ch/02/mix/fader", 10.f, Channel::FADER.second[0], ValueStorer(-20.f), ValueStorer(-90.f))
+                }
+        },
+        {
+            "TerrenceRealFat", "Test Cue With Very Very Long Title Which is Unreasonable",
+            "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae.",
             {},
         },
-        {"FATTerrence", "Terrence is actually so fat", "",
+        {
+            "FATTerrence", "Terrence is actually so fat", "",
             {},
         }
     }; // May replace with custom struct in future
-    std::vector<Component*> getComponents() {
+    std::vector<Component *> getComponents() {
         return activeComps;
     }
 
 
-    HeaderBar headerBar {activeShowOptions};
-    CCISidePanel sidePanel {activeShowOptions, cuesInfo};
+    HeaderBar headerBar{activeShowOptions};
+    CCISidePanel sidePanel{activeShowOptions, cuesInfo};
 
-    const std::vector<ShowCommandListener*> callbackCompsUponActiveShowOptionsChanged = { &headerBar, &sidePanel };
+    const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};
 
-    OSCDeviceSender oscDeviceSender {"127.0.0.1", "10023", "X32"};
-    OSCCueDispatcherManager dispatcher {oscDeviceSender};
-    const std::vector<Component*> activeComps = { &headerBar, &sidePanel };
+    OSCDeviceSender oscDeviceSender{"127.0.0.1", "10023", "X32"};
+    OSCCueDispatcherManager dispatcher{oscDeviceSender};
+    const std::vector<Component *> activeComps = {&headerBar, &sidePanel};
 
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

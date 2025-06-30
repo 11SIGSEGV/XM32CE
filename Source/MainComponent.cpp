@@ -4,6 +4,7 @@
 
 
 MainComponent::MainComponent() {
+    dispatcher.startThread();
     activeShowOptions.loadCueValuesFromCCIVector(cuesInfo);
     headerBar.registerListener(this);
     commandOccurred(FULL_SHOW_RESET);
@@ -76,9 +77,16 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
             break;
         case SHOW_PLAY:
             setPlayStatusForCurrentCue(true);
+            // Dispatch the job.
+            if (activeShowOptions.numberOfCueItems != 0) {
+                dispatcher.addCueToMessageQueue(cuesInfo[activeShowOptions.currentCueIndex]);
+            }
             break;
         case SHOW_STOP:
             setPlayStatusForCurrentCue(false);
+            if (activeShowOptions.numberOfCueItems != 0) {
+                dispatcher.stopAllActionsInCCI(cuesInfo[activeShowOptions.currentCueIndex]);
+            }
             break;
         case SHOW_NAME_CHANGE:
             std::cout << "Show Name Change" << std::endl;
@@ -380,7 +388,8 @@ void CCIActionList::paint(Graphics &g) {
                 }
                 // This loop draws the argument verbose name and value for each argument in the action
                 for (int i = 0; i < action.oatCommandOSCArgumentTemplate.size(); i++) {
-                    OSCMessageArguments &currentTemplate = action.oatCommandOSCArgumentTemplate[i];
+                    // Make a copy of the current template. Sacrifice the memory, not the compiler.
+                    OSCMessageArguments currentTemplate = action.oatCommandOSCArgumentTemplate[i];
                     // Figure out which template type this is to get the verbose name
                     String verboseName;
                     if (auto *optVal = std::get_if<OptionParam>(&currentTemplate)) {
@@ -575,14 +584,15 @@ void CCISidePanel::resized() {
     // Viewport
     cueActionListViewport.setScrollBarThickness(widthTenths * 0.15f);
     cueActionListViewport.setBounds(bounds);
-
-    // Action List - we'll give it rest of the bounds
-    // We also have to figure out its font size
-    actionList.setTargetFontSize(cueNameBox.getHeight() * 0.2f, false);
-    actionList.setBounds(bounds.getX(), bounds.getY(), bounds.getWidth() - cueActionListViewport.getScrollBarThickness(), actionList.getTheoreticallyRequiredHeight());
-
+    viewportBox = bounds;
+    resizeActionList();
 
     constructImage();
+}
+
+void CCISidePanel::resizeActionList() {
+    actionList.setTargetFontSize(cueNameBox.getHeight() * 0.2f, false); // Don't need to repaint; setting new bounds will repaint it.
+    actionList.setBounds(viewportBox.getX(), viewportBox.getY(), viewportBox.getWidth() - cueActionListViewport.getScrollBarThickness(), actionList.getTheoreticallyRequiredHeight());
 }
 
 
@@ -602,14 +612,14 @@ void CCISidePanel::commandOccurred(ShowCommand command) {
             repaint();
             break;
         case SHOW_NEXT_CUE: case SHOW_PREVIOUS_CUE:
+            resizeActionList();
             constructImage();
             repaint();
             break;
-        case SHOW_NAME_CHANGE:
-            break;
         case FULL_SHOW_RESET:
+            commandOccurred(SHOW_NEXT_CUE); // This practically resets the side panel.
             break;
-        case CURRENT_CUE_ID_CHANGE:
+        default:
             break;
     }
 }

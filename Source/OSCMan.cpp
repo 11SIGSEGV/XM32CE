@@ -450,15 +450,29 @@ void OSCCueDispatcherManager::run() {
         if (action.oat == _EXIT_THREAD) {
             return;
         }
-
-        // Process the action here
-        // For example, send the OSC message
-        // oscSender.send(action.constructMessage());
-        // Note: You need to implement the send method in your OSCDeviceSender class
         auto *dispatcher = new OSCSingleActionDispatcher(action, oscSender);
         singleActionDispatcherPool.addJob(dispatcher, true);
+        actionIDToJobMap[action.ID] = dispatcher;
+
     }
 }
+
+
+void OSCCueDispatcherManager::stopAction(const std::string &actionID) {
+    // Find the pointer if it exists
+    auto job = actionIDToJobMap.at(actionID);
+    // See if this works...
+    singleActionDispatcherPool.removeJob(job, true, 1000);
+}
+
+
+void OSCCueDispatcherManager::stopAllActionsInCCI(const CurrentCueInfo &cueInfo) {
+    for (auto action: cueInfo.actions) {
+        stopAction(action.ID);
+    }
+}
+
+
 
 
 bool OSCDeviceSender::connect() {
