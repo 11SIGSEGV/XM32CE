@@ -144,6 +144,7 @@ public:
     void paint(Graphics &g) override;
 
     void resized() override;
+
     void resizeActionList();
 
     void commandOccurred(ShowCommand) override;
@@ -162,7 +163,8 @@ private:
     Rectangle<int> cueDescriptionBox;
     Rectangle<int> stoppedPlayingIndicatorBox;
     Rectangle<int> commandsTitleBox; // Literally just for the word "COMMANDS".
-    Rectangle<int> viewportBox; // We use this as resizeActionList() needs to know its X, Y and Width. Technically, we don't need this to set the bounds of the viewport, but we do need it for the actionList.
+    Rectangle<int> viewportBox;
+    // We use this as resizeActionList() needs to know its X, Y and Width. Technically, we don't need this to set the bounds of the viewport, but we do need it for the actionList.
 
 
     Font titleFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::bold);
@@ -352,7 +354,8 @@ private:
 //==============================================================================
 
 
-class MainComponent : public Component, public ShowCommandListener, public OSCDispatcherListener, public HighResolutionTimer {
+class MainComponent : public Component, public ShowCommandListener, public OSCDispatcherListener,
+                      public HighResolutionTimer {
 public:
     //==============================================================================
     // The average human reaction time is around 100ms at minimum, so we can get away with 50ms for the timer callback.
@@ -372,6 +375,7 @@ public:
 
 
     void updateActiveShowOptionsFromCCIIndex(int newIndex);
+
     // Updates cciIDtoIndexMap based on cuesInfo vector.
     void updateCCIIDToIndexMap();
 
@@ -384,28 +388,33 @@ public:
     // Adds a running action ID to the CCI internal ID map. Used to track which actions in a CCI are currently running.
     // Should be called when a CCI's actions are dispatched to the OSCDispatcherManager.
     void addRunningActionID(std::string actionID, std::string cciInternalID = "");
+
     // Loops through all actions in the CCI and calls addRunningActionID() for each action.
-    void addRunningActionsIDViaCCI(const CurrentCueInfo& cci);
+    void addRunningActionsIDViaCCI(const CurrentCueInfo &cci);
 
     // Removes action ID from the map of running action IDs. Returns the number of actionIDs still running
     // for the CCI AFTER removing the actionID. (i.e., cciIDToRunningActionIDs[cci.ID].size()). Returns -1 in an error.
     int removeRunningActionID(std::string actionID, std::string cciInternalID = "");
 
     // Loops through all actions in the CCI and calls removeRunningActionID() for each action.
-    void removeRunningActionsIDViaCCI(const CurrentCueInfo& cci);
+    void removeRunningActionsIDViaCCI(const CurrentCueInfo &cci);
 
 
     void setPlayStatusForCurrentCue(bool isPlaying);
+
     void setPlayStatusForCurrentCueByIndex(int index, bool isPlaying);
+
     // Expects valid CCI internal ID (should be UUID-like). Returns -1 when not found.
     int getCueIndexFromCCIInternalID(std::string cciInternalID);
 
 
     // Implemented to listen for ShowCommands. Broadcasts all commands to registered callbacks.
     void commandOccurred(ShowCommand) override;
+
     // Actually handles the ShowCommands. commandOccurred can be called from any thread, but this function
     // will always be called in the main thread.
     void hiResTimerCallback() override;
+
     void sendCommandToAllListeners(ShowCommand);
 
     // Receives callbacks from the OSCDispatcherManager.
@@ -447,7 +456,8 @@ private:
 
     TSQueue<ShowCommand> awaitingShowCommands; // Queue of ShowCommands to be processed in the main thread.
 
-    std::unordered_map<std::string, std::set<std::string>> cciIDToRunningActionIDs; // Previously called currentCueInformationInternalIdentificationToCueOpenSoundControlActionIdentificationsWaitingForOpenSoundControlManagerDispatcherListenerToCallbackFinishedSingleActionDispatcherJob
+    std::unordered_map<std::string, std::set<std::string> > cciIDToRunningActionIDs;
+    // Previously called currentCueInformationInternalIdentificationToCueOpenSoundControlActionIdentificationsWaitingForOpenSoundControlManagerDispatcherListenerToCallbackFinishedSingleActionDispatcherJob
     std::unordered_map<std::string, std::string> actionIDtoCCIInternalIDMap; // Maps action ID to parent CCI internal ID
     std::unordered_map<std::string, int> cciIDtoIndexMap; // Maps CCI ID to index in cuesInfo vector.
 
@@ -458,13 +468,17 @@ private:
             {
                 CueOSCAction("/ch/02/config/name", Channel::NAME.second[0], ValueStorer("Speaker 2")),
                 CueOSCAction("/ch/02/config/icon", Channel::ICON.second[0], ValueStorer(52)),
+                CueOSCAction("/ch/02/config/color", Channel::COLOUR.second[0], ValueStorer(11)),
                 CueOSCAction("/ch/02/mix/fader", 2.f, Channel::FADER.second[0], ValueStorer(-20.f), ValueStorer(-90.f))
-                }
+            }
         },
         {
-            "TerrenceRealFat", "Test Cue With Very Very Long Title Which is Unreasonable",
-            "Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae.",
-            {},
+            "FT2", "Speaker 2 Prepare",
+            "Prepares Speaker 2. Fades chanel up and changes colour.",
+            {
+                CueOSCAction("/ch/02/mix/fader", 5.f, Channel::FADER.second[0], ValueStorer(-90.f), ValueStorer(0.f)),
+                CueOSCAction("/ch/02/config/color", Channel::COLOUR.second[0], ValueStorer(3)),
+            },
         },
         {
             "FATTerrence", "Terrence is actually so fat", "",
@@ -481,7 +495,7 @@ private:
 
     const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};
 
-    OSCDeviceSender oscDeviceSender{"127.0.0.1", "10023", "X32"};
+    OSCDeviceSender oscDeviceSender{"192.168.0.100", "10023", "X32"};
     OSCCueDispatcherManager dispatcher{oscDeviceSender};
     const std::vector<Component *> activeComps = {&headerBar, &sidePanel};
 

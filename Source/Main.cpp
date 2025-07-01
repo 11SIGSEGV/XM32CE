@@ -18,6 +18,7 @@ public:
 
     //==============================================================================
     XM32CEApplication() {
+
         tests();
     }
 
@@ -165,7 +166,6 @@ public:
             setResizable (true, true);
             centreWithSize (getWidth(), getHeight());
            #endif
-
             setVisible (true);
 
         }
