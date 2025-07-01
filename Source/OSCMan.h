@@ -20,6 +20,15 @@ struct OSCDevice {
 };
 
 
+class OSCDispatcherListener {
+public:
+    virtual ~OSCDispatcherListener() = default;
+
+    /* Called when event from OSCDispatchManager needs to be relayed to the caller.
+    */
+    virtual void actionFinished(std::string) = 0;
+};
+
 class OSCDeviceSender {
 public:
     OSCDeviceSender(const String &ipAddress, const String &port, const String &deviceName);
@@ -111,6 +120,8 @@ public:
                             unsigned int waitFormsWhenActionQueueIsEmpty = 50);
 
 
+
+
     ~OSCCueDispatcherManager() override {
         singleActionDispatcherPool.removeAllJobs(true, 1000);
     }
@@ -124,17 +135,29 @@ public:
 
     void run() override;
 
+    // Registers a listener for OSCDispatcherManager events. These listeners will receive a callback when an event
+    // occurs from the OSCCueDispatcherManager.
+    void registerListener(OSCDispatcherListener *lstnr) { dispatchListeners.push_back(lstnr); }
+    void unregisterListener(OSCDispatcherListener *lstnr) {
+        dispatchListeners.erase(
+            std::remove(dispatchListeners.begin(), dispatchListeners.end(), lstnr),
+            dispatchListeners.end());
+    }
+
     void addCueToMessageQueue(const CueOSCAction &cueAction);
 
     void addCueToMessageQueue(const CurrentCueInfo &cueInfo);
 
-    void stopAction(const std::string& actionID);
+    void stopAction(const std::string &actionID, bool jassertWhenNotFound = false);
 
-    void stopAction(const CueOSCAction& cueAction) { stopAction(cueAction.ID); }
+    void stopAction(const CueOSCAction& cueAction, bool jassertWhenNotFound = false) {
+        stopAction(cueAction.ID, jassertWhenNotFound);
+    }
 
-    void stopAllActionsInCCI(const CurrentCueInfo &cueInfo);
+    void stopAllActionsInCCI(const CurrentCueInfo &cueInfo, bool jassertWhenNotFound = false);
 
 private:
+    std::vector<OSCDispatcherListener*> dispatchListeners;
     std::unordered_map<std::string, OSCSingleActionDispatcher*> actionIDToJobMap; // Maps action ID to the job pointer
     std::queue<CueOSCAction> actionQueue;
     const unsigned int maximumSimultaneousMessageThreads;

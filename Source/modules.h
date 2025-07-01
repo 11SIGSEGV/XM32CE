@@ -244,8 +244,6 @@ indices(std::initializer_list<T>&& cont) {
 
 
 // Copied from https://stackoverflow.com/questions/15278343/c11-thread-safe-queue
-
-
 #ifndef SAFE_QUEUE
 #define SAFE_QUEUE
 #include <condition_variable>
@@ -299,6 +297,12 @@ public:
 
         // return item
         return item;
+    }
+
+    bool empty()
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_queue.empty();
     }
 };
 #endif
@@ -451,3 +455,5 @@ private:
     std::mt19937 rand_engine_; // Mersenne Twister pseudo-random number generator
 };
 #endif
+
+

@@ -15,6 +15,13 @@ public:
     the parent should broadcast it to all registered children also through this function.
     Each component should implement actions for each ShowCommand it supports, and can simply ignore all other
     irrelevant ShowCommands.
+
+    While most components will implement this function directly in the thread it was called, MainComponent must
+    implement it as a function that will always ultimately execute the command in the main thread. This means a
+    queue of awaiting ShowCommands should be used, and the main thread should process them in a loop
+    until the queue is empty. This is to ensure that all ShowCommands are executed in the main thread in the recieved
+    order. If one component takes too long to process a ShowCommand, this is a sacrifice that has to be made to ensure
+    atomicity.
     */
     virtual void commandOccurred(ShowCommand) = 0;
 };
@@ -345,13 +352,16 @@ private:
 //==============================================================================
 
 
-class MainComponent : public Component, public ShowCommandListener {
+class MainComponent : public Component, public ShowCommandListener, public OSCDispatcherListener, public HighResolutionTimer {
 public:
     //==============================================================================
-    MainComponent();
+    // The average human reaction time is around 100ms at minimum, so we can get away with 50ms for the timer callback.
+    MainComponent(int timerCallbackForShowCommandQueueIntervalMS = 50);
 
     ~MainComponent() override {
         dispatcher.stopThread(5000);
+        headerBar.unregisterListener(this);
+        stopTimer();
         removeAllChildren();
     }
 
@@ -362,18 +372,50 @@ public:
 
 
     void updateActiveShowOptionsFromCCIIndex(int newIndex);
+    // Updates cciIDtoIndexMap based on cuesInfo vector.
+    void updateCCIIDToIndexMap();
+
+    // Updates entire actionIDtoCCIInternalIDMap based on cuesInfo vector.
+    void updateActionIDToCCIDIndexMap();
+
+    // Updates all action IDs associated with a CCI.
+    void updateActionIDToCCIDIndexMap(const CurrentCueInfo &cci);
+
+    // Adds a running action ID to the CCI internal ID map. Used to track which actions in a CCI are currently running.
+    // Should be called when a CCI's actions are dispatched to the OSCDispatcherManager.
+    void addRunningActionID(std::string actionID, std::string cciInternalID = "");
+    // Loops through all actions in the CCI and calls addRunningActionID() for each action.
+    void addRunningActionsIDViaCCI(const CurrentCueInfo& cci);
+
+    // Removes action ID from the map of running action IDs. Returns the number of actionIDs still running
+    // for the CCI AFTER removing the actionID. (i.e., cciIDToRunningActionIDs[cci.ID].size()). Returns -1 in an error.
+    int removeRunningActionID(std::string actionID, std::string cciInternalID = "");
+
+    // Loops through all actions in the CCI and calls removeRunningActionID() for each action.
+    void removeRunningActionsIDViaCCI(const CurrentCueInfo& cci);
+
 
     void setPlayStatusForCurrentCue(bool isPlaying);
+    void setPlayStatusForCurrentCueByIndex(int index, bool isPlaying);
+    // Expects valid CCI internal ID (should be UUID-like). Returns -1 when not found.
+    int getCueIndexFromCCIInternalID(std::string cciInternalID);
 
 
     // Implemented to listen for ShowCommands. Broadcasts all commands to registered callbacks.
     void commandOccurred(ShowCommand) override;
+    // Actually handles the ShowCommands. commandOccurred can be called from any thread, but this function
+    // will always be called in the main thread.
+    void hiResTimerCallback() override;
+    void sendCommandToAllListeners(ShowCommand);
+
+    // Receives callbacks from the OSCDispatcherManager.
+    void actionFinished(std::string) override;
 
 private:
     //==============================================================================
     // Your private member variables go here...
-    Slider rotaryKnob; // [1]
-    OSCSender sender; // [2]
+    Slider rotaryKnob;
+    OSCSender sender;
 
 
     /* Encoder testRotary {
@@ -401,11 +443,13 @@ private:
 
     // NOTE: When switching from numberOfCueItems==0 to any other value, a FULL_SHOW_RESET command must be sent.
     // A reminder that currentCueIndex is 0-indexed... but numberOfCueItems is NOT.
-    ActiveShowOptions activeShowOptions{"012345678901234567890123", "Test Description"};
-    std::vector<OSCMessageArguments> testTemplates2 = {
+    ActiveShowOptions activeShowOptions{"Terrence is Fat", "Test Description"};
 
-        NonIter("Pan", "Channel Pan", "Channel Panning", 0.5, LINF, 0.f, 1.f)
-    };
+    TSQueue<ShowCommand> awaitingShowCommands; // Queue of ShowCommands to be processed in the main thread.
+
+    std::unordered_map<std::string, std::set<std::string>> cciIDToRunningActionIDs; // Previously called currentCueInformationInternalIdentificationToCueOpenSoundControlActionIdentificationsWaitingForOpenSoundControlManagerDispatcherListenerToCallbackFinishedSingleActionDispatcherJob
+    std::unordered_map<std::string, std::string> actionIDtoCCIInternalIDMap; // Maps action ID to parent CCI internal ID
+    std::unordered_map<std::string, int> cciIDtoIndexMap; // Maps CCI ID to index in cuesInfo vector.
 
     std::vector<CurrentCueInfo> cuesInfo = {
         {
@@ -414,7 +458,7 @@ private:
             {
                 CueOSCAction("/ch/02/config/name", Channel::NAME.second[0], ValueStorer("Speaker 2")),
                 CueOSCAction("/ch/02/config/icon", Channel::ICON.second[0], ValueStorer(52)),
-                CueOSCAction("/ch/02/mix/fader", 10.f, Channel::FADER.second[0], ValueStorer(-20.f), ValueStorer(-90.f))
+                CueOSCAction("/ch/02/mix/fader", 2.f, Channel::FADER.second[0], ValueStorer(-20.f), ValueStorer(-90.f))
                 }
         },
         {

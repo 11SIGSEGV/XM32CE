@@ -104,6 +104,7 @@ enum OSCActionType {
 };
 
 
+
 struct CueOSCAction {
     CueOSCAction(bool exitThread): oat(_EXIT_THREAD), oscAddress("/") {
     }
@@ -174,6 +175,7 @@ struct CueOSCAction {
 
 
 struct CurrentCueInfo {
+    const std::string INTERNAL_ID; // This is a unique ID for the CCI, used to identify it in the CCI Vector. Not used for UI, and not user-friendly
     String id; // When ID is empty, it is implied the CCI is not valid. This can be used when no CCIs are in a CCI Vector, so a blank CCI can be used.
     String name;
     String description;
@@ -202,7 +204,7 @@ struct CurrentCueInfo {
 
     CurrentCueInfo(const String &id, const String &name, const String &description,
                    const std::vector<CueOSCAction>& actions): id(id), name(name), description(description),
-                                                       actions(actions) {
+                                                       actions(actions), INTERNAL_ID(uuidGen.generate()) {
     }
 
     // Used for blank CCI (i.e., invalid CCI)
@@ -256,7 +258,8 @@ enum ShowCommand {
     SHOW_NAME_CHANGE,
     FULL_SHOW_RESET, // Reset all UI and local variables
 
-    CURRENT_CUE_ID_CHANGE
+    CURRENT_CUE_ID_CHANGE,
+    _BROADCAST_TO_ALL_CUE_STOPPED
 };
 
 const std::unordered_map<Units, int> ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT = {

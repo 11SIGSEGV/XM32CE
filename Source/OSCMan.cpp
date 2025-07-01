@@ -64,14 +64,6 @@ OSCDeviceSender::OSCDeviceSender(const String &ipAddress, int port, const String
     this->deviceName = deviceName;
 }
 
-OSCMessage OSCDeviceSender::compileMessageFromArgumentEmbeddedPathAndOSCMessageArguments(
-    ArgumentEmbeddedPath &path, std::vector<ValueStorer> &pathArgumentValues, std::vector<OSCArgument> &arguments,
-    std::vector<ValueStorer> &argumentValues) {
-    /*This function will first form the path from the ArgumentEmbeddedPath using the values provided by the vector of ValueStorers
-     *Then, using the list of message arguments expected, the function will format and correctly cast the appropriate
-     *type to prepare for the OSC messsage to be sent.
-     */
-}
 
 
 std::vector<OSCArgument> OSCDeviceSender::compileOSCArguments(
@@ -416,9 +408,9 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
 
 OSCCueDispatcherManager::OSCCueDispatcherManager(OSCDeviceSender &oscDevice,
                                                  unsigned int maximumSimultaneousMessageThreads,
-                                                 unsigned int waitFormsWhenActionQueueIsEmpty): oscSender(oscDevice),
+                                                 unsigned int waitMSFromWhenActionQueueIsEmpty): oscSender(oscDevice),
     maximumSimultaneousMessageThreads(maximumSimultaneousMessageThreads), Thread("oscCueDispatcherManager"),
-    waitMSFromWhenActionQueueIsEmpty(waitFormsWhenActionQueueIsEmpty) {
+    waitMSFromWhenActionQueueIsEmpty(waitMSFromWhenActionQueueIsEmpty) {
     if (maximumSimultaneousMessageThreads == 0 || maximumSimultaneousMessageThreads > 511) {
         jassertfalse; // Maximum simultaneous message threads must be above 1 and should be below 512.
     }
@@ -441,10 +433,36 @@ void OSCCueDispatcherManager::addCueToMessageQueue(const CueOSCAction &cueAction
 
 void OSCCueDispatcherManager::run() {
     while (!threadShouldExit()) {
+
         while (actionQueue.empty()) {
-            // ReSharper disable once CppExpressionWithoutSideEffects
-            wait(waitMSFromWhenActionQueueIsEmpty);
+            auto waitStart = std::chrono::high_resolution_clock::now();
+            // Also check if a cue job has finished. This is a non-realtime operation, so we can shove it into this loop
+            // Create a copy of the actionIDToJobMap to avoid modifying the map while iterating
+            auto actionIDToJobMapCopy = actionIDToJobMap; // Copy the map to avoid modifying while iterating
+            for (const auto& [id, singleActionDispatcher]: actionIDToJobMapCopy) {
+                // Check if the singleActionDispatcher is in the pool (i.e., it has not been removed yet)
+                if (!singleActionDispatcherPool.contains(singleActionDispatcher)) {
+                    actionIDToJobMap.erase(id);
+                    // Notify listeners that the action has finished
+                    for (auto *listener: dispatchListeners) {
+                        listener->actionFinished(id);
+                    }
+                }
+            }
+            std::chrono::duration<double, std::milli> elapsed =
+                    std::chrono::high_resolution_clock::now() - waitStart;
+            if (elapsed.count() < waitMSFromWhenActionQueueIsEmpty) {
+                // Sleep for the remaining time to wait
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(waitMSFromWhenActionQueueIsEmpty) - elapsed);
+            } else {
+                DBG("Warning: OSC Cue Dispatcher Manager exceeded waitMSFromWhenActionQueueIsEmpty. This means each"
+                    "iteration checking if the queue is empty took longer than the allowed wait time. "
+                    "Consider increasing wait time or running the thread with realtime priority or more "
+                    "system resources.");
+            }
         }
+
         auto action = actionQueue.front();
         actionQueue.pop();
         if (action.oat == _EXIT_THREAD) {
@@ -458,21 +476,25 @@ void OSCCueDispatcherManager::run() {
 }
 
 
-void OSCCueDispatcherManager::stopAction(const std::string &actionID) {
+// Tries to stop the action with the given actionID. If the action is not found, it does nothing unless
+// jassertWhenNotFound is true, in which case it asserts.
+void OSCCueDispatcherManager::stopAction(const std::string &actionID, bool jassertWhenNotFound) {
     // Find the pointer if it exists
-    auto job = actionIDToJobMap.at(actionID);
+    const auto job = actionIDToJobMap.find(actionID);
+    if (job == actionIDToJobMap.end()) {
+        if (jassertWhenNotFound) { jassertfalse; }  // ID not found.
+        return; // Action not found, nothing to stop
+    }
     // See if this works...
-    singleActionDispatcherPool.removeJob(job, true, 1000);
+    singleActionDispatcherPool.removeJob(job->second, true, 1000);
 }
 
 
-void OSCCueDispatcherManager::stopAllActionsInCCI(const CurrentCueInfo &cueInfo) {
-    for (auto action: cueInfo.actions) {
-        stopAction(action.ID);
+void OSCCueDispatcherManager::stopAllActionsInCCI(const CurrentCueInfo &cueInfo, bool jassertWhenNotFound) {
+    for (const auto& action: cueInfo.actions) {
+        stopAction(action.ID, jassertWhenNotFound);
     }
 }
-
-
 
 
 bool OSCDeviceSender::connect() {

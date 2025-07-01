@@ -3,8 +3,12 @@
 //==============================================================================
 
 
-MainComponent::MainComponent() {
+MainComponent::MainComponent(const int timerCallbackForShowCommandQueueIntervalMS) {
+    updateActionIDToCCIDIndexMap();
+    updateCCIIDToIndexMap();
+
     dispatcher.startThread();
+    dispatcher.registerListener(this);
     activeShowOptions.loadCueValuesFromCCIVector(cuesInfo);
     headerBar.registerListener(this);
     commandOccurred(FULL_SHOW_RESET);
@@ -12,17 +16,20 @@ MainComponent::MainComponent() {
     for (auto *comp: getComponents()) {
         addAndMakeVisible(*comp);
     }
+
+    startTimer(timerCallbackForShowCommandQueueIntervalMS);
 }
 
 
 void MainComponent::paint(Graphics &g) {;
     // (Our component is opaque, so we must completely fill the background with a solid colour)
-    g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
+    g.fillAll(getLookAndFeel().findColour(ResizableWindow::backgroundColourId));
 
 
     g.setFont(FontOptions(16.0f));
     g.setColour(Colours::white);
     g.drawText("Kewei's bad!", getLocalBounds(), Justification::centred, true);
+    g.drawText("james's fat!", getLocalBounds(), Justification::centred, true);
 }
 
 
@@ -57,17 +64,123 @@ void MainComponent::updateActiveShowOptionsFromCCIIndex(int newIndex) {
     activeShowOptions.numberOfCueItems = ccisInfoSize;
 }
 
+void MainComponent::updateCCIIDToIndexMap() {
+    cciIDtoIndexMap.clear();
+    for (int i = 0; i < cuesInfo.size(); i++) {
+        try {
+            cciIDtoIndexMap[cuesInfo[i].INTERNAL_ID] = i;
+        } catch (const std::out_of_range &e) {
+            // WOAH WOAH WOAH!! We've managed to change the cuesInfo vector... it's a race condition!
+            // This is a realtime app - we don't use mutex or other locking mechanisms... sooo be careful! This should
+            // never happen!
+            jassertfalse;
+            break; // No point in continuing looping; the next CCI will likely also throw an out_of_range exception
+        }
+    }
+}
+
+void MainComponent::updateActionIDToCCIDIndexMap() {
+    actionIDtoCCIInternalIDMap.clear();
+    for (auto cci: cuesInfo) {
+        updateActionIDToCCIDIndexMap(cci);
+    }
+}
+
+void MainComponent::updateActionIDToCCIDIndexMap(const CurrentCueInfo &cci) {
+    for (auto action: cci.actions) {
+        actionIDtoCCIInternalIDMap[action.ID] = cci.INTERNAL_ID;
+    }
+}
+
+void MainComponent::addRunningActionID(std::string actionID, std::string cciInternalID) {
+    if (cciInternalID == "") {
+        // Ok, let's figure it out
+        auto it = actionIDtoCCIInternalIDMap.find(actionID);
+        if (it == actionIDtoCCIInternalIDMap.end()) {
+            // If we can't find it, we should not add it.
+            jassertfalse; // This should never happen!
+            return;
+        }
+        cciInternalID = it->second; // Get the CCI internal ID from the action ID
+    }
+    // Now we can add it to the map
+    if (cciIDToRunningActionIDs.find(cciInternalID) == cciIDToRunningActionIDs.end()) {
+        // If the CCI internal ID is not found, create a new set for it
+        cciIDToRunningActionIDs[cciInternalID] = std::set<std::string>();
+    }
+    cciIDToRunningActionIDs[cciInternalID].insert(actionID);
+}
+
+void MainComponent::addRunningActionsIDViaCCI(const CurrentCueInfo &cci) {
+    for (auto &action: cci.actions) {
+        addRunningActionID(action.ID, cci.INTERNAL_ID);
+    }
+}
+
+int MainComponent::removeRunningActionID(std::string actionID, std::string cciInternalID) {
+    if (cciInternalID == "") {
+        // Ok, let's figure it out
+        auto it = actionIDtoCCIInternalIDMap.find(actionID);
+        if (it == actionIDtoCCIInternalIDMap.end()) {
+            // If we can't find it, we should not remove it.
+            jassertfalse; // This should never happen!
+            return -1;
+        }
+        cciInternalID = it->second; // Get the CCI internal ID from the action ID
+    }
+    // Now we can remove it from the map
+    auto cciIt = cciIDToRunningActionIDs.find(cciInternalID);
+    if (cciIt != cciIDToRunningActionIDs.end()) {
+        cciIt->second.erase(actionID); // Erase does not throw an exception, even if actionID mysteriously disappears
+        return cciIt->second.size();
+    }
+
+    jassertfalse; // This should never happen! We should always have a CCI internal ID in the map.
+    return -1;
+}
+
+void MainComponent::removeRunningActionsIDViaCCI(const CurrentCueInfo &cci) {
+    for (auto &action: cci.actions) {
+        removeRunningActionID(action.ID, cci.INTERNAL_ID);
+    }
+}
+
 
 void MainComponent::setPlayStatusForCurrentCue(bool isPlaying) {
     if (activeShowOptions.numberOfCueItems == 0) {
         return;
     }
-    activeShowOptions.currentCuePlaying = isPlaying;
-    cuesInfo[activeShowOptions.currentCueIndex].currentlyPlaying = isPlaying;
+    setPlayStatusForCurrentCueByIndex(activeShowOptions.currentCueIndex, isPlaying);
+}
+
+void MainComponent::setPlayStatusForCurrentCueByIndex(int index, bool isPlaying) {
+    if (index == activeShowOptions.currentCueIndex) {
+        activeShowOptions.currentCuePlaying = isPlaying;
+    }
+    cuesInfo[index].currentlyPlaying = isPlaying;
+}
+
+int MainComponent::getCueIndexFromCCIInternalID(std::string cciInternalID) {
+    // Use unordered_map
+    auto it = cciIDtoIndexMap.find(cciInternalID);
+    if (it != cciIDtoIndexMap.end()) {
+        return it->second; // Return the index
+    }
+    return -1; // Not found
 }
 
 
+
 void MainComponent::commandOccurred(ShowCommand cmd) {
+    awaitingShowCommands.push(cmd);
+}
+
+void MainComponent::hiResTimerCallback() {
+    if (awaitingShowCommands.empty()) {
+        return; // Nothing to do
+    }
+    auto cmd = awaitingShowCommands.pop();
+
     switch (cmd) {
         case SHOW_NEXT_CUE:
             updateActiveShowOptionsFromCCIIndex(activeShowOptions.currentCueIndex + 1);
@@ -76,29 +189,89 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
             updateActiveShowOptionsFromCCIIndex(activeShowOptions.currentCueIndex - 1);
             break;
         case SHOW_PLAY:
-            setPlayStatusForCurrentCue(true);
             // Dispatch the job.
             if (activeShowOptions.numberOfCueItems != 0) {
+                setPlayStatusForCurrentCue(true);
                 dispatcher.addCueToMessageQueue(cuesInfo[activeShowOptions.currentCueIndex]);
+                addRunningActionsIDViaCCI(cuesInfo[activeShowOptions.currentCueIndex]);
             }
             break;
         case SHOW_STOP:
-            setPlayStatusForCurrentCue(false);
-            if (activeShowOptions.numberOfCueItems != 0) {
-                dispatcher.stopAllActionsInCCI(cuesInfo[activeShowOptions.currentCueIndex]);
+            if (activeShowOptions.numberOfCueItems == 0) {
+                return; // We return, because an invalid command shouldn't be sent to callback listeners.
             }
+            if (!cuesInfo[activeShowOptions.currentCueIndex].currentlyPlaying) {
+                // If the current cue is not playing, we don't need to stop it.
+                return;
+            }
+            setPlayStatusForCurrentCue(false);
+            dispatcher.stopAllActionsInCCI(cuesInfo[activeShowOptions.currentCueIndex]);
+            removeRunningActionsIDViaCCI(cuesInfo[activeShowOptions.currentCueIndex]);
             break;
         case SHOW_NAME_CHANGE:
             std::cout << "Show Name Change" << std::endl;
             break;
         case FULL_SHOW_RESET:
             break; // Don't need to do anything, but we still need to broadcast it to all callbacks.'
+        case _BROADCAST_TO_ALL_CUE_STOPPED:
+            cmd = SHOW_STOP; // Morph command
+            break;
         default:
             jassertfalse; // Invalid ShowCommand
     }
+    {
+        const MessageManagerLock mmLock;
+        if (!mmLock.lockWasGained()) {
+            jassertfalse; // Woah woah woah... where's our message lock?
+        }
+        sendCommandToAllListeners(cmd);
+    } // Force message manager lock to be released here, so that we can call this function from any thread.
+
+
+    // Recursion is very dangerous, but waiting another 50ms for the next timer callback is horrible idea. If there were
+    // 20 actions added to the queue at once, we would have to wait 1 second for the next timer callback to process
+    // all 20 actions.
+    // So, we will just call the function again. If there's nothing to do, it'll return immediately, ending the recursion.
+    hiResTimerCallback();
+}
+
+void MainComponent::sendCommandToAllListeners(ShowCommand cmd) {
     for (auto *comp: callbackCompsUponActiveShowOptionsChanged) {
         comp->commandOccurred(cmd);
     }
+}
+
+void MainComponent::actionFinished(std::string actionID) {
+    auto remaining = removeRunningActionID(actionID);
+    if (remaining == -1) {
+        // Oh no... we done goofed up.
+        // Let's just... pretend nothing happened.
+        // We're only returning without jassert because removeRunningActionID should've already jasserted.
+        return;
+    }
+    if (remaining == 0) {
+        // Wait... that's the last action running for the CCI!
+        // Let's update the active show options to reflect that the current cue is no longer playing.
+        // First, find the CCI internal ID for the action ID
+        auto it = actionIDtoCCIInternalIDMap.find(actionID);
+        if (it == actionIDtoCCIInternalIDMap.end()) {
+            jassertfalse; // This should never happen! We should always have a CCI internal ID for the action ID.
+            return;
+        }
+        auto cciInternalID = it->second;
+        // Now, find the index of the CCI internal ID in the cciIDtoIndexMap
+        auto cciIndexIt = cciIDtoIndexMap.find(cciInternalID);
+        if (cciIndexIt == cciIDtoIndexMap.end()) {
+            jassertfalse; // This should never happen! We should always have a CCI internal ID in the map.
+            return;
+        }
+        auto cciIndex = cciIndexIt->second;
+        // Now, set CCI as not playing
+        setPlayStatusForCurrentCueByIndex(cciIndex, false);
+        // Update UI as appropriate
+        commandOccurred(_BROADCAST_TO_ALL_CUE_STOPPED);
+    }
+
 }
 
 
@@ -478,6 +651,9 @@ CCISidePanel::CCISidePanel(ActiveShowOptions &activeShowOptions, std::vector<Cur
 
 
 void CCISidePanel::constructImage() {
+    if (localBoundsIsInvalid()) {
+        return; // Don't construct an image if the local bounds are invalid.
+    }
     panelImage = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
     Graphics g(panelImage);
 
