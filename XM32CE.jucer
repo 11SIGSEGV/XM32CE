@@ -7,6 +7,7 @@
       <GROUP id="{4D65EBA0-CDAC-D25C-9969-D093C76007E1}" name="Icons"/>
     </GROUP>
     <GROUP id="{7B09487A-26C2-78F1-4A57-6EF2E3107206}" name="Source">
+      <FILE id="XHrSDG" name="modules.cpp" compile="1" resource="0" file="Source/modules.cpp"/>
       <FILE id="tZSLw5" name="X32Templates.h" compile="0" resource="0" file="Source/X32Templates.h"/>
       <FILE id="YxjwU5" name="modules.h" compile="0" resource="0" file="Source/modules.h"/>
       <FILE id="nTI55A" name="OSCMan.cpp" compile="1" resource="0" file="Source/OSCMan.cpp"/>

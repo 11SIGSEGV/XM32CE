@@ -175,8 +175,9 @@ struct CueOSCAction {
 
 
 struct CurrentCueInfo {
+    // When INTERNAL_ID is empty, it is implied the CCI is not valid. This can be used when no CCIs are in a CCI Vector, so a blank CCI can be used.
     const std::string INTERNAL_ID; // This is a unique ID for the CCI, used to identify it in the CCI Vector. Not used for UI, and not user-friendly
-    String id; // When ID is empty, it is implied the CCI is not valid. This can be used when no CCIs are in a CCI Vector, so a blank CCI can be used.
+    String id;
     String name;
     String description;
     std::vector<CueOSCAction> actions;
@@ -210,7 +211,48 @@ struct CurrentCueInfo {
     // Used for blank CCI (i.e., invalid CCI)
     CurrentCueInfo(): id(""), name(""), description(""), actions({}) {
     }
+
+    bool isInvalid() {
+        return INTERNAL_ID.empty();
+    }
 };
+
+
+struct CurrentCueInfoVector {
+    std::vector<CurrentCueInfo> vector;
+
+    CurrentCueInfo _blankCCI; // A blank CCI to return when an index is out of range or when no CCIs are available
+    // Pre-created to avoid recreating for every invalid CCI access
+
+    CurrentCueInfoVector() = default;
+    CurrentCueInfoVector(std::vector<CurrentCueInfo> &cciVector): vector(cciVector),
+    size(cciVector.size()) {}
+
+    CurrentCueInfo& getCurrentCueInfoByIndex(unsigned int index) {
+        if (size == 0) {
+            return _blankCCI;
+        }
+        if (index >= size) {
+            jassertfalse; // Index out of range
+            return _blankCCI; // Return a blank CCI
+        }
+        return vector[index];
+    }
+
+
+    CurrentCueInfo& operator[](unsigned int index) {
+        // TODO: Test because i have no clue what i'm doing
+        return getCurrentCueInfoByIndex(index);
+    }
+
+    int getSize() { return size; }
+
+
+
+private:
+    int size = 0;
+};
+
 
 
 struct ActiveShowOptions {
@@ -224,8 +266,8 @@ struct ActiveShowOptions {
 
     // Modifies currentCueID, currentCueIndex, currentCuePlaying and numberOfCueItems from cciVector.
     // If useIndex is out of range, it will default to 0, not the last element of cciVector.
-    void loadCueValuesFromCCIVector(const std::vector<CurrentCueInfo>& cciVector, unsigned int useIndex = 0) {
-        auto cciVSize = cciVector.size();
+    void loadCueValuesFromCCIVector(CurrentCueInfoVector& cciVector, unsigned int useIndex = 0) {
+        auto cciVSize = cciVector.getSize();
         if (cciVSize == 0) {
             currentCueIndex = 0;
             currentCuePlaying = false;
@@ -237,8 +279,9 @@ struct ActiveShowOptions {
             useIndex = 0;
         }
         currentCueIndex = useIndex;
-        currentCuePlaying = cciVector[useIndex].currentlyPlaying;
-        currentCueID = cciVector[useIndex].id;
+        auto cci = cciVector.getCurrentCueInfoByIndex(useIndex);
+        currentCuePlaying = cci.currentlyPlaying;
+        currentCueID = cci.id;
         numberOfCueItems = cciVSize;
     }
 };
@@ -256,6 +299,7 @@ enum ShowCommand {
     SHOW_NEXT_CUE,
     SHOW_PREVIOUS_CUE,
     SHOW_NAME_CHANGE,
+    CUE_ADDED_OR_DELETED,
     FULL_SHOW_RESET, // Reset all UI and local variables
 
     CURRENT_CUE_ID_CHANGE,

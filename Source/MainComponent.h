@@ -26,15 +26,63 @@ public:
     virtual void commandOccurred(ShowCommand) = 0;
 };
 
+//==============================================================================
+
+
+// Class containing methods for required cue data
+struct CueListData: public DraggableListBoxItemData {
+    std::vector<CurrentCueInfo> &cciVector;
+    CueListData(std::vector<CurrentCueInfo> &cciVector): cciVector(cciVector) {}
+
+    int getNumItems() override { return cciVector.size(); }
+    void deleteItem(int index) override {
+
+        cciVector.erase(cciVector.begin() + index);
+    };
+    void addItemAtEnd() override;
+
+    void paintContents(int, Graphics &, Rectangle<int>) override;
+
+    void moveAfter(int indexOfItemToMove, int indexOfItemToPlaceAfter) override;
+
+    void moveBefore(int indexOfItemToMove, int indexOfItemToPlaceBefore) override;
+};
+
+
+
+// Class for Draggable Cue Info List Component
+class CueList: public DraggableListBoxModel {
+public:
+    CueList(DraggableListBox& lb, DraggableListBoxItemData& md)
+        : DraggableListBoxModel(lb, md) {}
+
+    Component* refreshComponentForRow(int, bool, Component*) override;
+};
+
+
+// Item
+class CueListItem: public DraggableListBoxItem {
+public:
+    CueListItem(DraggableListBox& lb, CueListData& data, int rn): DraggableListBoxItem(lb, data, rn) {}
+    ~CueListItem() override = default;
+
+    void paint(Graphics &g) override;
+    void resized() override;
+
+private:
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CueListItem)
+};
+
+
 
 //==============================================================================
 
 // Action List for Current Cue Information
 struct CCIActionList : public Component, public ShowCommandListener {
 public:
-    CCIActionList(ActiveShowOptions &activeShowOptions, std::vector<CurrentCueInfo> &currentCueInfos,
+    CCIActionList(ActiveShowOptions &activeShowOptions, CurrentCueInfoVector &cciVector,
                   double targetFontSize): targetFontSize(targetFontSize), activeShowOptions(activeShowOptions),
-                                          currentCueInfos(currentCueInfos) {
+                                          cciVector(cciVector) {
     }
 
     ~CCIActionList() = default;
@@ -87,13 +135,7 @@ private:
 
 
     CurrentCueInfo &getCCI() {
-        if (activeShowOptions.numberOfCueItems == 0) {
-            // Guys... we don't have a CCI... ummm
-            // We return a blank!
-            return _blankCCI;
-        }
-        // We're gonna be optimistic and assume that the currentCueIndex is valid.
-        return currentCueInfos[activeShowOptions.currentCueIndex];
+        return cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
     }
 
 
@@ -110,9 +152,10 @@ private:
     float argumentVerboseNameMaxWidth;
 
     ActiveShowOptions &activeShowOptions;
-    std::vector<CurrentCueInfo> &currentCueInfos;
+    CurrentCueInfoVector &cciVector;
 
     CurrentCueInfo _blankCCI{};
+    std::string lastRenderedCCIInternalID;
 
     float targetFontSize;
     Font oscArgumentValueFont = FontOptions();
@@ -134,7 +177,7 @@ private:
 // Current Cue Information Side Panel
 struct CCISidePanel : public Component, public ShowCommandListener {
 public:
-    CCISidePanel(ActiveShowOptions &activeShowOptions, std::vector<CurrentCueInfo> &currentCueInfos);
+    CCISidePanel(ActiveShowOptions &activeShowOptions, CurrentCueInfoVector& cciVector);
 
     ~CCISidePanel() = default;
 
@@ -150,8 +193,10 @@ public:
     void commandOccurred(ShowCommand) override;
 
 private:
+    std::string lastCCIInternalID = ""; // Used to determine if the CCI has changed, so we can reconstruct the image
+
     ActiveShowOptions &activeShowOptions;
-    std::vector<CurrentCueInfo> &currentCueInfos;
+    CurrentCueInfoVector &cciVector;
     CCIActionList actionList;
 
     Image panelImage;
@@ -250,10 +295,6 @@ public:
             showCommandListeners.end());
     }
 
-    // Literally no fucking clue what this function does... it's not part of a listener,
-    // it's not called by anything, I'm genuinely so confused
-    void showOptionsChanged(ShowCommand command);
-
     // Used to listen for when command occurs. Part of inherited ShowCommandListener
     void commandOccurred(ShowCommand command) override;
 
@@ -308,7 +349,7 @@ private:
 
     const std::set<ShowCommand> _showCommandsRequiringImageReconstruction = {
         SHOW_NEXT_CUE, SHOW_PREVIOUS_CUE, SHOW_NAME_CHANGE,
-        CURRENT_CUE_ID_CHANGE, FULL_SHOW_RESET
+        CURRENT_CUE_ID_CHANGE, FULL_SHOW_RESET, CUE_ADDED_OR_DELETED
     };
     const std::set<ShowCommand> _showCommandsRequiringButtonReconstruction = {SHOW_STOP, SHOW_PLAY};
 
@@ -353,7 +394,7 @@ private:
 
 //==============================================================================
 
-
+// TODO: Move private variables and methods to custom structs
 class MainComponent : public Component, public ShowCommandListener, public OSCDispatcherListener,
                       public HighResolutionTimer {
 public:
@@ -374,12 +415,12 @@ public:
     void resized() override;
 
 
-    void updateActiveShowOptionsFromCCIIndex(int newIndex);
+    void updateActiveShowOptionsFromCCIIndex(unsigned int newIndex);
 
-    // Updates cciIDtoIndexMap based on cuesInfo vector.
+    // Updates cciIDtoIndexMap based on CurrentCueInfoVector.
     void updateCCIIDToIndexMap();
 
-    // Updates entire actionIDtoCCIInternalIDMap based on cuesInfo vector.
+    // Updates entire actionIDtoCCIInternalIDMap based on CurrentCueInfoVector.
     void updateActionIDToCCIDIndexMap();
 
     // Updates all action IDs associated with a CCI.
@@ -402,7 +443,7 @@ public:
 
     void setPlayStatusForCurrentCue(bool isPlaying);
 
-    void setPlayStatusForCurrentCueByIndex(int index, bool isPlaying);
+    void setPlayStatusForCurrentCueByIndex(unsigned int index, bool isPlaying);
 
     // Expects valid CCI internal ID (should be UUID-like). Returns -1 when not found.
     int getCueIndexFromCCIInternalID(std::string cciInternalID);
@@ -459,9 +500,10 @@ private:
     std::unordered_map<std::string, std::set<std::string> > cciIDToRunningActionIDs;
     // Previously called currentCueInformationInternalIdentificationToCueOpenSoundControlActionIdentificationsWaitingForOpenSoundControlManagerDispatcherListenerToCallbackFinishedSingleActionDispatcherJob
     std::unordered_map<std::string, std::string> actionIDtoCCIInternalIDMap; // Maps action ID to parent CCI internal ID
-    std::unordered_map<std::string, int> cciIDtoIndexMap; // Maps CCI ID to index in cuesInfo vector.
+    std::unordered_map<std::string, int> cciIDtoIndexMap; // Maps CCI ID to cciVector index.
 
-    std::vector<CurrentCueInfo> cuesInfo = {
+
+    std::vector<CurrentCueInfo> premadeCCIVector = {
         {
             "FT1", "Speaker 2",
             "Switch to Speaker 2. Fades channel level to -inf, changes name, icon and colour.",
@@ -485,17 +527,20 @@ private:
             {},
         }
     }; // May replace with custom struct in future
+
+    CurrentCueInfoVector cciVector {premadeCCIVector};
+
     std::vector<Component *> getComponents() {
         return activeComps;
     }
 
 
     HeaderBar headerBar{activeShowOptions};
-    CCISidePanel sidePanel{activeShowOptions, cuesInfo};
+    CCISidePanel sidePanel{activeShowOptions, cciVector};
 
     const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};
 
-    OSCDeviceSender oscDeviceSender{"192.168.0.100", "10023", "X32"};
+    OSCDeviceSender oscDeviceSender{"192.0.0.11", "10023", "X32"};
     OSCCueDispatcherManager dispatcher{oscDeviceSender};
     const std::vector<Component *> activeComps = {&headerBar, &sidePanel};
 

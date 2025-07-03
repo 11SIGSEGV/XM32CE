@@ -40,6 +40,8 @@ public:
     ~OSCDeviceSender();
 
 
+    String getIPAddress() { return ipAddress; }
+
     /* Attempts to connect to OSC Device. If the connection is successful, it returns true. Otherwise, returns false.*/
     bool connect();
 
