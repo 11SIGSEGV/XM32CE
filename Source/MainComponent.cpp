@@ -77,7 +77,7 @@ void MainComponent::updateCCIIDToIndexMap() {
             jassertfalse;
             break; // No point in continuing looping; the next CCI will likely also throw an out_of_range exception
         }
-        cciIDtoIndexMap[cci.INTERNAL_ID] = i;
+        cciIDtoIndexMap[cci.getInternalID()] = i;
     }
 }
 
@@ -92,7 +92,7 @@ void MainComponent::updateActionIDToCCIDIndexMap() {
 
 void MainComponent::updateActionIDToCCIDIndexMap(const CurrentCueInfo &cci) {
     for (const auto &action: cci.actions) {
-        actionIDtoCCIInternalIDMap[action.ID] = cci.INTERNAL_ID;
+        actionIDtoCCIInternalIDMap[action.ID] = cci.getInternalID();
     }
 }
 
@@ -119,7 +119,7 @@ void MainComponent::addRunningActionID(std::string actionID, std::string cciInte
 
 void MainComponent::addRunningActionsIDViaCCI(const CurrentCueInfo &cci) {
     for (auto &action: cci.actions) {
-        addRunningActionID(action.ID, cci.INTERNAL_ID);
+        addRunningActionID(action.ID, cci.getInternalID());
     }
 }
 
@@ -149,7 +149,7 @@ int MainComponent::removeRunningActionID(std::string actionID, std::string cciIn
 
 void MainComponent::removeRunningActionsIDViaCCI(const CurrentCueInfo &cci) {
     for (auto &action: cci.actions) {
-        removeRunningActionID(action.ID, cci.INTERNAL_ID);
+        removeRunningActionID(action.ID, cci.getInternalID());
     }
 }
 
@@ -507,15 +507,17 @@ void CCIActionList::commandOccurred(ShowCommand command) {
     switch (command) {
         case SHOW_NEXT_CUE: case SHOW_PREVIOUS_CUE: case FULL_SHOW_RESET:
             repaint();
-            lastRenderedCCIInternalID = getCCI().INTERNAL_ID;
+            lastRenderedCCIInternalID = getCCI().getInternalID();
             break;
-        case CUE_ADDED_OR_DELETED:
+        case CUE_ADDED_OR_DELETED: {
             // If the previous CCI was different, repaint().
-            if (getCCI().INTERNAL_ID != lastRenderedCCIInternalID) {
+            auto cci = getCCI();
+            if (cci.getInternalID() != lastRenderedCCIInternalID) {
                 repaint();
-                lastRenderedCCIInternalID = getCCI().INTERNAL_ID;
+                lastRenderedCCIInternalID = cci.getInternalID();
             }
             break;
+        }
         case SHOW_PLAY: case SHOW_STOP: case SHOW_NAME_CHANGE: case CURRENT_CUE_ID_CHANGE:
         case _BROADCAST_TO_ALL_CUE_STOPPED:
             break;
@@ -825,14 +827,14 @@ void CCISidePanel::commandOccurred(ShowCommand command) {
                 break;
             }
             // Assumes currentCueIndex is valid!
-            lastCCIInternalID = cci.INTERNAL_ID;
+            lastCCIInternalID = cci.getInternalID();
             break;
         }
         case CUE_ADDED_OR_DELETED: {
             // If the cue deleted is this one... then we need to update the side panel.
             auto cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid() || // If no cues... or
-                cci.INTERNAL_ID != lastCCIInternalID) { // If the current cue is not the last one we had
+                cci.getInternalID() != lastCCIInternalID) { // If the current cue is not the last one we had
                 commandOccurred(SHOW_NEXT_CUE); // Triggers a repaint, resize and reimage
                 }
             break;

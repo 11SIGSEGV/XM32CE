@@ -503,32 +503,34 @@ private:
     std::unordered_map<std::string, int> cciIDtoIndexMap; // Maps CCI ID to cciVector index.
 
 
-    std::vector<CurrentCueInfo> premadeCCIVector = {
+    CurrentCueInfoVector cciVector = CurrentCueInfoVector(
         {
-            "FT1", "Speaker 2",
-            "Switch to Speaker 2. Fades channel level to -inf, changes name, icon and colour.",
             {
-                CueOSCAction("/ch/02/config/name", Channel::NAME.second[0], ValueStorer("Speaker 2")),
-                CueOSCAction("/ch/02/config/icon", Channel::ICON.second[0], ValueStorer(52)),
-                CueOSCAction("/ch/02/config/color", Channel::COLOUR.second[0], ValueStorer(11)),
-                CueOSCAction("/ch/02/mix/fader", 2.f, Channel::FADER.second[0], ValueStorer(-20.f), ValueStorer(-90.f))
-            }
-        },
-        {
-            "FT2", "Speaker 2 Prepare",
-            "Prepares Speaker 2. Fades chanel up and changes colour.",
-            {
-                CueOSCAction("/ch/02/mix/fader", 5.f, Channel::FADER.second[0], ValueStorer(-90.f), ValueStorer(0.f)),
-                CueOSCAction("/ch/02/config/color", Channel::COLOUR.second[0], ValueStorer(3)),
+                "FT1", "Speaker 2",
+                "Switch to Speaker 2. Fades channel level to -inf, changes name, icon and colour.",
+                {
+                    CueOSCAction("/ch/02/config/name", Channel::NAME.second[0], ValueStorer("Speaker 2")),
+                    CueOSCAction("/ch/02/config/icon", Channel::ICON.second[0], ValueStorer(52)),
+                    CueOSCAction("/ch/02/config/color", Channel::COLOUR.second[0], ValueStorer(11)),
+                    CueOSCAction("/ch/02/mix/fader", 2.f, Channel::FADER.second[0], ValueStorer(-20.f), ValueStorer(-90.f))
+                }
             },
-        },
-        {
-            "FATTerrence", "Terrence is actually so fat", "",
-            {},
+            {
+                "FT2", "Speaker 2 Prepare",
+                "Prepares Speaker 2. Fades chanel up and changes colour.",
+                {
+                    CueOSCAction("/ch/02/mix/fader", 5.f, Channel::FADER.second[0], ValueStorer(-90.f), ValueStorer(0.f)),
+                    CueOSCAction("/ch/02/config/color", Channel::COLOUR.second[0], ValueStorer(3)),
+                },
+            },
+            {
+                "FATTerrence", "Terrence is actually so fat", "",
+                {},
+            }
         }
-    }; // May replace with custom struct in future
+    ); // May replace with custom struct in future
 
-    CurrentCueInfoVector cciVector {premadeCCIVector};
+
 
     std::vector<Component *> getComponents() {
         return activeComps;
@@ -540,7 +542,7 @@ private:
 
     const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};
 
-    OSCDeviceSender oscDeviceSender{"192.0.0.11", "10023", "X32"};
+    OSCDeviceSender oscDeviceSender{"127.0.0.1", "10023", "X32"};
     OSCCueDispatcherManager dispatcher{oscDeviceSender};
     const std::vector<Component *> activeComps = {&headerBar, &sidePanel};
 

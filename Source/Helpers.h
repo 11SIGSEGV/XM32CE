@@ -176,32 +176,12 @@ struct CueOSCAction {
 
 struct CurrentCueInfo {
     // When INTERNAL_ID is empty, it is implied the CCI is not valid. This can be used when no CCIs are in a CCI Vector, so a blank CCI can be used.
-    const std::string INTERNAL_ID; // This is a unique ID for the CCI, used to identify it in the CCI Vector. Not used for UI, and not user-friendly
     String id;
     String name;
     String description;
     std::vector<CueOSCAction> actions;
     bool currentlyPlaying {false};
 
-    /*
-    ValueStorerArray finalOSCValues; // Later unpacked into positional arguments for OSCMessage constructor,
-    OSCMessage _constructedMessageCache{"/"};
-    bool _constructedMessageCacheIsValid{false};
-
-
-    // WARNING: A blank OSC Message Address String WILL RAISE AN EXCEPTION! PROCEED AT YOUR OWN RISK
-    CurrentCueInfo(String id, String name, String description, String finalOSCAddress = "",
-                   ValueStorerArray finalOSCValues = {}): id(id), name(name), description(description),
-                                                          finalOSCAddress(finalOSCAddress),
-                                                          finalOSCValues(finalOSCValues) {
-    }
-
-
-    // When finalOSCAddress and finalOSCValues are set and ready to be constructed into a valid OSCMessage,
-    // this function can be used.
-    // Use ignoreAndReconstructCache when variables in CurrentCueInfo have changed.
-    OSCMessage constructMessage(bool ignoreAndReconstructCache = false);
-    */
 
     CurrentCueInfo(const String &id, const String &name, const String &description,
                    const std::vector<CueOSCAction>& actions): id(id), name(name), description(description),
@@ -209,12 +189,19 @@ struct CurrentCueInfo {
     }
 
     // Used for blank CCI (i.e., invalid CCI)
-    CurrentCueInfo(): id(""), name(""), description(""), actions({}) {
+    CurrentCueInfo(): id(""), name(""), description(""), actions({}), INTERNAL_ID("") {
     }
 
     bool isInvalid() {
         return INTERNAL_ID.empty();
     }
+
+    std::string getInternalID() const {
+        return INTERNAL_ID;
+    }
+
+private:
+    std::string INTERNAL_ID; // This is a unique ID for the CCI, used to identify it in the CCI Vector. Not used for UI, and not user-friendly
 };
 
 
@@ -225,8 +212,11 @@ struct CurrentCueInfoVector {
     // Pre-created to avoid recreating for every invalid CCI access
 
     CurrentCueInfoVector() = default;
-    CurrentCueInfoVector(std::vector<CurrentCueInfo> &cciVector): vector(cciVector),
-    size(cciVector.size()) {}
+
+
+    // CurrentCueInfoVector(const std::vector<CurrentCueInfo>& cciVector): vector(cciVector), size(cciVector.size()) {}
+
+    CurrentCueInfoVector(std::vector<CurrentCueInfo> cciVector): vector(cciVector), size(cciVector.size()) {}
 
     CurrentCueInfo& getCurrentCueInfoByIndex(unsigned int index) {
         if (size == 0) {
