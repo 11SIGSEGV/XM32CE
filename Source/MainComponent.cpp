@@ -3,7 +3,8 @@
 //==============================================================================
 
 
-MainComponent::MainComponent(const int timerCallbackForShowCommandQueueIntervalMS) {
+MainComponent::MainComponent(const int timerCallbackForShowCommandQueueIntervalMS):
+ cueListModel(cueListBox, cueListData) {
     DBG("OSC Device Connected on " + oscDeviceSender.getIPAddress());
     updateActionIDToCCIDIndexMap();
     updateCCIIDToIndexMap();
@@ -12,6 +13,10 @@ MainComponent::MainComponent(const int timerCallbackForShowCommandQueueIntervalM
     dispatcher.registerListener(this);
     activeShowOptions.loadCueValuesFromCCIVector(cciVector);
     headerBar.registerListener(this);
+
+    cueListBox.setModel(&cueListModel);
+    cueListBox.setRowHeight(40);
+
     commandOccurred(FULL_SHOW_RESET);
 
     for (auto *comp: getComponents()) {
@@ -41,6 +46,7 @@ void MainComponent::resized() {
     auto bounds = getLocalBounds();
     headerBar.setBounds(bounds.removeFromTop(bounds.getHeight() * 0.05f));
     sidePanel.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.2f));
+    cueListBox.setBounds(bounds);
 
 }
 

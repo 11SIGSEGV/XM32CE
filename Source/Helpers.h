@@ -16,6 +16,42 @@
 #include "X32Templates.h"
 
 
+enum ShowCommand {
+    SHOW_PLAY,
+    SHOW_STOP,
+    SHOW_NEXT_CUE,
+    SHOW_PREVIOUS_CUE,
+    SHOW_NAME_CHANGE,
+    CUE_ADDED_OR_DELETED,
+    FULL_SHOW_RESET, // Reset all UI and local variables
+
+    CURRENT_CUE_ID_CHANGE,
+    _BROADCAST_TO_ALL_CUE_STOPPED
+};
+
+
+class ShowCommandListener {
+public:
+    virtual ~ShowCommandListener() = default;
+
+    /* Called when command is sent by a child component.
+    A child component should implement this function but the parent should as well.
+    When a child component detects a change, it should broadcast it to the parent through this function, then
+    the parent should broadcast it to all registered children also through this function.
+    Each component should implement actions for each ShowCommand it supports, and can simply ignore all other
+    irrelevant ShowCommands.
+
+    While most components will implement this function directly in the thread it was called, MainComponent must
+    implement it as a function that will always ultimately execute the command in the main thread. This means a
+    queue of awaiting ShowCommands should be used, and the main thread should process them in a loop
+    until the queue is empty. This is to ensure that all ShowCommands are executed in the main thread in the recieved
+    order. If one component takes too long to process a ShowCommand, this is a sacrifice that has to be made to ensure
+    atomicity.
+    */
+    virtual void commandOccurred(ShowCommand) = 0;
+};
+
+
 inline UUIDGenerator uuidGen;
 
 
@@ -205,6 +241,7 @@ private:
 };
 
 
+
 struct CurrentCueInfoVector {
     std::vector<CurrentCueInfo> vector;
 
@@ -216,7 +253,9 @@ struct CurrentCueInfoVector {
 
     // CurrentCueInfoVector(const std::vector<CurrentCueInfo>& cciVector): vector(cciVector), size(cciVector.size()) {}
 
-    CurrentCueInfoVector(std::vector<CurrentCueInfo> cciVector): vector(cciVector), size(cciVector.size()) {}
+
+    explicit CurrentCueInfoVector(const std::vector<CurrentCueInfo>& cciVector): vector(cciVector), size(cciVector.size()) {}
+
 
     CurrentCueInfo& getCurrentCueInfoByIndex(unsigned int index) {
         if (size == 0) {
@@ -235,12 +274,59 @@ struct CurrentCueInfoVector {
         return getCurrentCueInfoByIndex(index);
     }
 
-    int getSize() { return size; }
+
+    // Warning: the returned iterator is invalidated if the vector is modified! Use at your own risk. If you wish to
+    // retrieve a CCI before deleting it, use getCurrentCueInfoByIndex() and then delete it.
+    std::vector<CurrentCueInfo>::iterator erase(std::vector<CurrentCueInfo>::const_iterator first, std::vector<CurrentCueInfo>::const_iterator last) {
+        auto iter = vector.erase(first, last);
+        uponCueAddOrDelete();
+        return iter;
+    }
+
+    // Warning: the returned iterator is invalidated if the vector is modified! Use at your own risk. If you wish to
+    // retrieve a CCI before deleting it, use getCurrentCueInfoByIndex() and then delete it.
+    std::vector<CurrentCueInfo>::iterator erase(const unsigned int index) {
+        auto iter = vector.erase(vector.begin() + index);
+        uponCueAddOrDelete();
+        return iter;
+    }
+
+    // Warning: the returned iterator is invalidated if the vector is modified! Use at your own risk. If you wish to
+    // retrieve a CCI before deleting it, use getCurrentCueInfoByIndex() and then delete it.
+    std::vector<CurrentCueInfo>::iterator erase(const std::vector<CurrentCueInfo>::const_iterator first) {
+        auto iter = vector.erase(first);
+        uponCueAddOrDelete();
+        return iter;
+    }
+
+
+    void push_back(const CurrentCueInfo& cci) {
+        vector.push_back(cci);
+        uponCueAddOrDelete();
+    }
+
+    [[nodiscard]] std::vector<CurrentCueInfo>::const_iterator begin() const noexcept {
+        return vector.begin();
+    }
+
+    [[nodiscard]] int getSize() const { return size; }
 
 
 
 private:
     int size = 0;
+    std::vector<ShowCommandListener*> listeners;
+    void uponCueAddOrDelete() {
+        size = vector.size();
+
+        for (auto& listener: listeners) {
+            if (listener != nullptr) {
+                listener->commandOccurred(CUE_ADDED_OR_DELETED);
+            } else {
+                jassertfalse; // Listener is null, this should never happen
+            }
+        }
+    }
 };
 
 
@@ -281,19 +367,6 @@ enum Units {
     HERTZ,
     DB,
     NONE
-};
-
-enum ShowCommand {
-    SHOW_PLAY,
-    SHOW_STOP,
-    SHOW_NEXT_CUE,
-    SHOW_PREVIOUS_CUE,
-    SHOW_NAME_CHANGE,
-    CUE_ADDED_OR_DELETED,
-    FULL_SHOW_RESET, // Reset all UI and local variables
-
-    CURRENT_CUE_ID_CHANGE,
-    _BROADCAST_TO_ALL_CUE_STOPPED
 };
 
 const std::unordered_map<Units, int> ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT = {

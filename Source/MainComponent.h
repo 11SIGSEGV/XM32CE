@@ -5,58 +5,37 @@
 #include "AppComponents.h"
 
 
-class ShowCommandListener {
-public:
-    virtual ~ShowCommandListener() = default;
-
-    /* Called when command is sent by a child component.
-    A child component should implement this function but the parent should as well.
-    When a child component detects a change, it should broadcast it to the parent through this function, then
-    the parent should broadcast it to all registered children also through this function.
-    Each component should implement actions for each ShowCommand it supports, and can simply ignore all other
-    irrelevant ShowCommands.
-
-    While most components will implement this function directly in the thread it was called, MainComponent must
-    implement it as a function that will always ultimately execute the command in the main thread. This means a
-    queue of awaiting ShowCommands should be used, and the main thread should process them in a loop
-    until the queue is empty. This is to ensure that all ShowCommands are executed in the main thread in the recieved
-    order. If one component takes too long to process a ShowCommand, this is a sacrifice that has to be made to ensure
-    atomicity.
-    */
-    virtual void commandOccurred(ShowCommand) = 0;
-};
-
 //==============================================================================
 
 
 // Class containing methods for required cue data
 struct CueListData: public DraggableListBoxItemData {
-    std::vector<CurrentCueInfo> &cciVector;
-    CueListData(std::vector<CurrentCueInfo> &cciVector): cciVector(cciVector) {}
+    CurrentCueInfoVector &cciVector;
+    CueListData(CurrentCueInfoVector &cciVector): cciVector(cciVector) {}
 
-    int getNumItems() override { return cciVector.size(); }
+    int getNumItems() override { return cciVector.getSize(); }
     void deleteItem(int index) override {
-
         cciVector.erase(cciVector.begin() + index);
     };
-    void addItemAtEnd() override;
 
-    void paintContents(int, Graphics &, Rectangle<int>) override;
+    void addItemAtEnd() override { } // TODO: Figure out how to add a new CCI at the end of the vector... the virtual method does not implement passing a value to this function.
 
-    void moveAfter(int indexOfItemToMove, int indexOfItemToPlaceAfter) override;
+    void paintContents(int, Graphics &, Rectangle<int>) override {}
 
-    void moveBefore(int indexOfItemToMove, int indexOfItemToPlaceBefore) override;
+    void moveAfter(int indexOfItemToMove, int indexOfItemToPlaceAfter) override {}
+
+    void moveBefore(int indexOfItemToMove, int indexOfItemToPlaceBefore) override {}
 };
 
 
 
 // Class for Draggable Cue Info List Component
-class CueList: public DraggableListBoxModel {
+class CueListModel: public DraggableListBoxModel {
 public:
-    CueList(DraggableListBox& lb, DraggableListBoxItemData& md)
+    CueListModel(DraggableListBox& lb, DraggableListBoxItemData& md)
         : DraggableListBoxModel(lb, md) {}
 
-    Component* refreshComponentForRow(int, bool, Component*) override;
+    Component* refreshComponentForRow(int, bool, Component*) override {}
 };
 
 
@@ -66,8 +45,8 @@ public:
     CueListItem(DraggableListBox& lb, CueListData& data, int rn): DraggableListBoxItem(lb, data, rn) {}
     ~CueListItem() override = default;
 
-    void paint(Graphics &g) override;
-    void resized() override;
+    void paint(Graphics &g) override {};
+    void resized() override {};
 
 private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CueListItem)
@@ -528,7 +507,7 @@ private:
                 {},
             }
         }
-    ); // May replace with custom struct in future
+    );
 
 
 
@@ -539,12 +518,17 @@ private:
 
     HeaderBar headerBar{activeShowOptions};
     CCISidePanel sidePanel{activeShowOptions, cciVector};
+    DraggableListBox cueListBox;
+    CueListModel cueListModel;
+    CueListData cueListData{cciVector};
+
 
     const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};
 
+
     OSCDeviceSender oscDeviceSender{"127.0.0.1", "10023", "X32"};
     OSCCueDispatcherManager dispatcher{oscDeviceSender};
-    const std::vector<Component *> activeComps = {&headerBar, &sidePanel};
+    const std::vector<Component *> activeComps = {&headerBar, &sidePanel, &cueListBox};
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
