@@ -8,10 +8,14 @@
 //==============================================================================
 
 
-// Class containing methods for required cue data
+// Class containing methods for required cue data. Just a wrapper for CurrentCueInfoVector used by
+// DraggableListBoxItem and related classes.
 struct CueListData: public DraggableListBoxItemData {
     CurrentCueInfoVector &cciVector;
-    CueListData(CurrentCueInfoVector &cciVector): cciVector(cciVector) {}
+    ActiveShowOptions &activeShowOptions;
+
+    CueListData(CurrentCueInfoVector &cciVector, ActiveShowOptions& activeShowOptions):
+    cciVector(cciVector), activeShowOptions(activeShowOptions) {}
 
     int getNumItems() override { return cciVector.getSize(); }
     void deleteItem(int index) override {
@@ -20,11 +24,48 @@ struct CueListData: public DraggableListBoxItemData {
 
     void addItemAtEnd() override { } // TODO: Figure out how to add a new CCI at the end of the vector... the virtual method does not implement passing a value to this function.
 
-    void paintContents(int, Graphics &, Rectangle<int>) override {}
+    void paintContents(int rowNum, Graphics &g, Rectangle<int> bounds) override {
+        auto cci = cciVector.getCurrentCueInfoByIndex(rowNum);
+        if (cci.isInvalid()) {
+            return;
+        }
+        g.drawText(cci.id, bounds, Justification::centredLeft, true);
+    }
 
-    void moveAfter(int indexOfItemToMove, int indexOfItemToPlaceAfter) override {}
+    void moveAfter(int indexOfItemToMove, int indexOfItemToPlaceAfter) override {
+        if (indexOfItemToMove <= indexOfItemToPlaceAfter)
+            cciVector.move(indexOfItemToMove, indexOfItemToPlaceAfter);
+        else
+            cciVector.move(indexOfItemToMove, indexOfItemToPlaceAfter + 1);
+    }
 
-    void moveBefore(int indexOfItemToMove, int indexOfItemToPlaceBefore) override {}
+    void moveBefore(int indexOfItemToMove, int indexOfItemToPlaceBefore) override {
+        if (indexOfItemToMove <= indexOfItemToPlaceBefore)
+            cciVector.move(indexOfItemToMove, indexOfItemToPlaceBefore - 1);
+        else
+            cciVector.move(indexOfItemToMove, indexOfItemToPlaceBefore);
+
+    }
+};
+
+
+// Item
+class CueListItem: public DraggableListBoxItem {
+public:
+    CueListItem(DraggableListBox& lb, CueListData& data, int rn): DraggableListBoxItem(lb, data, rn) {}
+    ~CueListItem() override = default;
+
+    void paint(Graphics &g) override {
+        g.setColour(Colours::red);
+        g.drawRect(bounds, 2);
+        DraggableListBoxItem::paint(g);
+    }
+    void resized() override { bounds = getLocalBounds(); }
+
+private:
+    Rectangle<int> bounds;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CueListItem)
 };
 
 
@@ -35,22 +76,15 @@ public:
     CueListModel(DraggableListBox& lb, DraggableListBoxItemData& md)
         : DraggableListBoxModel(lb, md) {}
 
-    Component* refreshComponentForRow(int, bool, Component*) override {}
+    Component* refreshComponentForRow(int rowNumber, bool, Component* componentToUpdate) override {
+        std::unique_ptr<CueListItem> item(dynamic_cast<CueListItem*>(componentToUpdate));
+        if (isPositiveAndBelow(rowNumber, modelData.getNumItems())) {
+            item = std::make_unique<CueListItem>(listBox, (CueListData &)modelData, rowNumber);
+        }
+        return item.release();
+    }
 };
 
-
-// Item
-class CueListItem: public DraggableListBoxItem {
-public:
-    CueListItem(DraggableListBox& lb, CueListData& data, int rn): DraggableListBoxItem(lb, data, rn) {}
-    ~CueListItem() override = default;
-
-    void paint(Graphics &g) override {};
-    void resized() override {};
-
-private:
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CueListItem)
-};
 
 
 
@@ -520,7 +554,7 @@ private:
     CCISidePanel sidePanel{activeShowOptions, cciVector};
     DraggableListBox cueListBox;
     CueListModel cueListModel;
-    CueListData cueListData{cciVector};
+    CueListData cueListData{cciVector, activeShowOptions};
 
 
     const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};

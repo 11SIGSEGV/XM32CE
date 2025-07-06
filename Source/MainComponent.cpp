@@ -15,7 +15,6 @@ MainComponent::MainComponent(const int timerCallbackForShowCommandQueueIntervalM
     headerBar.registerListener(this);
 
     cueListBox.setModel(&cueListModel);
-    cueListBox.setRowHeight(40);
 
     commandOccurred(FULL_SHOW_RESET);
 
@@ -46,7 +45,9 @@ void MainComponent::resized() {
     auto bounds = getLocalBounds();
     headerBar.setBounds(bounds.removeFromTop(bounds.getHeight() * 0.05f));
     sidePanel.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.2f));
+    auto boxHeight = bounds.getHeight() * 0.08f;
     cueListBox.setBounds(bounds);
+    cueListBox.setRowHeight(boxHeight);
 
 }
 

@@ -22,10 +22,12 @@ enum ShowCommand {
     SHOW_NEXT_CUE,
     SHOW_PREVIOUS_CUE,
     SHOW_NAME_CHANGE,
-    CUE_ADDED_OR_DELETED,
+    CUES_ADDED,
+    CUES_DELETED,
     FULL_SHOW_RESET, // Reset all UI and local variables
 
     CURRENT_CUE_ID_CHANGE,
+    CUE_INDEXS_CHANGED,
     _BROADCAST_TO_ALL_CUE_STOPPED
 };
 
@@ -241,23 +243,27 @@ private:
 };
 
 
-
 struct CurrentCueInfoVector {
     std::vector<CurrentCueInfo> vector;
 
     CurrentCueInfo _blankCCI; // A blank CCI to return when an index is out of range or when no CCIs are available
     // Pre-created to avoid recreating for every invalid CCI access
 
-    CurrentCueInfoVector() = default;
+    CurrentCueInfoVector(const CurrentCueInfoVector& other): vector(other.vector) {
+        reconstructCCIToIndexMap();
+        size = vector.size();
+    }
 
 
     // CurrentCueInfoVector(const std::vector<CurrentCueInfo>& cciVector): vector(cciVector), size(cciVector.size()) {}
 
 
-    explicit CurrentCueInfoVector(const std::vector<CurrentCueInfo>& cciVector): vector(cciVector), size(cciVector.size()) {}
+    explicit CurrentCueInfoVector(const std::vector<CurrentCueInfo>& cciVector): vector(cciVector), size(cciVector.size()) {
+        reconstructCCIToIndexMap();
+    }
 
 
-    CurrentCueInfo& getCurrentCueInfoByIndex(unsigned int index) {
+    CurrentCueInfo& getCurrentCueInfoByIndex(size_t index) {
         if (size == 0) {
             return _blankCCI;
         }
@@ -269,7 +275,8 @@ struct CurrentCueInfoVector {
     }
 
 
-    CurrentCueInfo& operator[](unsigned int index) {
+    // Just passes index to getCurrentCueInfoByIndex().
+    CurrentCueInfo& operator[](size_t index) {
         // TODO: Test because i have no clue what i'm doing
         return getCurrentCueInfoByIndex(index);
     }
@@ -279,15 +286,15 @@ struct CurrentCueInfoVector {
     // retrieve a CCI before deleting it, use getCurrentCueInfoByIndex() and then delete it.
     std::vector<CurrentCueInfo>::iterator erase(std::vector<CurrentCueInfo>::const_iterator first, std::vector<CurrentCueInfo>::const_iterator last) {
         auto iter = vector.erase(first, last);
-        uponCueAddOrDelete();
+        uponCuesDeleted();
         return iter;
     }
 
     // Warning: the returned iterator is invalidated if the vector is modified! Use at your own risk. If you wish to
     // retrieve a CCI before deleting it, use getCurrentCueInfoByIndex() and then delete it.
-    std::vector<CurrentCueInfo>::iterator erase(const unsigned int index) {
+    std::vector<CurrentCueInfo>::iterator erase(size_t index) {
         auto iter = vector.erase(vector.begin() + index);
-        uponCueAddOrDelete();
+        uponCuesDeleted();
         return iter;
     }
 
@@ -295,39 +302,161 @@ struct CurrentCueInfoVector {
     // retrieve a CCI before deleting it, use getCurrentCueInfoByIndex() and then delete it.
     std::vector<CurrentCueInfo>::iterator erase(const std::vector<CurrentCueInfo>::const_iterator first) {
         auto iter = vector.erase(first);
-        uponCueAddOrDelete();
+        uponCuesDeleted();
         return iter;
     }
 
 
     void push_back(const CurrentCueInfo& cci) {
         vector.push_back(cci);
-        uponCueAddOrDelete();
+        uponCueAdd(cci);
+    }
+
+    // Based off https://stackoverflow.com/a/57399634/16571234
+    void move(size_t oldIndex, size_t newIndex) {
+        if (oldIndex > newIndex)
+            std::rotate(vector.rend() - oldIndex - 1, vector.rend() - oldIndex, vector.rend() - newIndex);
+        else
+            std::rotate(vector.begin() + oldIndex, vector.begin() + oldIndex + 1, vector.begin() + newIndex + 1);
+        updateCCIIndexMap(oldIndex, newIndex);
+        _notifyListeners(CUE_INDEXS_CHANGED);
     }
 
     [[nodiscard]] std::vector<CurrentCueInfo>::const_iterator begin() const noexcept {
         return vector.begin();
     }
 
-    [[nodiscard]] int getSize() const { return size; }
+    [[nodiscard]] size_t getSize() const { return size; }
 
 
+    void addListener(ShowCommandListener* listener) {
+        if (listener != nullptr) {
+            listeners.push_back(listener);
+        } else {
+            jassertfalse; // Listener is null, this should never happen
+        }
+    }
+    void removeListener(ShowCommandListener* listener) {
+        listeners.erase(std::remove(listeners.begin(), listeners.end(), listener), listeners.end());
+    }
 
+    size_t getIndexByCCIInternalID(const std::string &cciInternalID) {
+        auto it = cciIDtoIndexMap.find(cciInternalID);
+        if (it == cciIDtoIndexMap.end()) {
+            return sizeTLimit;
+        }
+        return it->second;
+    }
+
+    static constexpr size_t sizeTLimit = static_cast<size_t>(-1); // We use this to indicate an invalid index. But... if by some miracle the vector reaches this size, we must not use it.
 private:
-    int size = 0;
-    std::vector<ShowCommandListener*> listeners;
-    void uponCueAddOrDelete() {
-        size = vector.size();
+    std::unordered_map<std::string, size_t> cciIDtoIndexMap; // Maps CCI internal ID to index in the vector
 
+    size_t size = 0;
+    std::vector<ShowCommandListener*> listeners;
+
+    void uponCueAdd(const CurrentCueInfo& cciAdded) {
+        size++;
+        if (size == sizeTLimit) {
+            jassertfalse; // ...how did you get so many elements inside the vector? The size_t limit is used in this struct to represent an invalid index, so this may break the "static_cast<size_t>(-1)"th element.
+        }
+        addCCIToIndexMap(cciAdded.getInternalID());
+        _notifyListeners(CUES_ADDED);
+    }
+
+    void uponCuesDeleted() {
+        size = vector.size(); // Yeah... we could go size -= internalIDsOfCCIsDeleted.size(), but like... at that rate just recalculate the size of the vector.
+        // yes... we can calculate the new cciIDtoIndexMap... but depending on how many CCIs were deleted... the performance really does not matter in the end.
+        // So we'll just reconstruct it.
+        reconstructCCIToIndexMap();
+        _notifyListeners(CUES_DELETED);
+    }
+
+    void _notifyListeners(ShowCommand command) {
         for (auto& listener: listeners) {
             if (listener != nullptr) {
-                listener->commandOccurred(CUE_ADDED_OR_DELETED);
+                listener->commandOccurred(command);
             } else {
                 jassertfalse; // Listener is null, this should never happen
             }
         }
     }
+
+    // Completely reconstructs cciIDToIndexMap
+    void reconstructCCIToIndexMap() {
+        cciIDtoIndexMap.clear();
+        for (size_t i = 0; i < size; i++) {
+            cciIDtoIndexMap[vector[i].getInternalID()] = i;
+        }
+    }
+
+    size_t manuallyFindIndexOfCCIByInternalID(const std::string& cciInternalID) const {
+        // This is a manual search, not using the map
+        for (size_t i = 0; i < size; i++) {
+            if (vector[i].getInternalID() == cciInternalID) {
+                return i;
+            }
+        }
+        return sizeTLimit; // Not found
+    }
+
+    /* Updates the cciIDtoIndexMap with an internal ID was not previously in the map
+     * The function will find the index of the new CCI by its ID. The index the CCI was added at does not need to be specified.
+     */
+    void addCCIToIndexMap(const std::string &cciInternalID) {
+        // Identify the index of the CCI
+        size_t index = manuallyFindIndexOfCCIByInternalID(cciInternalID);
+        if (index == sizeTLimit) {
+            jassertfalse; // This should never happen! We should always have a CCI internal ID in the vector.
+            cciIDtoIndexMap[cciInternalID] = sizeTLimit;
+        }
+        cciIDtoIndexMap[cciInternalID] = index;
+        // If there's any elements after this index, we also need to update them
+        if (size - 1 == index) {
+            return; // Added at the end of the vector
+        }
+        // For every index in the cciIDToIndexMap after the newly added CCI's index, we need to increment it by one
+        // This is because we're basically pushing back the vector by one.
+        for (auto& it: cciIDtoIndexMap) {
+            if (it.second > index) {
+                it.second++;
+            }
+        }
+
+
+    }
+
+    /* Updates the cciIDtoIndexMap based on the oldIndex and newIndex. Figured out after some maths.
+     * Useful for single move operations. Much faster than reconstructing the entire map
+     * Best for when CurrentCueInfoVector::move has been called and the CCI index map needs to updated accordingly.
+     * Only functions when ONE element in the vector has been moved.
+     */
+    void updateCCIIndexMap(size_t oldIndex, size_t newIndex) {
+        // When moving, the affected range of indexes will be between oldIndex and newIndex, inclusive.
+        size_t firstIndexChanged = std::min(oldIndex, newIndex);
+        size_t lastIndexChanged = std::max(oldIndex, newIndex);
+        if (firstIndexChanged >= size || oldIndex >= size || newIndex >= size) {
+            jassertfalse; // Index out of range
+            return;
+        }
+
+        // Remove the old index from the map
+        // No `const auto&` it as we need to modify the map's elements
+        for (auto& it : cciIDtoIndexMap) {
+            // If the index matches the old index, changed it to the new index.
+            if (it.second == oldIndex) {
+                it.second = newIndex;
+                continue;
+            }
+            if (it.second < firstIndexChanged || it.second > lastIndexChanged) { continue; }
+
+            // Simply increment one to the index. This will reflect the movement of ONE element.
+            it.second++;
+        }
+    }
 };
+
+
 
 
 
