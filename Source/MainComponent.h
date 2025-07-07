@@ -362,7 +362,7 @@ private:
 
     const std::set<ShowCommand> _showCommandsRequiringImageReconstruction = {
         SHOW_NEXT_CUE, SHOW_PREVIOUS_CUE, SHOW_NAME_CHANGE,
-        CURRENT_CUE_ID_CHANGE, FULL_SHOW_RESET, CUE_ADDED_OR_DELETED
+        CURRENT_CUE_ID_CHANGE, FULL_SHOW_RESET, CUES_ADDED, CUES_DELETED
     };
     const std::set<ShowCommand> _showCommandsRequiringButtonReconstruction = {SHOW_STOP, SHOW_PLAY};
 
@@ -428,46 +428,18 @@ public:
     void resized() override;
 
 
-    void updateActiveShowOptionsFromCCIIndex(unsigned int newIndex);
-
-    // Updates cciIDtoIndexMap based on CurrentCueInfoVector.
-    void updateCCIIDToIndexMap();
-
-    // Updates entire actionIDtoCCIInternalIDMap based on CurrentCueInfoVector.
-    void updateActionIDToCCIDIndexMap();
-
-    // Updates all action IDs associated with a CCI.
-    void updateActionIDToCCIDIndexMap(const CurrentCueInfo &cci);
-
-    // Adds a running action ID to the CCI internal ID map. Used to track which actions in a CCI are currently running.
-    // Should be called when a CCI's actions are dispatched to the OSCDispatcherManager.
-    void addRunningActionID(std::string actionID, std::string cciInternalID = "");
-
-    // Loops through all actions in the CCI and calls addRunningActionID() for each action.
-    void addRunningActionsIDViaCCI(const CurrentCueInfo &cci);
-
-    // Removes action ID from the map of running action IDs. Returns the number of actionIDs still running
-    // for the CCI AFTER removing the actionID. (i.e., cciIDToRunningActionIDs[cci.ID].size()). Returns -1 in an error.
-    int removeRunningActionID(std::string actionID, std::string cciInternalID = "");
-
-    // Loops through all actions in the CCI and calls removeRunningActionID() for each action.
-    void removeRunningActionsIDViaCCI(const CurrentCueInfo &cci);
-
-
-    void setPlayStatusForCurrentCue(bool isPlaying);
-
-    void setPlayStatusForCurrentCueByIndex(unsigned int index, bool isPlaying);
-
-    // Expects valid CCI internal ID (should be UUID-like). Returns -1 when not found.
-    int getCueIndexFromCCIInternalID(std::string cciInternalID);
+    void updateActiveShowOptionsFromCCIIndex(size_t newIndex);
 
 
     // Implemented to listen for ShowCommands. Broadcasts all commands to registered callbacks.
     void commandOccurred(ShowCommand) override;
 
+    void setNewIndexForCCI();
+
     // Actually handles the ShowCommands. commandOccurred can be called from any thread, but this function
     // will always be called in the main thread.
     void hiResTimerCallback() override;
+
 
     void sendCommandToAllListeners(ShowCommand);
 

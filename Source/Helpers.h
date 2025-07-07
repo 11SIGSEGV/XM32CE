@@ -250,8 +250,9 @@ struct CurrentCueInfoVector {
     // Pre-created to avoid recreating for every invalid CCI access
 
     CurrentCueInfoVector(const CurrentCueInfoVector& other): vector(other.vector) {
-        reconstructCCIToIndexMap();
         size = vector.size();
+        reconstructCCIToIndexMap();
+        reconstructActionCCIMap();
     }
 
 
@@ -312,7 +313,7 @@ struct CurrentCueInfoVector {
         uponCueAdd(cci);
     }
 
-    // Based off https://stackoverflow.com/a/57399634/16571234
+    // Based off https://stackoverflow.com/a/57399634/16571234! Thanks for the algorithm!
     void move(size_t oldIndex, size_t newIndex) {
         if (oldIndex > newIndex)
             std::rotate(vector.rend() - oldIndex - 1, vector.rend() - oldIndex, vector.rend() - newIndex);
@@ -336,23 +337,103 @@ struct CurrentCueInfoVector {
             jassertfalse; // Listener is null, this should never happen
         }
     }
+
     void removeListener(ShowCommandListener* listener) {
         listeners.erase(std::remove(listeners.begin(), listeners.end(), listener), listeners.end());
     }
 
     size_t getIndexByCCIInternalID(const std::string &cciInternalID) {
         auto it = cciIDtoIndexMap.find(cciInternalID);
-        if (it == cciIDtoIndexMap.end()) {
-            return sizeTLimit;
+        return it != cciIDtoIndexMap.end() ? it->second : sizeTLimit;
+    }
+
+    // Gets the parent CCI Internal ID of the CueOSCAction. Expects actionIDtoCCIInternalIDMap to be constructed and valid
+    // If not, returns empty string.
+    std::string getParentCCIInternalID(const CueOSCAction &action) {
+        auto it = actionIDtoCCIInternalIDMap.find(action.ID);
+        return it != actionIDtoCCIInternalIDMap.end() ? it->second : "";
+    }
+
+    // Gets the parent CCI Internal ID of the CueOSCAction. Expects actionIDtoCCIInternalIDMap to be constructed and valid
+    // If not, returns empty string.
+    std::string getParentCCIInternalID(std::string actionID) {
+        auto it = actionIDtoCCIInternalIDMap.find(actionID);
+        return it != actionIDtoCCIInternalIDMap.end() ? it->second : "";
+    }
+
+    // Sets an actionID as running. Automatically tries to get the cciInternalID from the actionIDtoCCIInternalIDMap
+    // If fail, nothing will occur.
+    void setAsRunning(std::string actionID, std::string cciInternalID = "") {
+        if (cciInternalID.empty()) {
+            // Figure it out ourselves
+            auto it = actionIDtoCCIInternalIDMap.find(actionID);
+            if (it == actionIDtoCCIInternalIDMap.end()) {
+                jassertfalse; // What do you mean the actionID doesn't have a parent CCI mapped?
+                return;
+            }
+            cciInternalID = it->second;
         }
-        return it->second;
+        cciIDtoRunningActionIDsMap[cciInternalID].insert(actionID); // This will implicitly generate a set for
+        // cciIDtoRunningActionIDsMap[cciInternalID] if actionID is not yet in cciIDtoRunningActionIDsMap.
+    }
+
+    // Loops through each action in the CCI and calls setAsRunning(std::string actionID, std::string cciInternalID = "")
+    // for each action.
+    void setAsRunning(const CurrentCueInfo& cci) {
+        auto cciInternalID = cci.getInternalID();
+        for (const auto& action: cci.actions) {
+            setAsRunning(action.ID, cciInternalID);
+        }
+    }
+
+    // Removes an actionID from the list of running actions for a CCI.
+    // Does nothing if the actionID is not in the set of running actions for the CCI.
+    // Returns size_t limit (this->sizeTLimit) when failed. Otherwise, returns the number of actionIDs left
+    // in the set of running actionIDs for the cciInternalID (i.e., the number of running actions)
+    size_t removeFromRunning(std::string actionID, std::string cciInternalID = "") {
+        if (cciInternalID.empty()) {
+            // Figure it out ourselves
+            auto it = actionIDtoCCIInternalIDMap.find(actionID);
+            if (it == actionIDtoCCIInternalIDMap.end()) {
+                jassertfalse; // What do you mean the actionID doesn't have a parent CCI mapped?
+                return sizeTLimit;
+            }
+            cciInternalID = it->second;
+        }
+        // Now we can remove it from the map
+        auto cciIt = cciIDtoRunningActionIDsMap.find(cciInternalID);
+        if (cciIt != cciIDtoRunningActionIDsMap.end()) {
+            cciIt->second.erase(actionID); // Erase does not throw an exception, even if actionID mysteriously disappears
+            return cciIt->second.size();
+        }
+
+        jassertfalse; // This should never happen! We should always have a CCI internal ID in the map.
+        return sizeTLimit;
+    }
+
+    // Loops through all actions in the CCI and calls removeRunningActionID for each.
+    void removeFromRunning(const CurrentCueInfo& cci) {
+        auto cciInternalID = cci.getInternalID();
+        for (const auto& action: cci.actions) {
+            removeFromRunning(action.ID, cciInternalID);
+        }
     }
 
     static constexpr size_t sizeTLimit = static_cast<size_t>(-1); // We use this to indicate an invalid index. But... if by some miracle the vector reaches this size, we must not use it.
 private:
+    // A.k.a. CCIIndexMap
     std::unordered_map<std::string, size_t> cciIDtoIndexMap; // Maps CCI internal ID to index in the vector
 
-    size_t size = 0;
+    // A.k.a., ActionCCIMap
+    // A few notes about this:
+    // 1. An actionID's parent CCI should never change; hence its CCI Internal ID should never change
+    std::unordered_map<std::string, std::string> actionIDtoCCIInternalIDMap; // Maps actionIDs of each action in cci.actions to its parent's INTERNAL_ID (cci.INTERNAL_ID) TODO: Implement
+
+    // A.k.a. RunningActionsMap
+    std::unordered_map<std::string, std::set<std::string>> cciIDtoRunningActionIDsMap; // Maps the CCI Internal IDs to the action IDs of the CCI which are still running
+
+
+    size_t size;
     std::vector<ShowCommandListener*> listeners;
 
     void uponCueAdd(const CurrentCueInfo& cciAdded) {
@@ -361,16 +442,18 @@ private:
             jassertfalse; // ...how did you get so many elements inside the vector? The size_t limit is used in this struct to represent an invalid index, so this may break the "static_cast<size_t>(-1)"th element.
         }
         addCCIToIndexMap(cciAdded.getInternalID());
+        addToActionCCIMap(cciAdded);
         _notifyListeners(CUES_ADDED);
     }
 
+
     void uponCuesDeleted() {
-        size = vector.size(); // Yeah... we could go size -= internalIDsOfCCIsDeleted.size(), but like... at that rate just recalculate the size of the vector.
-        // yes... we can calculate the new cciIDtoIndexMap... but depending on how many CCIs were deleted... the performance really does not matter in the end.
-        // So we'll just reconstruct it.
+        size = vector.size();
         reconstructCCIToIndexMap();
+        reconstructActionCCIMap();
         _notifyListeners(CUES_DELETED);
     }
+
 
     void _notifyListeners(ShowCommand command) {
         for (auto& listener: listeners) {
@@ -382,13 +465,16 @@ private:
         }
     }
 
+
     // Completely reconstructs cciIDToIndexMap
     void reconstructCCIToIndexMap() {
-        cciIDtoIndexMap.clear();
+        std::unordered_map<std::string, size_t> tempMap;
         for (size_t i = 0; i < size; i++) {
-            cciIDtoIndexMap[vector[i].getInternalID()] = i;
+            tempMap[vector[i].getInternalID()] = i;
         }
+        cciIDtoIndexMap = std::move(tempMap);
     }
+
 
     size_t manuallyFindIndexOfCCIByInternalID(const std::string& cciInternalID) const {
         // This is a manual search, not using the map
@@ -454,8 +540,73 @@ private:
             it.second++;
         }
     }
-};
 
+    // Reconstruct the actionID: CCI Internal ID map
+    void reconstructActionCCIMap() {
+        std::unordered_map<std::string, std::string> tempMap;
+        for (auto& cci: vector) {
+            for (auto& action: cci.actions) {
+                tempMap[action.ID] = cci.getInternalID();
+            }
+        }
+        actionIDtoCCIInternalIDMap = std::move(tempMap);
+    }
+
+    // Add an actionID to the action-CCI map by using a CCI
+    void addToActionCCIMap(const CurrentCueInfo& cci) {
+        std::string cciInternalID = cci.getInternalID();
+        for (const auto& action: cci.actions) {
+            actionIDtoCCIInternalIDMap[action.ID] = cciInternalID;
+        }
+    }
+
+    // Add an actionID to the action-CCI map by using a CueOSCAction and its parent CCI
+    void addToActionCCIMap(const CueOSCAction& action, const CurrentCueInfo& parentCCI) {
+        actionIDtoCCIInternalIDMap[action.ID] = parentCCI.getInternalID();
+    }
+
+    // Add an actionID to the action-CCI map by using a CueOSCAction and its parent CCI ID
+    void addToActionCCIMap(const CueOSCAction& action, const std::string &cciID) {
+        actionIDtoCCIInternalIDMap[action.ID] = cciID;
+    }
+
+    // Add an actionID to the action-CCI map by using a CueOSCAction. Automatically tries to detect action's parent CCI
+    // but expects the CCI containing the CueOSCAction to already be added to this CCIVector. Slower than using the
+    // other overloads for this function.
+    // WARNING: Will jassertfalse and return false if the action is not already in one of the CCIs in the CCIVector.
+    // However, this function will NOT add action.ID to the map. It is only guaranteed that action.ID is added to the
+    // map when true is returned
+    bool addToActionCCIMap(const CueOSCAction& action) {
+        // Find the parent CCI
+        for (const auto& cci: vector) {
+            for (const auto& possibleAction: cci.actions ) {
+                if (possibleAction.ID == action.ID) {
+                    actionIDtoCCIInternalIDMap[action.ID] = cci.getInternalID();
+                    return true;
+                }
+            }
+        }
+        jassertfalse; // Nothing found! Not adding the Action
+        return false;
+    }
+
+
+    // Remove items from the action-CCI map by using a CueOSCAction
+    void removeFromActionCCIMap(const CueOSCAction& action) {
+        actionIDtoCCIInternalIDMap.erase(action.ID);
+    }
+
+    // Remove items from the action-CCI map by using a CCI
+    void removeFromActionCCIMap(const CurrentCueInfo& cci) {
+        for (const auto& action : cci.actions) {
+            actionIDtoCCIInternalIDMap.erase(action.ID);
+        }
+    }
+
+
+
+
+};
 
 
 
@@ -464,20 +615,22 @@ struct ActiveShowOptions {
     String showName; // Should be max-len of 24. Not Strict.
     String showDescription;
     String currentCueID;
-    int currentCueIndex; // Zero-indexed (0 --> n)
+    std::string currentCueInternalID;
+    size_t currentCueIndex; // Zero-indexed (0 --> n)
     bool currentCuePlaying;
-    int numberOfCueItems; // NOT Zero-indexed
+    size_t numberOfCueItems; // NOT Zero-indexed
 
 
     // Modifies currentCueID, currentCueIndex, currentCuePlaying and numberOfCueItems from cciVector.
     // If useIndex is out of range, it will default to 0, not the last element of cciVector.
-    void loadCueValuesFromCCIVector(CurrentCueInfoVector& cciVector, unsigned int useIndex = 0) {
+    void loadCueValuesFromCCIVector(CurrentCueInfoVector& cciVector, size_t useIndex = 0) {
         auto cciVSize = cciVector.getSize();
         if (cciVSize == 0) {
             currentCueIndex = 0;
             currentCuePlaying = false;
             numberOfCueItems = 0;
             currentCueID = "";
+            currentCueInternalID = "";
             return;
         }
         if (useIndex >= cciVSize) {
@@ -488,6 +641,7 @@ struct ActiveShowOptions {
         currentCuePlaying = cci.currentlyPlaying;
         currentCueID = cci.id;
         numberOfCueItems = cciVSize;
+        currentCueInternalID = cci.getInternalID();
     }
 };
 

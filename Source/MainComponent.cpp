@@ -6,8 +6,6 @@
 MainComponent::MainComponent(const int timerCallbackForShowCommandQueueIntervalMS):
  cueListModel(cueListBox, cueListData) {
     DBG("OSC Device Connected on " + oscDeviceSender.getIPAddress());
-    updateActionIDToCCIDIndexMap();
-    updateCCIIDToIndexMap();
 
     dispatcher.startThread();
     dispatcher.registerListener(this);
@@ -52,7 +50,7 @@ void MainComponent::resized() {
 }
 
 
-void MainComponent::updateActiveShowOptionsFromCCIIndex(unsigned int newIndex) {
+void MainComponent::updateActiveShowOptionsFromCCIIndex(size_t newIndex) {
     auto ccisInfoSize = cciVector.getSize();
     if (ccisInfoSize == 0) {
         // Set cue info to default
@@ -60,6 +58,7 @@ void MainComponent::updateActiveShowOptionsFromCCIIndex(unsigned int newIndex) {
         activeShowOptions.currentCueID = "";
         activeShowOptions.currentCuePlaying = false;
         activeShowOptions.numberOfCueItems = 0;
+        activeShowOptions.currentCueInternalID = "";
         return;
     }
 
@@ -70,124 +69,17 @@ void MainComponent::updateActiveShowOptionsFromCCIIndex(unsigned int newIndex) {
     activeShowOptions.currentCueID = cci.id;
     activeShowOptions.currentCuePlaying = cci.currentlyPlaying;
     activeShowOptions.numberOfCueItems = ccisInfoSize;
+    activeShowOptions.currentCueInternalID = cci.getInternalID();
 }
-
-
-void MainComponent::updateCCIIDToIndexMap() {
-    cciIDtoIndexMap.clear();
-    for (int i = 0; i < cciVector.getSize(); i++) {
-        auto cci = cciVector.getCurrentCueInfoByIndex(i);
-        if (cci.isInvalid()) {
-            // WOAH WOAH WOAH!! We've managed to change the cciVector in this loop... it's a race condition!
-            // This is a realtime app - we don't use mutex or other locking mechanisms... sooo be careful! This should
-            // never happen!
-            jassertfalse;
-            break; // No point in continuing looping; the next CCI will likely also throw an out_of_range exception
-        }
-        cciIDtoIndexMap[cci.getInternalID()] = i;
-    }
-}
-
-
-void MainComponent::updateActionIDToCCIDIndexMap() {
-    actionIDtoCCIInternalIDMap.clear();
-    for (auto &cci: cciVector.vector) {
-        updateActionIDToCCIDIndexMap(cci);
-    }
-}
-
-
-void MainComponent::updateActionIDToCCIDIndexMap(const CurrentCueInfo &cci) {
-    for (const auto &action: cci.actions) {
-        actionIDtoCCIInternalIDMap[action.ID] = cci.getInternalID();
-    }
-}
-
-
-void MainComponent::addRunningActionID(std::string actionID, std::string cciInternalID) {
-    if (cciInternalID == "") {
-        // Ok, let's figure it out
-        auto it = actionIDtoCCIInternalIDMap.find(actionID);
-        if (it == actionIDtoCCIInternalIDMap.end()) {
-            // If we can't find it, we should not add it.
-            jassertfalse; // This should never happen!
-            return;
-        }
-        cciInternalID = it->second; // Get the CCI internal ID from the action ID
-    }
-    // Now we can add it to the map
-    if (cciIDToRunningActionIDs.find(cciInternalID) == cciIDToRunningActionIDs.end()) {
-        // If the CCI internal ID is not found, create a new set for it
-        cciIDToRunningActionIDs[cciInternalID] = std::set<std::string>();
-    }
-    cciIDToRunningActionIDs[cciInternalID].insert(actionID);
-}
-
-
-void MainComponent::addRunningActionsIDViaCCI(const CurrentCueInfo &cci) {
-    for (auto &action: cci.actions) {
-        addRunningActionID(action.ID, cci.getInternalID());
-    }
-}
-
-
-int MainComponent::removeRunningActionID(std::string actionID, std::string cciInternalID) {
-    if (cciInternalID == "") {
-        // Ok, let's figure it out
-        auto it = actionIDtoCCIInternalIDMap.find(actionID);
-        if (it == actionIDtoCCIInternalIDMap.end()) {
-            // If we can't find it, we should not remove it.
-            jassertfalse; // This should never happen!
-            return -1;
-        }
-        cciInternalID = it->second; // Get the CCI internal ID from the action ID
-    }
-    // Now we can remove it from the map
-    auto cciIt = cciIDToRunningActionIDs.find(cciInternalID);
-    if (cciIt != cciIDToRunningActionIDs.end()) {
-        cciIt->second.erase(actionID); // Erase does not throw an exception, even if actionID mysteriously disappears
-        return cciIt->second.size();
-    }
-
-    jassertfalse; // This should never happen! We should always have a CCI internal ID in the map.
-    return -1;
-}
-
-
-void MainComponent::removeRunningActionsIDViaCCI(const CurrentCueInfo &cci) {
-    for (auto &action: cci.actions) {
-        removeRunningActionID(action.ID, cci.getInternalID());
-    }
-}
-
-
-void MainComponent::setPlayStatusForCurrentCue(bool isPlaying) {
-    if (activeShowOptions.numberOfCueItems == 0) {
-        return;
-    }
-    setPlayStatusForCurrentCueByIndex(activeShowOptions.currentCueIndex, isPlaying);
-}
-
-void MainComponent::setPlayStatusForCurrentCueByIndex(unsigned int index, bool isPlaying) {
-    if (index == activeShowOptions.currentCueIndex) {
-        activeShowOptions.currentCuePlaying = isPlaying;
-    }
-    cciVector.getCurrentCueInfoByIndex(index).currentlyPlaying = isPlaying;
-}
-
-int MainComponent::getCueIndexFromCCIInternalID(std::string cciInternalID) {
-    // Use unordered_map
-    auto it = cciIDtoIndexMap.find(cciInternalID);
-    if (it != cciIDtoIndexMap.end()) {
-        return it->second; // Return the index
-    }
-    return -1; // Not found
-}
-
 
 
 void MainComponent::commandOccurred(ShowCommand cmd) {
     awaitingShowCommands.push(cmd);
+}
+
+void MainComponent::setNewIndexForCCI() {
+    // Get the new correct CCI
+    activeShowOptions.currentCueIndex = cciVector.getIndexByCCIInternalID(activeShowOptions.currentCueInternalID);
 }
 
 
@@ -209,9 +101,11 @@ void MainComponent::hiResTimerCallback() {
             auto cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid()) { break; }
 
-            setPlayStatusForCurrentCue(true);
+            cci.currentlyPlaying = true;
+            activeShowOptions.currentCuePlaying = true;
+
             dispatcher.addCueToMessageQueue(cci);
-            addRunningActionsIDViaCCI(cci);
+            cciVector.setAsRunning(cci);
             break;
         }
         case SHOW_STOP: {
@@ -223,18 +117,19 @@ void MainComponent::hiResTimerCallback() {
                 return;
             }
 
-            setPlayStatusForCurrentCue(false);
+            cci.currentlyPlaying = false;
+            activeShowOptions.currentCuePlaying = false;
+
             dispatcher.stopAllActionsInCCI(cci);
-            removeRunningActionsIDViaCCI(cci);
+            cciVector.removeFromRunning(cci);
             break;
         }
         case SHOW_NAME_CHANGE:
-            std::cout << "Show Name Change" << std::endl;
             break;
         case FULL_SHOW_RESET:
             break; // Don't need to do anything, but we still need to broadcast it to all callbacks.'
-        case CUE_ADDED_OR_DELETED:
-            updateCCIIDToIndexMap();
+        case CUES_ADDED: case CUES_DELETED:
+            setNewIndexForCCI();
             break;
         case _BROADCAST_TO_ALL_CUE_STOPPED:
             cmd = SHOW_STOP; // Morph command
@@ -267,8 +162,8 @@ void MainComponent::sendCommandToAllListeners(ShowCommand cmd) {
 
 
 void MainComponent::actionFinished(std::string actionID) {
-    auto remaining = removeRunningActionID(actionID);
-    if (remaining == -1) {
+    auto remaining = cciVector.removeFromRunning(actionID);
+    if (remaining == cciVector.sizeTLimit) {
         // Oh no... we done goofed up.
         // Let's just... pretend nothing happened.
         // We're only returning without jassert because removeRunningActionID should've already jasserted.
@@ -278,21 +173,24 @@ void MainComponent::actionFinished(std::string actionID) {
         // Wait... that's the last action running for the CCI!
         // Let's update the active show options to reflect that the current cue is no longer playing.
         // First, find the CCI internal ID for the action ID
-        auto it = actionIDtoCCIInternalIDMap.find(actionID);
-        if (it == actionIDtoCCIInternalIDMap.end()) {
-            jassertfalse; // This should never happen! We should always have a CCI internal ID for the action ID.
+        auto cciInternalID = cciVector.getParentCCIInternalID(actionID);
+        if (cciInternalID.empty()) {
+            jassertfalse; // Invalid CCI Internal ID. That means it wasn't in the actionIDtoCCIInternalIDMap.
             return;
         }
-        auto cciInternalID = it->second;
         // Now, find the index of the CCI internal ID in the cciIDtoIndexMap
-        auto cciIndexIt = cciIDtoIndexMap.find(cciInternalID);
-        if (cciIndexIt == cciIDtoIndexMap.end()) {
-            jassertfalse; // This should never happen! We should always have a CCI internal ID in the map.
+        size_t cciIndex = cciVector.getIndexByCCIInternalID(cciInternalID);
+        if (cciIndex == cciVector.sizeTLimit) {
+            jassertfalse; // Invalid CCI Index. That means it wasn't in the cciIDtoIndexMap.
             return;
         }
-        auto cciIndex = cciIndexIt->second;
+
         // Now, set CCI as not playing
-        setPlayStatusForCurrentCueByIndex(cciIndex, false);
+        auto cci = cciVector.getCurrentCueInfoByIndex(cciIndex);
+        cci.currentlyPlaying = false;
+        if (cciIndex == activeShowOptions.currentCueIndex) {
+            activeShowOptions.currentCuePlaying = false;
+        }
         // Update UI as appropriate
         commandOccurred(_BROADCAST_TO_ALL_CUE_STOPPED);
     }
@@ -516,7 +414,7 @@ void CCIActionList::commandOccurred(ShowCommand command) {
             repaint();
             lastRenderedCCIInternalID = getCCI().getInternalID();
             break;
-        case CUE_ADDED_OR_DELETED: {
+        case CUES_ADDED: case CUES_DELETED: {
             // If the previous CCI was different, repaint().
             auto cci = getCCI();
             if (cci.getInternalID() != lastRenderedCCIInternalID) {
@@ -837,7 +735,7 @@ void CCISidePanel::commandOccurred(ShowCommand command) {
             lastCCIInternalID = cci.getInternalID();
             break;
         }
-        case CUE_ADDED_OR_DELETED: {
+        case CUES_DELETED: {
             // If the cue deleted is this one... then we need to update the side panel.
             auto cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid() || // If no cues... or
@@ -1089,7 +987,7 @@ void HeaderBar::commandOccurred(ShowCommand command) {
                 break;
             case SHOW_NAME_CHANGE: case CURRENT_CUE_ID_CHANGE:
                 break;
-            case FULL_SHOW_RESET: case CUE_ADDED_OR_DELETED:
+            case FULL_SHOW_RESET: case CUES_ADDED: case CUES_DELETED:
                 // The requirement in this case is to reset the buttons enabled state. If we trigger a
                 // next/previous cue command manually, it can reset all the buttons relevant to this
                 // header bar.
