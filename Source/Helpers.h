@@ -26,7 +26,6 @@ enum ShowCommand {
     CUES_DELETED,
     FULL_SHOW_RESET, // Reset all UI and local variables
 
-    CURRENT_CUE_ID_CHANGE,
     CUE_INDEXS_CHANGED,
     _BROADCAST_TO_ALL_CUE_STOPPED
 };
@@ -255,6 +254,10 @@ struct CurrentCueInfoVector {
         reconstructActionCCIMap();
     }
 
+    // Returns true if a CCI is in the vector. Uses the CCIIndexMap.
+    bool cciInVector(std::string cciInternalID) {
+        return cciIDtoIndexMap.find(cciInternalID) != cciIDtoIndexMap.end();
+    }
 
     // CurrentCueInfoVector(const std::vector<CurrentCueInfo>& cciVector): vector(cciVector), size(cciVector.size()) {}
 
@@ -520,13 +523,16 @@ private:
      * Only functions when ONE element in the vector has been moved.
      */
     void updateCCIIndexMap(size_t oldIndex, size_t newIndex) {
+        if (oldIndex == newIndex) { return; }
         // When moving, the affected range of indexes will be between oldIndex and newIndex, inclusive.
         size_t firstIndexChanged = std::min(oldIndex, newIndex);
         size_t lastIndexChanged = std::max(oldIndex, newIndex);
-        if (firstIndexChanged >= size || oldIndex >= size || newIndex >= size) {
+        bool increment = oldIndex > newIndex; // If the oldIndex is larger, then ++, otherwise --
+        if (oldIndex >= size || newIndex >= size) {
             jassertfalse; // Index out of range
             return;
         }
+
 
         // Remove the old index from the map
         // No `const auto&` it as we need to modify the map's elements
@@ -538,8 +544,10 @@ private:
             }
             if (it.second < firstIndexChanged || it.second > lastIndexChanged) { continue; }
 
-            // Simply increment one to the index. This will reflect the movement of ONE element.
-            it.second++;
+            if (increment)
+                it.second++;
+            else
+                it.second--;
         }
     }
 
@@ -604,10 +612,6 @@ private:
             actionIDtoCCIInternalIDMap.erase(action.ID);
         }
     }
-
-
-
-
 };
 
 

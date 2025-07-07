@@ -11,6 +11,8 @@ MainComponent::MainComponent(const int timerCallbackForShowCommandQueueIntervalM
     dispatcher.registerListener(this);
     activeShowOptions.loadCueValuesFromCCIVector(cciVector);
     headerBar.registerListener(this);
+    cciVector.addListener(this);
+    cueListData.addListener(this);
 
     cueListBox.setModel(&cueListModel);
 
@@ -128,7 +130,25 @@ void MainComponent::hiResTimerCallback() {
             break;
         case FULL_SHOW_RESET:
             break; // Don't need to do anything, but we still need to broadcast it to all callbacks.'
-        case CUES_ADDED: case CUES_DELETED:
+        case CUES_ADDED:
+            break;
+        case CUES_DELETED:
+            // We also have to check that the current activeShowOptions hasn't just been deleted.
+            if (cciVector.getSize() == 0) {
+                // Nothing left... let's update the active show options
+                updateActiveShowOptionsFromCCIIndex(0);
+                break;
+            }
+            if (cciVector.cciInVector(activeShowOptions.currentCueInternalID)) {
+                // The CCI has NOT been deleted from the vector.
+                setNewIndexForCCI();
+                break;
+            }
+            // Otherwise, let's try find a valid index.
+            activeShowOptions.currentCueIndex--;
+            updateActiveShowOptionsFromCCIIndex(activeShowOptions.currentCueIndex);
+            break;
+        case CUE_INDEXS_CHANGED:
             setNewIndexForCCI();
             break;
         case _BROADCAST_TO_ALL_CUE_STOPPED:
@@ -423,8 +443,7 @@ void CCIActionList::commandOccurred(ShowCommand command) {
             }
             break;
         }
-        case SHOW_PLAY: case SHOW_STOP: case SHOW_NAME_CHANGE: case CURRENT_CUE_ID_CHANGE:
-        case _BROADCAST_TO_ALL_CUE_STOPPED:
+        case SHOW_PLAY: case SHOW_STOP: case SHOW_NAME_CHANGE: case _BROADCAST_TO_ALL_CUE_STOPPED:
             break;
         default:
             jassertfalse; // ...I... but... like... ...like... all the... commands are already... covered...?????
@@ -985,16 +1004,18 @@ void HeaderBar::commandOccurred(ShowCommand command) {
                 setButtonEnabled(playButton, !activeShowOptions.currentCuePlaying);
                 setButtonEnabled(stopButton, activeShowOptions.currentCuePlaying);
                 break;
-            case SHOW_NAME_CHANGE: case CURRENT_CUE_ID_CHANGE:
+            case SHOW_NAME_CHANGE:
                 break;
-            case FULL_SHOW_RESET: case CUES_ADDED: case CUES_DELETED:
+            case FULL_SHOW_RESET: case CUES_ADDED: case CUES_DELETED: case CUE_INDEXS_CHANGED:
                 // The requirement in this case is to reset the buttons enabled state. If we trigger a
                 // next/previous cue command manually, it can reset all the buttons relevant to this
                 // header bar.
                 commandOccurred(SHOW_NEXT_CUE);
                 break;
+            case _BROADCAST_TO_ALL_CUE_STOPPED:
+                break;
             default:
-                jassertfalse; // How... how did you end up here?
+                jassertfalse; //... what show command are you sending?
         }
     }
 

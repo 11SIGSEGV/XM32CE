@@ -14,6 +14,21 @@ struct CueListData: public DraggableListBoxItemData {
     CurrentCueInfoVector &cciVector;
     ActiveShowOptions &activeShowOptions;
 
+    std::vector<ShowCommandListener*> listeners;
+
+    void addListener(ShowCommandListener* listener) {
+        if (listener != nullptr) {
+            listeners.push_back(listener);
+        } else {
+            jassertfalse; // Listener is null, this should never happen
+        }
+    }
+
+    void removeListener(ShowCommandListener* listener) {
+        listeners.erase(std::remove(listeners.begin(), listeners.end(), listener), listeners.end());
+    }
+
+
     CueListData(CurrentCueInfoVector &cciVector, ActiveShowOptions& activeShowOptions):
     cciVector(cciVector), activeShowOptions(activeShowOptions) {}
 
@@ -37,6 +52,7 @@ struct CueListData: public DraggableListBoxItemData {
             cciVector.move(indexOfItemToMove, indexOfItemToPlaceAfter);
         else
             cciVector.move(indexOfItemToMove, indexOfItemToPlaceAfter + 1);
+        notifyListeners(CUE_INDEXS_CHANGED);
     }
 
     void moveBefore(int indexOfItemToMove, int indexOfItemToPlaceBefore) override {
@@ -44,7 +60,17 @@ struct CueListData: public DraggableListBoxItemData {
             cciVector.move(indexOfItemToMove, indexOfItemToPlaceBefore - 1);
         else
             cciVector.move(indexOfItemToMove, indexOfItemToPlaceBefore);
-
+        notifyListeners(CUE_INDEXS_CHANGED);
+    }
+private:
+    void notifyListeners(ShowCommand command) {
+        for (auto lstnr: listeners) {
+            if (lstnr != nullptr) {
+                lstnr->commandOccurred(command);
+            } else {
+                jassertfalse; // Listener is null, this should never happen
+            }
+        }
     }
 };
 
@@ -361,8 +387,8 @@ private:
     }
 
     const std::set<ShowCommand> _showCommandsRequiringImageReconstruction = {
-        SHOW_NEXT_CUE, SHOW_PREVIOUS_CUE, SHOW_NAME_CHANGE,
-        CURRENT_CUE_ID_CHANGE, FULL_SHOW_RESET, CUES_ADDED, CUES_DELETED
+        SHOW_NEXT_CUE, SHOW_PREVIOUS_CUE, SHOW_NAME_CHANGE, FULL_SHOW_RESET, CUES_ADDED, CUES_DELETED,
+        CUE_INDEXS_CHANGED
     };
     const std::set<ShowCommand> _showCommandsRequiringButtonReconstruction = {SHOW_STOP, SHOW_PLAY};
 
