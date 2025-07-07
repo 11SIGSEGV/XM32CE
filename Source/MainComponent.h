@@ -25,7 +25,7 @@ struct CueListData: public DraggableListBoxItemData {
     void addItemAtEnd() override { } // TODO: Figure out how to add a new CCI at the end of the vector... the virtual method does not implement passing a value to this function.
 
     void paintContents(int rowNum, Graphics &g, Rectangle<int> bounds) override {
-        auto cci = cciVector.getCurrentCueInfoByIndex(rowNum);
+        auto& cci = cciVector.getCurrentCueInfoByIndex(rowNum);
         if (cci.isInvalid()) {
             return;
         }
@@ -147,7 +147,7 @@ private:
     String oatAppropriateForWidth(OSCActionType oat);
 
 
-    CurrentCueInfo &getCCI() {
+    CurrentCueInfo& getCCI() {
         return cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
     }
 
@@ -482,10 +482,6 @@ private:
 
     TSQueue<ShowCommand> awaitingShowCommands; // Queue of ShowCommands to be processed in the main thread.
 
-    std::unordered_map<std::string, std::set<std::string> > cciIDToRunningActionIDs;
-    // Previously called currentCueInformationInternalIdentificationToCueOpenSoundControlActionIdentificationsWaitingForOpenSoundControlManagerDispatcherListenerToCallbackFinishedSingleActionDispatcherJob
-    std::unordered_map<std::string, std::string> actionIDtoCCIInternalIDMap; // Maps action ID to parent CCI internal ID
-    std::unordered_map<std::string, int> cciIDtoIndexMap; // Maps CCI ID to cciVector index.
 
 
     CurrentCueInfoVector cciVector = CurrentCueInfoVector(

@@ -261,9 +261,11 @@ struct CurrentCueInfoVector {
 
     explicit CurrentCueInfoVector(const std::vector<CurrentCueInfo>& cciVector): vector(cciVector), size(cciVector.size()) {
         reconstructCCIToIndexMap();
+        reconstructActionCCIMap();
     }
 
-
+    // Returns a pointer to the current cue info.
+    // When assigning to a variable, ensure the use of auto&, not auto.
     CurrentCueInfo& getCurrentCueInfoByIndex(size_t index) {
         if (size == 0) {
             return _blankCCI;
@@ -276,7 +278,7 @@ struct CurrentCueInfoVector {
     }
 
 
-    // Just passes index to getCurrentCueInfoByIndex().
+    // Just passes index to getCurrentCueInfoByIndex(). Again, ensure use auto&, not auto.
     CurrentCueInfo& operator[](size_t index) {
         // TODO: Test because i have no clue what i'm doing
         return getCurrentCueInfoByIndex(index);
@@ -472,7 +474,7 @@ private:
         for (size_t i = 0; i < size; i++) {
             tempMap[vector[i].getInternalID()] = i;
         }
-        cciIDtoIndexMap = std::move(tempMap);
+        cciIDtoIndexMap = tempMap;
     }
 
 
@@ -549,7 +551,7 @@ private:
                 tempMap[action.ID] = cci.getInternalID();
             }
         }
-        actionIDtoCCIInternalIDMap = std::move(tempMap);
+        actionIDtoCCIInternalIDMap = tempMap;
     }
 
     // Add an actionID to the action-CCI map by using a CCI
@@ -637,7 +639,7 @@ struct ActiveShowOptions {
             useIndex = 0;
         }
         currentCueIndex = useIndex;
-        auto cci = cciVector.getCurrentCueInfoByIndex(useIndex);
+        auto& cci = cciVector.getCurrentCueInfoByIndex(useIndex);
         currentCuePlaying = cci.currentlyPlaying;
         currentCueID = cci.id;
         numberOfCueItems = cciVSize;

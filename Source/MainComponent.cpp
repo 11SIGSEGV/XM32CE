@@ -62,7 +62,7 @@ void MainComponent::updateActiveShowOptionsFromCCIIndex(size_t newIndex) {
         return;
     }
 
-    auto cci = cciVector.getCurrentCueInfoByIndex(newIndex);
+    auto& cci = cciVector.getCurrentCueInfoByIndex(newIndex);
     if (cci.isInvalid()) { return; } // Nothing to change...
 
     activeShowOptions.currentCueIndex = newIndex;
@@ -98,7 +98,7 @@ void MainComponent::hiResTimerCallback() {
             break;
         case SHOW_PLAY: {
             // Dispatch the job.
-            auto cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
+            auto& cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid()) { break; }
 
             cci.currentlyPlaying = true;
@@ -109,7 +109,7 @@ void MainComponent::hiResTimerCallback() {
             break;
         }
         case SHOW_STOP: {
-            auto cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
+            auto& cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid()) { break; }
 
             if (!cci.currentlyPlaying) {
@@ -166,7 +166,7 @@ void MainComponent::actionFinished(std::string actionID) {
     if (remaining == cciVector.sizeTLimit) {
         // Oh no... we done goofed up.
         // Let's just... pretend nothing happened.
-        // We're only returning without jassert because removeRunningActionID should've already jasserted.
+        // We're only returning without jassert because removeFromRunning should've already jasserted.
         return;
     }
     if (remaining == 0) {
@@ -186,7 +186,7 @@ void MainComponent::actionFinished(std::string actionID) {
         }
 
         // Now, set CCI as not playing
-        auto cci = cciVector.getCurrentCueInfoByIndex(cciIndex);
+        auto& cci = cciVector.getCurrentCueInfoByIndex(cciIndex);
         cci.currentlyPlaying = false;
         if (cciIndex == activeShowOptions.currentCueIndex) {
             activeShowOptions.currentCuePlaying = false;
@@ -416,7 +416,7 @@ void CCIActionList::commandOccurred(ShowCommand command) {
             break;
         case CUES_ADDED: case CUES_DELETED: {
             // If the previous CCI was different, repaint().
-            auto cci = getCCI();
+            auto& cci = getCCI();
             if (cci.getInternalID() != lastRenderedCCIInternalID) {
                 repaint();
                 lastRenderedCCIInternalID = cci.getInternalID();
@@ -596,7 +596,7 @@ void CCISidePanel::constructImage() {
     g.setColour(UICfg::TEXT_COLOUR);
 
 
-    auto currentCueInfo = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
+    auto& currentCueInfo = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
     if (currentCueInfo.isInvalid()) {
         return; // Don't draw nothing!
     }
@@ -726,7 +726,7 @@ void CCISidePanel::commandOccurred(ShowCommand command) {
             resizeActionList();
             constructImage();
             repaint();
-            auto cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
+            auto& cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid()) {
                 lastCCIInternalID = "";
                 break;
@@ -737,7 +737,7 @@ void CCISidePanel::commandOccurred(ShowCommand command) {
         }
         case CUES_DELETED: {
             // If the cue deleted is this one... then we need to update the side panel.
-            auto cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
+            auto& cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid() || // If no cues... or
                 cci.getInternalID() != lastCCIInternalID) { // If the current cue is not the last one we had
                 commandOccurred(SHOW_NEXT_CUE); // Triggers a repaint, resize and reimage
