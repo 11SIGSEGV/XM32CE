@@ -30,6 +30,20 @@ namespace Channel {
         {EnumParam("chColour", "Channel Colour", "The index representing the colour of the channel",
             {"OFF", "RED", "GREEN", "YELLOW", "BLUE", "MAGENTA", "CYAN", "WHITE", "OFFi", "REDi", "GREENi", "YELLOWi", "BLUEi", "MAGENTAi", "CYANi", "WHITEi"})}
     };
+    const EnumParam_PathToArgumentPair SOURCE = {
+        {"/ch/", _channelNum, "/config/source"},
+        {EnumParam("chSource", "Channel Source", "The input source for this channel",
+            {"OFF", "In01", "In02", "In03", "In04", "In05", "In06", "In07", "In08", "In09", "In10", "In11", "In12", "In13", "In14", "In15", "In16", "In17", "In18", "In19", "In20", "In21", "In22", "In23", "In24", "In25", "In26", "In27", "In28", "In29", "In30", "In31", "In32", "Aux 1", "Aux 2", "Aux 3", "Aux 4", "Aux 5", "Aux 6", "USB L", "USB R", "Fx 1L", "Fx 1R", "Fx 2L", "Fx 2R", "Fx 3L", "Fx 3R", "Fx 4L", "Fx 4R", "Bus 01", "Bus 02", "Bus 03", "Bus 04", "Bus 05", "Bus 06", "Bus 07", "Bus 08", "Bus 09", "Bus 10", "Bus 11", "Bus 12", "Bus 13", "Bus 14", "Bus 15", "Bus 16"})
+        }
+    };
+    const EnumParam_PathToArgumentPair DELAY_ON = {
+        {"/ch/", _channelNum, "/delay/on"},
+        {EnumParam("chDelayOn", "Channel Delay On", "Turns the delay on or off for the channel", {"OFF", "ON"})}
+    };
+    const NonIter_PathToArgumentPair DELAY_TIME = {
+        {"/ch/", _channelNum, "/delay/time"},
+    {NonIter("chDelayTime", "Channel Delay Time", "The amount of delay to apply to the channel's input source in milliseconds", 0.3f, LINF, 0.3f, 500.f)}
+    };
     // TODO: Some more to add!
     const NonIter_PathToArgumentPair FADER = {
         {"/ch/", _channelNum, "/mix/fader"},

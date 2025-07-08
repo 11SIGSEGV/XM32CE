@@ -526,7 +526,9 @@ private:
             },
             {
                 "FATTerrence", "Terrence is actually so fat", "",
-                {},
+                {
+                    CueOSCAction("/ch/02/delay/time", Channel::DELAY_TIME.second[0], ValueStorer(100.f))
+                },
             }
         }
     );

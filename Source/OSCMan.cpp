@@ -255,6 +255,7 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
                 // The NonIter will indicate the type (_meta_PARAMTYPE)
                 switch (nonIter->_meta_PARAMTYPE) {
                     case INT: {
+                        // Don't try "lin-f" it. Let it be.
                         msg.addInt32(valueStorer.intValue);
                         break;
                     }
@@ -262,7 +263,9 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
                     case LOGF:
                     case LEVEL_161:
                     case LEVEL_1024: {
-                        msg.addFloat32(valueStorer.floatValue);
+                        // Adjust to normalised range (0.f-1.f)
+                        msg.addFloat32(
+                            inferPercentageFromMinMaxAndValue(nonIter->floatMin, nonIter->floatMax, valueStorer.floatValue, nonIter->_meta_PARAMTYPE));
                         break;
                     }
                     case STRING: {
@@ -350,13 +353,9 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
                     incrementedMsg.addInt32(static_cast<int>(inferValueFromMinMaxAndPercentage(
                         minVal, maxVal, normalisedPercentage, LINF)));
                     break;
-                case LEVEL_161:
-                case LEVEL_1024:
+                default:
                     incrementedMsg.addFloat32(normalisedPercentage);
                     break;
-                default:
-                    incrementedMsg.addFloat32(static_cast<float>(inferValueFromMinMaxAndPercentage(
-                        minVal, maxVal, normalisedPercentage, cueAction.oscArgumentTemplate._meta_PARAMTYPE)));
             }
 
             // Send the message
@@ -376,7 +375,7 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
 
         // If exited because of shouldExit(), we will not send the end message.
         if (shouldExit()) {
-            return JobStatus::jobHasFinished; // Exit the job if the thread should exit
+            return jobHasFinished; // Exit the job if the thread should exit
         }
 
         // Finally, we need to send the end value to ensure the fade is complete... but to be safe, let's check if the
@@ -388,13 +387,9 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
                     endMsg.addInt32(static_cast<int>(inferValueFromMinMaxAndPercentage(
                         minVal, maxVal, normalisedPercentage, LINF)));
                     break;
-                case LEVEL_161:
-                case LEVEL_1024:
+                default:
                     endMsg.addFloat32(normalisedPercentage);
                     break;
-                default:
-                    endMsg.addFloat32(static_cast<float>(inferValueFromMinMaxAndPercentage(
-                        minVal, maxVal, normalisedPercentage, cueAction.oscArgumentTemplate._meta_PARAMTYPE)));
             }
             oscSender.send(endMsg);
         }

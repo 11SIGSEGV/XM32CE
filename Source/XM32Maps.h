@@ -450,10 +450,11 @@ struct NonIter {
     const ParamType _meta_PARAMTYPE;
 
     // Integer
-    NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const int value,
-        const int minVal = std::numeric_limits<int>::min(), const int maxVal = std::numeric_limits<int>::max()):
-    name(name), verboseName(verboseName), description(description), defaultIntValue(value),
-    _meta_PARAMTYPE(INT), intMin(minVal), intMax(maxVal) {}
+    // A note: if you're using int, you probably want to use LINF. Realistically, an integer should be an EnumParam.
+    NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const int intDefVal,
+        const int intMinVal = std::numeric_limits<int>::min(), const int intMaxVal = std::numeric_limits<int>::max()):
+    name(name), verboseName(verboseName), description(description), defaultIntValue(intDefVal),
+    _meta_PARAMTYPE(INT), intMin(intMinVal), intMax(intMaxVal) {}
 
     // Bitset
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description,
@@ -462,11 +463,11 @@ struct NonIter {
     defaultStringValue(stringFromBoolVector(value)), intMin(value.size()), intMax(value.size()), _meta_PARAMTYPE(BITSET) {}
 
     // LINF, LOGF, LEVEL_1024, LEVEL_161
-    NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const float value,
-        const ParamType type, const float minVal = std::numeric_limits<float>::min(), const float maxVal = std::numeric_limits<float>::max()):
-    name(name), verboseName(verboseName), description(description), defaultFloatValue(value), _meta_PARAMTYPE(type),
-    floatMin((type == LEVEL_161 || type == LEVEL_1024) ? -90.f : minVal),
-    floatMax((type == LEVEL_161 || type == LEVEL_1024) ? 10.f : maxVal) {}
+    NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const float fltDefVal,
+        const ParamType type, const float fltMinVal = std::numeric_limits<float>::min(), const float fltMaxVal = std::numeric_limits<float>::max()):
+    name(name), verboseName(verboseName), description(description), defaultFloatValue(fltDefVal), _meta_PARAMTYPE(type),
+    floatMin((type == LEVEL_161 || type == LEVEL_1024) ? -90.f : fltMinVal),
+    floatMax((type == LEVEL_161 || type == LEVEL_1024) ? 10.f : fltMaxVal) {}
 
 
     // String
