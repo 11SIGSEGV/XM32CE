@@ -14,8 +14,8 @@ struct CueListData: public DraggableListBoxItemData {
     CurrentCueInfoVector &cciVector;
     ActiveShowOptions &activeShowOptions;
 
-    std::vector<ShowCommandListener*> listeners;
 
+    // Add a listener for when a ShowCommand occurs to the CueListData struct
     void addListener(ShowCommandListener* listener) {
         if (listener != nullptr) {
             listeners.push_back(listener);
@@ -24,6 +24,7 @@ struct CueListData: public DraggableListBoxItemData {
         }
     }
 
+    // Remove a listener
     void removeListener(ShowCommandListener* listener) {
         listeners.erase(std::remove(listeners.begin(), listeners.end(), listener), listeners.end());
     }
@@ -33,59 +34,15 @@ struct CueListData: public DraggableListBoxItemData {
     cciVector(cciVector), activeShowOptions(activeShowOptions) {}
 
     int getNumItems() override { return cciVector.getSize(); }
+
     void deleteItem(int index) override {
         cciVector.erase(cciVector.begin() + index);
     };
 
     void addItemAtEnd() override { } // TODO: Figure out how to add a new CCI at the end of the vector... the virtual method does not implement passing a value to this function.
 
-    void paintContents(int rowNum, Graphics &g, Rectangle<int> bounds) override {
-        auto& cci = cciVector.getCurrentCueInfoByIndex(rowNum);
-        if (cci.isInvalid()) {
-            return;
-        }
-        auto boundsCopy = bounds;
-        if (rowNum == activeShowOptions.currentCueIndex) {
-            g.setColour(UICfg::SELECTED_CUE_LIST_ITEM_BG_COLOUR);
-            g.fillRect(boundsCopy);
-        }
-
-        auto textHeight = boundsCopy.getHeight() * 0.6f;
-        float bounds20ths = boundsCopy.getWidth() * 0.05f;
-        float padding = UICfg::STD_PADDING * boundsCopy.getHeight() * 7;
-
-        auto numBox = boundsCopy.removeFromLeft(bounds20ths);
-        auto idBox = boundsCopy.removeFromLeft(bounds20ths * 3);
-        auto nameBox = boundsCopy.removeFromLeft(bounds20ths * 10);
-        auto numberOfActionsBox = boundsCopy.removeFromLeft(bounds20ths);
-        auto stateBox = boundsCopy.removeFromLeft(bounds20ths * 3);
-        auto editBox = boundsCopy;
-
-        g.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
-        g.setFont(textHeight);
-        g.setColour(UICfg::TEXT_COLOUR);
-
-        g.drawText(String(rowNum+1), numBox.reduced(padding), Justification::centred);
-        g.drawText(cci.id, idBox.reduced(padding), Justification::centredLeft);
-        g.drawText(cci.name, nameBox.reduced(padding), Justification::centredLeft);
-        g.drawText(String(cci.actions.size()), numberOfActionsBox.reduced(padding), Justification::centred);
-        g.setColour(cci.currentlyPlaying ? UICfg::POSITIVE_BUTTON_COLOUR: UICfg::NEGATIVE_BUTTON_COLOUR);
-        g.fillRect(stateBox);
-        g.setColour(UICfg::TEXT_COLOUR);
-        g.drawText(cci.currentlyPlaying ? "PLAYING": "STOPPED", stateBox.reduced(padding), Justification::centred);
-        // g.drawText(, numberOfActionsBox, Justification::centred);
-
-        // Draw boxes for all rectangles
-        g.setColour(UICfg::CUE_LIST_ITEM_INSIDE_OUTLINES_COLOUR);
-        g.drawRect(numBox);
-        g.drawRect(idBox);
-        g.drawRect(nameBox);
-        g.drawRect(numberOfActionsBox);
-        g.drawRect(stateBox);
-        g.drawRect(editBox);
-        g.setColour(UICfg::CUE_LIST_ITEM_OUTLINE_COLOUR);
-        g.drawRect(bounds);
-    }
+    // Semi-static function. Requires item and bounds to paint CueListItem.
+    void paintContents(int rowNum, Graphics &g, Rectangle<int> bounds) override;
 
     void moveAfter(int indexOfItemToMove, int indexOfItemToPlaceAfter) override {
         if (indexOfItemToMove <= indexOfItemToPlaceAfter)
@@ -101,6 +58,9 @@ struct CueListData: public DraggableListBoxItemData {
             cciVector.move(indexOfItemToMove, indexOfItemToPlaceBefore);
     }
 private:
+    std::vector<ShowCommandListener*> listeners;
+
+    // Sends ShowCommand to registered listeners
     void notifyListeners(ShowCommand command) {
         for (auto lstnr: listeners) {
             if (lstnr != nullptr) {
@@ -113,7 +73,7 @@ private:
 };
 
 
-// Item
+// Class for individual item (i.e., row) in Cue List.
 class CueListItem: public DraggableListBoxItem {
 public:
     CueListItem(DraggableListBox& lb, CueListData& data, int rn): DraggableListBoxItem(lb, data, rn), data(data) {}
@@ -152,9 +112,8 @@ public:
 };
 
 
-
-
 //==============================================================================
+
 
 // Action List for Current Cue Information
 struct CCIActionList : public Component, public ShowCommandListener {
@@ -354,6 +313,7 @@ public:
     // paint() should hence never draw anything except the clock and the image drawn by this function.
     void reconstructImage();
 
+    // Reconstruct the image behind the buttons. This is used whenever the buttons' enabled/disabled state is changed.
     void reconstructButtonBackgroundImage();
 
     void resized() override;
@@ -404,27 +364,21 @@ private:
         }
     }
 
-    void activeShowOptionsChanged() {
-        repaint();
-    }
 
-    // TODO: remove function, refactor calls
-    void setButtonEnabled(DrawableButton &btn, bool enabled) {
-        btn.setEnabled(enabled);
-    }
-
-
+    // Get time as string in format of HH:MM:SS (24 hours, all zero padded)
     static String getCurrentTimeAsFormattedString() {
         auto timeNow = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         auto *localTime = std::localtime(&timeNow);
         return String::formatted("%02d:%02d:%02d", localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
     }
 
+
     // If LocalBounds dimensions are zero for width and/or height, will return true.
     bool localBoundsIsInvalid() {
         auto lbnds = getLocalBounds();
         return lbnds.getWidth() <= 0 || lbnds.getHeight() <= 0;
     }
+
 
     const std::set<ShowCommand> _showCommandsRequiringImageReconstruction = {
         SHOW_NEXT_CUE, SHOW_PREVIOUS_CUE, SHOW_NAME_CHANGE, FULL_SHOW_RESET, CUES_ADDED, CUES_DELETED,
@@ -473,7 +427,7 @@ private:
 
 //==============================================================================
 
-// TODO: Move private variables and methods to custom structs
+
 class MainComponent : public Component, public ShowCommandListener, public OSCDispatcherListener {
 public:
     //==============================================================================
@@ -490,7 +444,7 @@ public:
 
     void resized() override;
 
-
+    // Updates values of activeShowOptions based on the new index of the CCI Vector
     void updateActiveShowOptionsFromCCIIndex(size_t newIndex);
 
 
@@ -499,16 +453,19 @@ public:
     // Broadcasts all commands to registered callbacks
     void sendCommandToAllListeners(ShowCommand);
 
+
     // Implemented to listen for individual-cue ShowCommands
     void cueCommandOccurred(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex) override;
     // Broadcasts cue commands to registered callbacks
     void sendCueCommandToAllListeners(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex);
 
-    void setNewIndexForCCI();
+    // Set the correct index for the new CCI. Useful for when cue is moved.
+    void setNewIndexForCCI() {
+        activeShowOptions.currentCueIndex = cciVector.getIndexByCCIInternalID(activeShowOptions.currentCueInternalID);
+    }
 
-
-
-    // Receives callbacks from the OSCDispatcherManager.
+    // Receives callbacks from the OSCDispatcherManager when an individual action is finished.
+    // Callbacks to cueCommandOccurred when an entire CCI's actions is completed.
     void actionFinished(std::string) override;
 
 private:
@@ -575,26 +532,17 @@ private:
     );
 
 
-
-    std::vector<Component *> getComponents() {
-        return activeComps;
-    }
-
-
     HeaderBar headerBar{activeShowOptions};
     CCISidePanel sidePanel{activeShowOptions, cciVector};
     DraggableListBox cueListBox;
     CueListModel cueListModel;
     CueListData cueListData{cciVector, activeShowOptions};
 
-
     const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};
-
+    const std::vector<Component *> activeComps = {&headerBar, &sidePanel, &cueListBox};
 
     OSCDeviceSender oscDeviceSender{"192.168.0.100", "10023", "X32"};
     OSCCueDispatcherManager dispatcher{oscDeviceSender};
-    const std::vector<Component *> activeComps = {&headerBar, &sidePanel, &cueListBox};
-
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

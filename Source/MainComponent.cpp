@@ -3,8 +3,7 @@
 //==============================================================================
 
 
-MainComponent::MainComponent():
- cueListModel(cueListBox, cueListData) {
+MainComponent::MainComponent(): cueListModel(cueListBox, cueListData) {
     DBG("OSC Device Connected on " + oscDeviceSender.getIPAddress());
 
     dispatcher.startThread();
@@ -18,10 +17,9 @@ MainComponent::MainComponent():
 
     commandOccurred(FULL_SHOW_RESET);
 
-    for (auto *comp: getComponents()) {
+    for (auto *comp: activeComps) {
         addAndMakeVisible(*comp);
     }
-
 }
 
 
@@ -78,8 +76,6 @@ void MainComponent::resized() {
     g.drawText("#A", numberOfActionsBox.reduced(padding), Justification::centred, true);
     g.drawText("Status", stateBox.reduced(padding), Justification::centred, true);
     g.drawText("Edit", editBox.reduced(padding), Justification::centred, true);
-
-
 }
 
 
@@ -95,7 +91,7 @@ void MainComponent::updateActiveShowOptionsFromCCIIndex(size_t newIndex) {
         return;
     }
 
-    auto& cci = cciVector.getCurrentCueInfoByIndex(newIndex);
+    auto &cci = cciVector.getCurrentCueInfoByIndex(newIndex);
     if (cci.isInvalid()) { return; } // Nothing to change...
 
     activeShowOptions.currentCueIndex = newIndex;
@@ -107,7 +103,8 @@ void MainComponent::updateActiveShowOptionsFromCCIIndex(size_t newIndex) {
 
 
 void MainComponent::commandOccurred(ShowCommand cmd) {
-    bool currentCueListItemRequiresRedraw = false;  // We should only redraw when in the message lock, so hence we set a flag and set the redraw later
+    bool currentCueListItemRequiresRedraw = false;
+    // We should only redraw when in the message lock, so hence we set a flag and set the redraw later
     switch (cmd) {
         case SHOW_NEXT_CUE:
             updateActiveShowOptionsFromCCIIndex(activeShowOptions.currentCueIndex + 1);
@@ -121,7 +118,7 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
             break;
         case SHOW_PLAY: {
             // Dispatch the job.
-            auto& cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
+            auto &cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid()) { break; }
 
             cci.currentlyPlaying = true;
@@ -133,7 +130,7 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
             break;
         }
         case SHOW_STOP: {
-            auto& cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
+            auto &cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid()) { break; }
 
             cci.currentlyPlaying = false;
@@ -174,8 +171,7 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
             break;
         default:
             jassertfalse; // Invalid ShowCommand
-    }
-    {
+    } {
         const MessageManagerLock mmLock;
         if (!mmLock.lockWasGained()) {
             jassertfalse; // Woah woah woah... where's our message lock?
@@ -187,7 +183,9 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
     } // Force message manager lock to be released here, so that we can call this function from any thread.
 }
 
-void MainComponent::sendCueCommandToAllListeners(ShowCommand command, std::string cciInternalID, size_t cciCurrentIndex) {
+
+void MainComponent::sendCueCommandToAllListeners(ShowCommand command, std::string cciInternalID,
+                                                 size_t cciCurrentIndex) {
     for (auto *comp: callbackCompsUponActiveShowOptionsChanged) {
         if (comp != nullptr) {
             comp->cueCommandOccurred(command, cciInternalID, cciCurrentIndex);
@@ -195,12 +193,6 @@ void MainComponent::sendCueCommandToAllListeners(ShowCommand command, std::strin
         }
         jassertfalse;
     }
-}
-
-
-void MainComponent::setNewIndexForCCI() {
-    // Get the new correct CCI
-    activeShowOptions.currentCueIndex = cciVector.getIndexByCCIInternalID(activeShowOptions.currentCueInternalID);
 }
 
 
@@ -218,7 +210,8 @@ void MainComponent::sendCommandToAllListeners(ShowCommand cmd) {
 void MainComponent::cueCommandOccurred(ShowCommand command, std::string cciInternalID, size_t cciCurrentIndex) {
     bool cueListItemRequiresRedraw = true;
     if (cciInternalID == activeShowOptions.currentCueInternalID) {
-        cueListItemRequiresRedraw = false; // When a cue command is morphed and passed to commandOccurred, it should handle the redraw
+        cueListItemRequiresRedraw = false;
+        // When a cue command is morphed and passed to commandOccurred, it should handle the redraw
         // Ok so, we also have to pass this command to commandOccurred(), but first we need to morph it.
         switch (command) {
             case CUE_STOPPED:
@@ -227,14 +220,13 @@ void MainComponent::cueCommandOccurred(ShowCommand command, std::string cciInter
             default:
                 break;
         }
-    }
-    {
+    } {
         const MessageManagerLock mmLock;
         if (!mmLock.lockWasGained()) {
             jassertfalse; // Woah woah woah... where's our message lock?
         }
         if (cueListItemRequiresRedraw) {
-            cueListBox.repaintRow(cciCurrentIndex);  // Any event that occurs must be redrawn
+            cueListBox.repaintRow(cciCurrentIndex); // Any event that occurs must be redrawn
         }
         sendCueCommandToAllListeners(command, cciInternalID, cciCurrentIndex);
     } // Force message manager lock to be released here, so that we can call this function from any thread.
@@ -266,7 +258,7 @@ void MainComponent::actionFinished(std::string actionID) {
         }
 
         // Now, set CCI as not playing
-        auto& cci = cciVector.getCurrentCueInfoByIndex(cciIndex);
+        auto &cci = cciVector.getCurrentCueInfoByIndex(cciIndex);
         cci.currentlyPlaying = false;
         if (cciIndex == activeShowOptions.currentCueIndex) {
             activeShowOptions.currentCuePlaying = false;
@@ -274,6 +266,58 @@ void MainComponent::actionFinished(std::string actionID) {
         // Call the listener... the cueCommandOccurred listener will pass on a SHOW_STOP ShowCommand if the CCI is the current CCI.
         cueCommandOccurred(CUE_STOPPED, cci.getInternalID(), cciIndex);
     }
+}
+
+
+// ==========================================================================
+
+
+void CueListData::paintContents(int rowNum, Graphics &g, Rectangle<int> bounds) {
+    auto &cci = cciVector.getCurrentCueInfoByIndex(rowNum);
+    if (cci.isInvalid()) {
+        return;
+    }
+    auto boundsCopy = bounds;
+    if (rowNum == activeShowOptions.currentCueIndex) {
+        g.setColour(UICfg::SELECTED_CUE_LIST_ITEM_BG_COLOUR);
+        g.fillRect(boundsCopy);
+    }
+
+    auto textHeight = boundsCopy.getHeight() * 0.6f;
+    float bounds20ths = boundsCopy.getWidth() * 0.05f;
+    float padding = UICfg::STD_PADDING * boundsCopy.getHeight() * 7;
+
+    auto numBox = boundsCopy.removeFromLeft(bounds20ths);
+    auto idBox = boundsCopy.removeFromLeft(bounds20ths * 3);
+    auto nameBox = boundsCopy.removeFromLeft(bounds20ths * 10);
+    auto numberOfActionsBox = boundsCopy.removeFromLeft(bounds20ths);
+    auto stateBox = boundsCopy.removeFromLeft(bounds20ths * 3);
+    auto editBox = boundsCopy;
+
+    g.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
+    g.setFont(textHeight);
+    g.setColour(UICfg::TEXT_COLOUR);
+
+    g.drawText(String(rowNum + 1), numBox.reduced(padding), Justification::centred);
+    g.drawText(cci.id, idBox.reduced(padding), Justification::centredLeft);
+    g.drawText(cci.name, nameBox.reduced(padding), Justification::centredLeft);
+    g.drawText(String(cci.actions.size()), numberOfActionsBox.reduced(padding), Justification::centred);
+    g.setColour(cci.currentlyPlaying ? UICfg::POSITIVE_BUTTON_COLOUR : UICfg::NEGATIVE_BUTTON_COLOUR);
+    g.fillRect(stateBox);
+    g.setColour(UICfg::TEXT_COLOUR);
+    g.drawText(cci.currentlyPlaying ? "PLAYING" : "STOPPED", stateBox.reduced(padding), Justification::centred);
+    // g.drawText(, numberOfActionsBox, Justification::centred);
+
+    // Draw boxes for all rectangles
+    g.setColour(UICfg::CUE_LIST_ITEM_INSIDE_OUTLINES_COLOUR);
+    g.drawRect(numBox);
+    g.drawRect(idBox);
+    g.drawRect(nameBox);
+    g.drawRect(numberOfActionsBox);
+    g.drawRect(stateBox);
+    g.drawRect(editBox);
+    g.setColour(UICfg::CUE_LIST_ITEM_OUTLINE_COLOUR);
+    g.drawRect(bounds);
 }
 
 
@@ -330,7 +374,8 @@ void CCIActionList::resized() {
     // For value of ValueStorer
     oscArgumentValueFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, targetFontSize, Font::italic);
     // Find how many single characters can fit in the width for valueAndTypeMaxWidth
-    oscArgumentValueMaxChars = std::floor(valueAndTypeMaxWidth / GlyphArrangement::getStringWidth(oscArgumentValueFont, "W"));
+    oscArgumentValueMaxChars = std::floor(
+        valueAndTypeMaxWidth / GlyphArrangement::getStringWidth(oscArgumentValueFont, "W"));
 
     // For COMMAND/FADE
     oatFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, targetFontSize * 0.7f, Font::plain);
@@ -338,7 +383,8 @@ void CCIActionList::resized() {
 
     // For verbose name of the argument
     verboseNameFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, targetFontSize, Font::plain);
-    verboseNameMaxChars = std::floor(argumentVerboseNameMaxWidth / GlyphArrangement::getStringWidth(oscArgumentValueFont, "W"));
+    verboseNameMaxChars = std::floor(
+        argumentVerboseNameMaxWidth / GlyphArrangement::getStringWidth(oscArgumentValueFont, "W"));
 
     // For Path of OSC Argument (e.g., /path/to/command)
     pathFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, targetFontSize, Font::bold);
@@ -346,7 +392,7 @@ void CCIActionList::resized() {
 }
 
 
-String CCIActionList::getWidthAdjustedArgumentValueString(const String& value, const String& typeAlias) {
+String CCIActionList::getWidthAdjustedArgumentValueString(const String &value, const String &typeAlias) {
     auto finalTypeAlias = typeAlias;
     if (typeAlias.length() != 1) {
         jassertfalse; // It's a type alias, not a typename... only meant to be one character.
@@ -370,8 +416,8 @@ String CCIActionList::getWidthAdjustedArgumentValueString(const String& value, c
     // Ok, that clearly doesn't work. Let's concatenate the value.
     // Luckily monospace fonts have the same character width YAYAYYAYAYYAYYAYY
 
-    if (oscArgumentValueMaxChars < 3) {return "";}           // We can't even fit "..." anyway sooo.... return nothing ig?
-    if (oscArgumentValueMaxChars == 3) {return "...";}       // Well at least we can fit ellipses right?
+    if (oscArgumentValueMaxChars < 3) { return ""; } // We can't even fit "..." anyway sooo.... return nothing ig?
+    if (oscArgumentValueMaxChars == 3) { return "..."; } // Well at least we can fit ellipses right?
 
     // Otherwise, simply return a concatenated version with ... at the end
     return value.substring(0, oscArgumentValueMaxChars - 3) + "..."; // At least 4 characters
@@ -400,7 +446,14 @@ String CCIActionList::getWidthAdjustedArgumentValueString(const ValueStorer &val
             typeAlias = "f";
             break;
         }
-        case LINF: case LOGF: case ENUM: case LEVEL_1024: case LEVEL_161: case BITSET: case OPTION: case _BLANK:
+        case LINF:
+        case LOGF:
+        case ENUM:
+        case LEVEL_1024:
+        case LEVEL_161:
+        case BITSET:
+        case OPTION:
+        case _BLANK:
             jassertfalse; // Why are you passing invalid types here?
             break;
     }
@@ -446,9 +499,10 @@ String CCIActionList::oatAppropriateForWidth(OSCActionType oat) {
 
 
 Rectangle<int> CCIActionList::drawArgumentNameAndValue(Graphics &g, int leftmostX, float currentHeight,
-    const String &formattedVerboseName, const String &formattedArgumentValue,
-    int verboseNameFontHeightRounded, int oatArgumentFontHeightRounded) {
-
+                                                       const String &formattedVerboseName,
+                                                       const String &formattedArgumentValue,
+                                                       int verboseNameFontHeightRounded,
+                                                       int oatArgumentFontHeightRounded) {
     if (verboseNameFontHeightRounded == -1) {
         verboseNameFontHeightRounded = static_cast<int>(std::ceil(verboseNameFont.getHeight()));
     }
@@ -467,8 +521,9 @@ Rectangle<int> CCIActionList::drawArgumentNameAndValue(Graphics &g, int leftmost
     g.setFont(oscArgumentValueFont);
     g.drawFittedText(formattedVerboseName, verboseNameBox, Justification::centredLeft, 1);
 
-    Rectangle<int> argumentValueBox {
-        static_cast<int>(std::ceil(getWidth() - valueAndTypeMaxWidth)), // We actually want the ceil as this will be closer to the right
+    Rectangle<int> argumentValueBox{
+        static_cast<int>(std::ceil(getWidth() - valueAndTypeMaxWidth)),
+        // We actually want the ceil as this will be closer to the right
         currentHeightCeil,
         static_cast<int>(std::ceil(valueAndTypeMaxWidth)), // Same here!
         oatArgumentFontHeightRounded
@@ -482,28 +537,35 @@ Rectangle<int> CCIActionList::drawArgumentNameAndValue(Graphics &g, int leftmost
         leftmostX,
         currentHeightCeil,
         getWidth(),
-        (oatArgumentFontHeightRounded > verboseNameFontHeightRounded) ?
-            oatArgumentFontHeightRounded: verboseNameFontHeightRounded // Whichever height is higher
+        (oatArgumentFontHeightRounded > verboseNameFontHeightRounded)
+            ? oatArgumentFontHeightRounded
+            : verboseNameFontHeightRounded // Whichever height is higher
     };
 }
 
 
 void CCIActionList::commandOccurred(ShowCommand command) {
     switch (command) {
-        case SHOW_NEXT_CUE: case SHOW_PREVIOUS_CUE: case FULL_SHOW_RESET:
+        case SHOW_NEXT_CUE:
+        case SHOW_PREVIOUS_CUE:
+        case FULL_SHOW_RESET:
             repaint();
             lastRenderedCCIInternalID = getCCI().getInternalID();
             break;
-        case CUES_ADDED: case CUES_DELETED: {
+        case CUES_ADDED:
+        case CUES_DELETED: {
             // If the previous CCI was different, repaint().
-            auto& cci = getCCI();
+            auto &cci = getCCI();
             if (cci.getInternalID() != lastRenderedCCIInternalID) {
                 repaint();
                 lastRenderedCCIInternalID = cci.getInternalID();
             }
             break;
         }
-        case SHOW_PLAY: case SHOW_STOP: case SHOW_NAME_CHANGE: case CUE_STOPPED:
+        case SHOW_PLAY:
+        case SHOW_STOP:
+        case SHOW_NAME_CHANGE:
+        case CUE_STOPPED:
             break;
         default:
             jassertfalse; // ...I... but... like... ...like... all the... commands are already... covered...?????
@@ -538,9 +600,9 @@ void CCIActionList::paint(Graphics &g) {
         String addr = action.oscAddress.toString();
         int addrLen = addr.length();
         if (addrLen > pathMaxChars) {
-            if (pathMaxChars < 3) { addr = ""; }
-            else if (pathMaxChars == 3) { addr = "..."; }
-            else { addr = addr.substring(0, pathMaxChars - 3) + "..."; }
+            if (pathMaxChars < 3) { addr = ""; } else if (pathMaxChars == 3) { addr = "..."; } else {
+                addr = addr.substring(0, pathMaxChars - 3) + "...";
+            }
         }
         Rectangle<int> pathBox = {
             leftmostX,
@@ -595,7 +657,7 @@ void CCIActionList::paint(Graphics &g) {
                         getWidthAdjustedVerboseName(verboseName),
                         getWidthAdjustedArgumentValueString(currentArgument, currentArgument._meta_PARAMTYPE),
                         verboseNameFontHeight, oscArgumentFontHeight
-                        );
+                    );
 
                     currentHeight += drawnTextBox.getHeight() + EACH_LINE_PADDING;
                 }
@@ -608,17 +670,23 @@ void CCIActionList::paint(Graphics &g) {
                 String typeAlias = "?";
                 switch (action.oscArgumentTemplate._meta_PARAMTYPE) {
                     case INT: {
-                        idealArgumentValueStr = String(action.startValue.intValue) + " >> " + String(action.endValue.intValue);
+                        idealArgumentValueStr = String(action.startValue.intValue) + " >> " + String(
+                                                    action.endValue.intValue);
                         typeAlias = "i";
                         break;
                     }
-                    case LINF: case LOGF: case LEVEL_1024: case LEVEL_161: {
-                        idealArgumentValueStr = String(action.startValue.floatValue) + " >> " + String(action.endValue.floatValue);
+                    case LINF:
+                    case LOGF:
+                    case LEVEL_1024:
+                    case LEVEL_161: {
+                        idealArgumentValueStr = String(action.startValue.floatValue) + " >> " + String(
+                                                    action.endValue.floatValue);
                         typeAlias = "f";
                         break;
                     }
                     default:
-                        jassertfalse; // WHAT IS YOUR PROBLEM WITH PASSING INCORRECT PARAMTYPES AHHAHAHAHHAHHHHHAAHAAAHHHHAHHHAAHHHAHAHHAHHHHHHHHHHHHHHHHHHHHHHHHHHAHHAHHAHAHHAHHAHHAHHAHHHAHAAHAHHAHAHHAAAAHHAHAHHAHHHHHH
+                        jassertfalse;
+                        // WHAT IS YOUR PROBLEM WITH PASSING INCORRECT PARAMTYPES AHHAHAHAHHAHHHHHAAHAAAHHHHAHHHAAHHHAHAHHAHHHHHHHHHHHHHHHHHHHHHHHHHHAHHAHHAHAHHAHHAHHAHHAHHHAHAAHAHHAHAHHAAAAHHAHAHHAHHHHHH
                 }
                 auto drawnTextBox = drawArgumentNameAndValue(
                     g, leftmostX, currentHeight,
@@ -653,9 +721,9 @@ void CCIActionList::paint(Graphics &g) {
 // ==========================================================================
 
 
-CCISidePanel::CCISidePanel(ActiveShowOptions &activeShowOptions, CurrentCueInfoVector& cciVector):
-    activeShowOptions(activeShowOptions), cciVector(cciVector),
-    actionList(activeShowOptions, cciVector, 1.f) {
+CCISidePanel::CCISidePanel(ActiveShowOptions &activeShowOptions,
+                           CurrentCueInfoVector &cciVector): activeShowOptions(activeShowOptions), cciVector(cciVector),
+                                                             actionList(activeShowOptions, cciVector, 1.f) {
     cueActionListViewport.setViewedComponent(&actionList, false);
     cueActionListViewport.setScrollBarsShown(true, false, true, false);
     // cueActionListViewport.setColour(ScrollBar::thumbColourId, UICfg::LIGHT_BG_COLOUR); // Can't seem to change colour?
@@ -675,7 +743,7 @@ void CCISidePanel::constructImage() {
     g.setColour(UICfg::TEXT_COLOUR);
 
 
-    auto& currentCueInfo = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
+    auto &currentCueInfo = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
     if (currentCueInfo.isInvalid()) {
         return; // Don't draw nothing!
     }
@@ -683,13 +751,13 @@ void CCISidePanel::constructImage() {
 
     // Cue Name
     g.setFont(titleFont);
-    g.setFont(cueNameBox.getHeight()*0.7);
+    g.setFont(cueNameBox.getHeight() * 0.7);
     // Figure out string width
     // If the name is too long, then scale down and use two lines
     if (GlyphArrangement::getStringWidthInt(g.getCurrentFont(), currentCueInfo.name) <= cueNameBox.getWidth()) {
         g.drawFittedText(currentCueInfo.name, cueNameBox.toNearestInt(), Justification::bottomLeft, 1);
     } else {
-        g.setFont(cueNameBox.getHeight()*0.4);
+        g.setFont(cueNameBox.getHeight() * 0.4);
         g.drawFittedText(currentCueInfo.name, cueNameBox.toNearestInt(), Justification::bottomLeft, 2);
     }
 
@@ -700,9 +768,8 @@ void CCISidePanel::constructImage() {
 
     // Cue Description
     g.setFont(textFont);
-    g.setFont(cueDescriptionBox.getHeight()*0.15);
+    g.setFont(cueDescriptionBox.getHeight() * 0.15);
     g.drawFittedText(currentCueInfo.description, cueDescriptionBox.toNearestInt(), Justification::topLeft, 6);
-
 
 
     auto stoppedPlayingIndicatorBoxWidth = stoppedPlayingIndicatorBox.getWidth();
@@ -710,7 +777,7 @@ void CCISidePanel::constructImage() {
 
     // Draw for Playing
     playingIndicatorImage = Image(Image::ARGB, stoppedPlayingIndicatorBoxWidth,
-        stoppedPlayingIndicatorBoxHeight, true);
+                                  stoppedPlayingIndicatorBoxHeight, true);
     Graphics pII(playingIndicatorImage);
 
     pII.fillAll(UICfg::POSITIVE_BUTTON_COLOUR);
@@ -718,13 +785,13 @@ void CCISidePanel::constructImage() {
     pII.setFont(stoppedPlayingIndicatorBoxHeight * 0.6);
     pII.setColour(UICfg::TEXT_COLOUR);
     pII.drawFittedText("PLAYING",
-        0, 0, stoppedPlayingIndicatorBoxWidth, stoppedPlayingIndicatorBoxHeight,
-        Justification::centred, 1);
+                       0, 0, stoppedPlayingIndicatorBoxWidth, stoppedPlayingIndicatorBoxHeight,
+                       Justification::centred, 1);
 
 
     // Draw for Stopped
     stoppedIndicatorImage = Image(Image::ARGB, stoppedPlayingIndicatorBoxWidth,
-    stoppedPlayingIndicatorBoxHeight, true);
+                                  stoppedPlayingIndicatorBoxHeight, true);
     Graphics sII(stoppedIndicatorImage);
 
     sII.fillAll(UICfg::NEGATIVE_BUTTON_COLOUR);
@@ -732,8 +799,8 @@ void CCISidePanel::constructImage() {
     sII.setFont(stoppedPlayingIndicatorBoxHeight * 0.6);
     sII.setColour(UICfg::TEXT_COLOUR);
     sII.drawFittedText("STOPPED",
-        0, 0, stoppedPlayingIndicatorBoxWidth, stoppedPlayingIndicatorBoxHeight,
-        Justification::centred, 1);
+                       0, 0, stoppedPlayingIndicatorBoxWidth, stoppedPlayingIndicatorBoxHeight,
+                       Justification::centred, 1);
 }
 
 
@@ -781,8 +848,11 @@ void CCISidePanel::resized() {
 
 
 void CCISidePanel::resizeActionList() {
-    actionList.setTargetFontSize(cueNameBox.getHeight() * 0.2f, false); // Don't need to repaint; setting new bounds will repaint it.
-    actionList.setBounds(viewportBox.getX(), viewportBox.getY(), viewportBox.getWidth() - cueActionListViewport.getScrollBarThickness(), actionList.getTheoreticallyRequiredHeight());
+    actionList.setTargetFontSize(cueNameBox.getHeight() * 0.2f, false);
+    // Don't need to repaint; setting new bounds will repaint it.
+    actionList.setBounds(viewportBox.getX(), viewportBox.getY(),
+                         viewportBox.getWidth() - cueActionListViewport.getScrollBarThickness(),
+                         actionList.getTheoreticallyRequiredHeight());
 }
 
 
@@ -798,14 +868,16 @@ void CCISidePanel::paint(Graphics &g) {
 
 void CCISidePanel::commandOccurred(ShowCommand command) {
     switch (command) {
-        case SHOW_PLAY: case SHOW_STOP:
+        case SHOW_PLAY:
+        case SHOW_STOP:
             repaint();
             break;
-        case SHOW_NEXT_CUE: case SHOW_PREVIOUS_CUE: {
+        case SHOW_NEXT_CUE:
+        case SHOW_PREVIOUS_CUE: {
             resizeActionList();
             constructImage();
             repaint();
-            auto& cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
+            auto &cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid()) {
                 lastCCIInternalID = "";
                 break;
@@ -816,11 +888,12 @@ void CCISidePanel::commandOccurred(ShowCommand command) {
         }
         case CUES_DELETED: {
             // If the cue deleted is this one... then we need to update the side panel.
-            auto& cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
+            auto &cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid() || // If no cues... or
-                cci.getInternalID() != lastCCIInternalID) { // If the current cue is not the last one we had
+                cci.getInternalID() != lastCCIInternalID) {
+                // If the current cue is not the last one we had
                 commandOccurred(SHOW_NEXT_CUE); // Triggers a repaint, resize and reimage
-                }
+            }
             break;
         }
         case FULL_SHOW_RESET:
@@ -907,7 +980,6 @@ void HeaderBar::reconstructImage() {
     g.drawRect(timeBox, 1);
 
 
-
     // Buttons - we use a separate method for this.
     reconstructButtonBackgroundImage();
 
@@ -918,10 +990,11 @@ void HeaderBar::reconstructImage() {
     g.setColour(UICfg::TEXT_COLOUR);
 
     g.drawFittedText(activeShowOptions.showName, showNameTextBox.toNearestInt(), Justification::centredLeft, 1);
-    g.drawFittedText("ID: " + String(activeShowOptions.currentCueID), cueIDTextBox.toNearestInt(), Justification::centredLeft, 1);
-    g.drawFittedText("Cue " + String(activeShowOptions.currentCueIndex + 1) + "/" + String(activeShowOptions.numberOfCueItems),
-                     cueNoTextBox.toNearestInt(), Justification::centredLeft, 1);
-
+    g.drawFittedText("ID: " + String(activeShowOptions.currentCueID), cueIDTextBox.toNearestInt(),
+                     Justification::centredLeft, 1);
+    g.drawFittedText(
+        "Cue " + String(activeShowOptions.currentCueIndex + 1) + "/" + String(activeShowOptions.numberOfCueItems),
+        cueNoTextBox.toNearestInt(), Justification::centredLeft, 1);
 
 
     // Button Foregrounds
@@ -940,7 +1013,6 @@ void HeaderBar::reconstructImage() {
     gFG.setFont(stopButtonTextBox.getHeight());;
     gFG.drawFittedText("STOP", stopButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
     gFG.drawFittedText("PLAY", playButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
-
 }
 
 
@@ -961,14 +1033,14 @@ void HeaderBar::resized() {
     downBox = bounds.removeFromLeft(boundWidthTenths * 0.5f);
     upBox = bounds.removeFromLeft(boundWidthTenths * 0.5f);
     playBox = bounds.removeFromLeft(boundWidthTenths);
-    timeBox = bounds;  // Simply use remaining bounds.
+    timeBox = bounds; // Simply use remaining bounds.
     timeTextBox = timeBox.toFloat();
     timeTextBox.removeFromLeft(boundWidthTenths * 0.05f);
     timeTextBox.removeFromRight(boundWidthTenths * 0.05f);
 
 
     buttonsBox = Rectangle<int>(stopBox.getX(), stopBox.getY(),
-        boundWidthTenths * 3, getLocalBounds().getHeight());
+                                boundWidthTenths * 3, getLocalBounds().getHeight());
 
 
     // Let's set the button bounds
@@ -1027,46 +1099,49 @@ void HeaderBar::paint(Graphics &g) {
     g.setColour(UICfg::TEXT_COLOUR);
     g.drawFittedText(getCurrentTimeAsFormattedString(), timeTextBox.toNearestInt(),
                      Justification::centred, 1);
-
 }
 
 
 void HeaderBar::commandOccurred(ShowCommand command) {
     if (activeShowOptions.numberOfCueItems == 0) {
-        setButtonEnabled(upButton, false);
-        setButtonEnabled(downButton, false);
-        setButtonEnabled(playButton, false);
-        setButtonEnabled(downButton, false);
+        upButton.setEnabled(false);
+        downButton.setEnabled(false);
+        playButton.setEnabled(false);
+        downButton.setEnabled(false);
     } else {
         switch (command) {
             case SHOW_PLAY:
-                setButtonEnabled(playButton, false);
-                setButtonEnabled(stopButton, true);
+                playButton.setEnabled(false);
+                stopButton.setEnabled(true);
                 break;
             case SHOW_STOP:
-                setButtonEnabled(playButton, true);
-                setButtonEnabled(stopButton, false);
+                playButton.setEnabled(true);
+                stopButton.setEnabled(false);
                 break;
-            case SHOW_NEXT_CUE: case SHOW_PREVIOUS_CUE:
+            case SHOW_NEXT_CUE:
+            case SHOW_PREVIOUS_CUE:
                 if (activeShowOptions.currentCueIndex == 0) {
                     // First Cue Selected
-                    setButtonEnabled(upButton, false);
-                    setButtonEnabled(downButton, true);
+                    upButton.setEnabled(false);
+                    downButton.setEnabled(true);
                 } else if ((activeShowOptions.currentCueIndex + 1) == activeShowOptions.numberOfCueItems) {
                     // Last Cue Selected
-                    setButtonEnabled(upButton, true);
-                    setButtonEnabled(downButton, false);
+                    upButton.setEnabled(true);
+                    downButton.setEnabled(false);
                 } else {
-                    setButtonEnabled(upButton, true);
-                    setButtonEnabled(downButton, true);
+                    upButton.setEnabled(true);
+                    downButton.setEnabled(true);
                 }
                 // Now we're on another cue, we also need to set the play button state.
-                setButtonEnabled(playButton, !activeShowOptions.currentCuePlaying);
-                setButtonEnabled(stopButton, activeShowOptions.currentCuePlaying);
+                playButton.setEnabled(!activeShowOptions.currentCuePlaying);
+                stopButton.setEnabled(activeShowOptions.currentCuePlaying);
                 break;
             case SHOW_NAME_CHANGE:
                 break;
-            case FULL_SHOW_RESET: case CUES_ADDED: case CUES_DELETED: case CUE_INDEXS_CHANGED:
+            case FULL_SHOW_RESET:
+            case CUES_ADDED:
+            case CUES_DELETED:
+            case CUE_INDEXS_CHANGED:
                 // The requirement in this case is to reset the buttons enabled state. If we trigger a
                 // next/previous cue command manually, it can reset all the buttons relevant to this
                 // header bar.
