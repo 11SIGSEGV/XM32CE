@@ -27,9 +27,20 @@ enum ShowCommand {
     FULL_SHOW_RESET, // Reset all UI and local variables
 
     CUE_INDEXS_CHANGED,
-    _BROADCAST_TO_ALL_CUE_STOPPED
+
+    // Individual Cue Commands
+    CUE_STOPPED
 };
 
+/*
+// Maps the ShowCommand cue for an Individual Cue Command when sent for an entire Show. Used when the individual cue
+// command applies the currently selected CCI.
+// (i.e., cueCommandOccurred() --> commandOccurred())
+// E.g., CUE_STOPPED would map to SHOW_STOP.
+inline constexpr std::unordered_map<ShowCommand, ShowCommand> INDIVIDUAL_CUE_TO_SHOW_CUE_MORPHS = {
+    {CUE_STOPPED, SHOW_STOP}
+};
+*/
 
 class ShowCommandListener {
 public:
@@ -41,15 +52,14 @@ public:
     the parent should broadcast it to all registered children also through this function.
     Each component should implement actions for each ShowCommand it supports, and can simply ignore all other
     irrelevant ShowCommands.
-
-    While most components will implement this function directly in the thread it was called, MainComponent must
-    implement it as a function that will always ultimately execute the command in the main thread. This means a
-    queue of awaiting ShowCommands should be used, and the main thread should process them in a loop
-    until the queue is empty. This is to ensure that all ShowCommands are executed in the main thread in the recieved
-    order. If one component takes too long to process a ShowCommand, this is a sacrifice that has to be made to ensure
-    atomicity.
     */
     virtual void commandOccurred(ShowCommand) = 0;
+
+    /* Called for specific commands affecting only one single cue. commandOccurred will still be callbacked when a
+     * command applies the current cue, but if a cue event happens to a specific cue that is not currently selected,
+     * some components may still require it (e.g., CueList classes). This is for those components.
+     */
+    virtual void cueCommandOccurred(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex) {}
 };
 
 
@@ -68,6 +78,7 @@ namespace UICfg {
 
     const Colour BG_COLOUR(34, 34, 34);
     const Colour BG_SECONDARY_COLOUR(51, 51, 51);
+    const Colour SELECTED_CUE_LIST_ITEM_BG_COLOUR(82, 82, 82);
     const Colour LIGHT_BG_COLOUR(100, 100, 100);
     const Colour TEXT_COLOUR(238, 238, 238);
     const Colour TEXT_ACCENTED_COLOUR(212, 235, 255);

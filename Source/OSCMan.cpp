@@ -456,7 +456,7 @@ void OSCCueDispatcherManager::run() {
                 std::this_thread::sleep_for(
                     std::chrono::milliseconds(waitMSFromWhenActionQueueIsEmpty) - elapsed);
             } else {
-                DBG("Warning: OSC Cue Dispatcher Manager exceeded waitMSFromWhenActionQueueIsEmpty. This means each"
+                DBG("Warning: OSC Cue Dispatcher Manager exceeded waitMSFromWhenActionQueueIsEmpty. This means each "
                     "iteration checking if the queue is empty took longer than the allowed wait time. "
                     "Consider increasing wait time or running the thread with realtime priority or more "
                     "system resources.");

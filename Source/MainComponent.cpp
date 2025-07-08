@@ -43,14 +43,42 @@ void MainComponent::resized() {
     headerBar.setBounds(bounds.removeFromTop(bounds.getHeight() * 0.05f));
     sidePanel.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.2f));
     auto boxHeight = bounds.getHeight() * 0.05f;
+    auto cueListHeaderBox = bounds.removeFromTop(boxHeight);
     cueListBox.setBounds(bounds);
     cueListBox.setRowHeight(boxHeight);
 
-    backgroundPrerender = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
     // Prerender the background for the cue list area and the titles for the cue list.
+    backgroundPrerender = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
     Graphics g(backgroundPrerender);
+
     g.setColour(UICfg::BG_SECONDARY_COLOUR);
     g.fillRect(bounds);
+    g.setColour(UICfg::BG_COLOUR);
+    g.fillRect(cueListHeaderBox);
+
+    Font headerFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, cueListHeaderBox.getHeight() * 0.6f, Font::bold);
+    g.setFont(headerFont);
+    g.setColour(UICfg::TEXT_ACCENTED_COLOUR);
+
+    auto cueListHeaderBoxCopy = cueListHeaderBox;
+
+    float bounds20ths = cueListHeaderBoxCopy.getWidth() * 0.05f;
+    float padding = UICfg::STD_PADDING * cueListHeaderBoxCopy.getHeight() * 7;
+
+    auto numBox = cueListHeaderBoxCopy.removeFromLeft(bounds20ths);
+    auto idBox = cueListHeaderBoxCopy.removeFromLeft(bounds20ths * 3);
+    auto nameBox = cueListHeaderBoxCopy.removeFromLeft(bounds20ths * 10);
+    auto numberOfActionsBox = cueListHeaderBoxCopy.removeFromLeft(bounds20ths);
+    auto stateBox = cueListHeaderBoxCopy.removeFromLeft(bounds20ths * 3);
+    auto editBox = cueListHeaderBoxCopy;
+
+    g.drawText("No", numBox.reduced(padding), Justification::centred, true);
+    g.drawText("ID", idBox.reduced(padding), Justification::centredLeft, true);
+    g.drawText("Name", nameBox.reduced(padding), Justification::centredLeft, true);
+    g.drawText("#A", numberOfActionsBox.reduced(padding), Justification::centred, true);
+    g.drawText("Status", stateBox.reduced(padding), Justification::centred, true);
+    g.drawText("Edit", editBox.reduced(padding), Justification::centred, true);
+
 
 }
 
@@ -79,12 +107,17 @@ void MainComponent::updateActiveShowOptionsFromCCIIndex(size_t newIndex) {
 
 
 void MainComponent::commandOccurred(ShowCommand cmd) {
+    bool currentCueListItemRequiresRedraw = false;  // We should only redraw when in the message lock, so hence we set a flag and set the redraw later
     switch (cmd) {
         case SHOW_NEXT_CUE:
             updateActiveShowOptionsFromCCIIndex(activeShowOptions.currentCueIndex + 1);
+            cueListBox.repaintRow(activeShowOptions.currentCueIndex);
+            cueListBox.repaintRow(activeShowOptions.currentCueIndex - 1);
             break;
         case SHOW_PREVIOUS_CUE:
             updateActiveShowOptionsFromCCIIndex(activeShowOptions.currentCueIndex - 1);
+            cueListBox.repaintRow(activeShowOptions.currentCueIndex);
+            cueListBox.repaintRow(activeShowOptions.currentCueIndex + 1);
             break;
         case SHOW_PLAY: {
             // Dispatch the job.
@@ -96,22 +129,19 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
 
             dispatcher.addCueToMessageQueue(cci);
             cciVector.setAsRunning(cci);
+            currentCueListItemRequiresRedraw = true;
             break;
         }
         case SHOW_STOP: {
             auto& cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
             if (cci.isInvalid()) { break; }
 
-            if (!cci.currentlyPlaying) {
-                // If the current cue is not playing, we don't need to stop it.
-                return;
-            }
-
             cci.currentlyPlaying = false;
             activeShowOptions.currentCuePlaying = false;
 
             dispatcher.stopAllActionsInCCI(cci);
             cciVector.removeFromRunning(cci);
+            currentCueListItemRequiresRedraw = true;
             break;
         }
         case SHOW_NAME_CHANGE:
@@ -139,7 +169,7 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
         case CUE_INDEXS_CHANGED:
             setNewIndexForCCI();
             break;
-        case _BROADCAST_TO_ALL_CUE_STOPPED:
+        case CUE_STOPPED:
             cmd = SHOW_STOP; // Morph command
             break;
         default:
@@ -150,9 +180,23 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
         if (!mmLock.lockWasGained()) {
             jassertfalse; // Woah woah woah... where's our message lock?
         }
+        if (currentCueListItemRequiresRedraw) {
+            cueListBox.repaintRow(activeShowOptions.currentCueIndex);
+        }
         sendCommandToAllListeners(cmd);
     } // Force message manager lock to be released here, so that we can call this function from any thread.
 }
+
+void MainComponent::sendCueCommandToAllListeners(ShowCommand command, std::string cciInternalID, size_t cciCurrentIndex) {
+    for (auto *comp: callbackCompsUponActiveShowOptionsChanged) {
+        if (comp != nullptr) {
+            comp->cueCommandOccurred(command, cciInternalID, cciCurrentIndex);
+            continue;
+        }
+        jassertfalse;
+    }
+}
+
 
 void MainComponent::setNewIndexForCCI() {
     // Get the new correct CCI
@@ -162,8 +206,38 @@ void MainComponent::setNewIndexForCCI() {
 
 void MainComponent::sendCommandToAllListeners(ShowCommand cmd) {
     for (auto *comp: callbackCompsUponActiveShowOptionsChanged) {
-        comp->commandOccurred(cmd);
+        if (comp != nullptr) {
+            comp->commandOccurred(cmd);
+            continue;
+        }
+        jassertfalse; // Invalid pointer to callback
     }
+}
+
+
+void MainComponent::cueCommandOccurred(ShowCommand command, std::string cciInternalID, size_t cciCurrentIndex) {
+    bool cueListItemRequiresRedraw = true;
+    if (cciInternalID == activeShowOptions.currentCueInternalID) {
+        cueListItemRequiresRedraw = false; // When a cue command is morphed and passed to commandOccurred, it should handle the redraw
+        // Ok so, we also have to pass this command to commandOccurred(), but first we need to morph it.
+        switch (command) {
+            case CUE_STOPPED:
+                commandOccurred(SHOW_STOP);
+                break;
+            default:
+                break;
+        }
+    }
+    {
+        const MessageManagerLock mmLock;
+        if (!mmLock.lockWasGained()) {
+            jassertfalse; // Woah woah woah... where's our message lock?
+        }
+        if (cueListItemRequiresRedraw) {
+            cueListBox.repaintRow(cciCurrentIndex);  // Any event that occurs must be redrawn
+        }
+        sendCueCommandToAllListeners(command, cciInternalID, cciCurrentIndex);
+    } // Force message manager lock to be released here, so that we can call this function from any thread.
 }
 
 
@@ -197,8 +271,8 @@ void MainComponent::actionFinished(std::string actionID) {
         if (cciIndex == activeShowOptions.currentCueIndex) {
             activeShowOptions.currentCuePlaying = false;
         }
-        // Update UI as appropriate
-        commandOccurred(_BROADCAST_TO_ALL_CUE_STOPPED);
+        // Call the listener... the cueCommandOccurred listener will pass on a SHOW_STOP ShowCommand if the CCI is the current CCI.
+        cueCommandOccurred(CUE_STOPPED, cci.getInternalID(), cciIndex);
     }
 }
 
@@ -429,7 +503,7 @@ void CCIActionList::commandOccurred(ShowCommand command) {
             }
             break;
         }
-        case SHOW_PLAY: case SHOW_STOP: case SHOW_NAME_CHANGE: case _BROADCAST_TO_ALL_CUE_STOPPED:
+        case SHOW_PLAY: case SHOW_STOP: case SHOW_NAME_CHANGE: case CUE_STOPPED:
             break;
         default:
             jassertfalse; // ...I... but... like... ...like... all the... commands are already... covered...?????
@@ -998,7 +1072,7 @@ void HeaderBar::commandOccurred(ShowCommand command) {
                 // header bar.
                 commandOccurred(SHOW_NEXT_CUE);
                 break;
-            case _BROADCAST_TO_ALL_CUE_STOPPED:
+            case CUE_STOPPED:
                 break;
             default:
                 jassertfalse; //... what show command are you sending?

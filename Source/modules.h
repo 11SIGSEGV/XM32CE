@@ -482,6 +482,8 @@ struct DraggableListBoxItemData
 // Declare your list box using this type.
 class DraggableListBox : public ListBox, public DragAndDropContainer
 {
+    public:
+    DraggableListBox() {setColour(backgroundColourId, Colour(0.f, 0.f, 0.f, 0.f));}
 };
 
 // Everything below this point should be generic.

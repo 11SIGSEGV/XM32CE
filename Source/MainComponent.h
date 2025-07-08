@@ -46,7 +46,7 @@ struct CueListData: public DraggableListBoxItemData {
         }
         auto boundsCopy = bounds;
         if (rowNum == activeShowOptions.currentCueIndex) {
-            g.setColour(UICfg::BG_COLOUR);
+            g.setColour(UICfg::SELECTED_CUE_LIST_ITEM_BG_COLOUR);
             g.fillRect(boundsCopy);
         }
 
@@ -66,9 +66,13 @@ struct CueListData: public DraggableListBoxItemData {
         g.setColour(UICfg::TEXT_COLOUR);
 
         g.drawText(String(rowNum+1), numBox.reduced(padding), Justification::centred);
-        g.drawText(cci.id, idBox.reduced(padding), Justification::centred);
+        g.drawText(cci.id, idBox.reduced(padding), Justification::centredLeft);
         g.drawText(cci.name, nameBox.reduced(padding), Justification::centredLeft);
         g.drawText(String(cci.actions.size()), numberOfActionsBox.reduced(padding), Justification::centred);
+        g.setColour(cci.currentlyPlaying ? UICfg::POSITIVE_BUTTON_COLOUR: UICfg::NEGATIVE_BUTTON_COLOUR);
+        g.fillRect(stateBox);
+        g.setColour(UICfg::TEXT_COLOUR);
+        g.drawText(cci.currentlyPlaying ? "PLAYING": "STOPPED", stateBox.reduced(padding), Justification::centred);
         // g.drawText(, numberOfActionsBox, Justification::centred);
 
         // Draw boxes for all rectangles
@@ -311,7 +315,7 @@ public:
     // Constructor for HeaderBar object. Expect an active show options struct.
     HeaderBar(ActiveShowOptions &activeShowOptions): activeShowOptions(activeShowOptions) {
         setOpaque(true);
-        startTimer(500); // Update every 500ms. For clock.
+        startTimer(249); // Update every 249ms. For clock.
 
         stopButton.addListener(this);
         // stopButton.setOpaque(true/);
@@ -490,13 +494,19 @@ public:
     void updateActiveShowOptionsFromCCIIndex(size_t newIndex);
 
 
-    // Implemented to listen for ShowCommands. Broadcasts all commands to registered callbacks.
+    // Implemented to listen for ShowCommands.
     void commandOccurred(ShowCommand) override;
+    // Broadcasts all commands to registered callbacks
+    void sendCommandToAllListeners(ShowCommand);
+
+    // Implemented to listen for individual-cue ShowCommands
+    void cueCommandOccurred(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex) override;
+    // Broadcasts cue commands to registered callbacks
+    void sendCueCommandToAllListeners(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex);
 
     void setNewIndexForCCI();
 
 
-    void sendCommandToAllListeners(ShowCommand);
 
     // Receives callbacks from the OSCDispatcherManager.
     void actionFinished(std::string) override;
@@ -581,7 +591,7 @@ private:
     const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};
 
 
-    OSCDeviceSender oscDeviceSender{"127.0.0.1", "10023", "X32"};
+    OSCDeviceSender oscDeviceSender{"192.168.0.100", "10023", "X32"};
     OSCCueDispatcherManager dispatcher{oscDeviceSender};
     const std::vector<Component *> activeComps = {&headerBar, &sidePanel, &cueListBox};
 
