@@ -44,7 +44,43 @@ struct CueListData: public DraggableListBoxItemData {
         if (cci.isInvalid()) {
             return;
         }
-        g.drawText(cci.id, bounds, Justification::centredLeft, true);
+        auto boundsCopy = bounds;
+        if (rowNum == activeShowOptions.currentCueIndex) {
+            g.setColour(UICfg::BG_COLOUR);
+            g.fillRect(boundsCopy);
+        }
+
+        auto textHeight = boundsCopy.getHeight() * 0.6f;
+        float bounds20ths = boundsCopy.getWidth() * 0.05f;
+        float padding = UICfg::STD_PADDING * boundsCopy.getHeight() * 7;
+
+        auto numBox = boundsCopy.removeFromLeft(bounds20ths);
+        auto idBox = boundsCopy.removeFromLeft(bounds20ths * 3);
+        auto nameBox = boundsCopy.removeFromLeft(bounds20ths * 10);
+        auto numberOfActionsBox = boundsCopy.removeFromLeft(bounds20ths);
+        auto stateBox = boundsCopy.removeFromLeft(bounds20ths * 3);
+        auto editBox = boundsCopy;
+
+        g.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
+        g.setFont(textHeight);
+        g.setColour(UICfg::TEXT_COLOUR);
+
+        g.drawText(String(rowNum+1), numBox.reduced(padding), Justification::centred);
+        g.drawText(cci.id, idBox.reduced(padding), Justification::centred);
+        g.drawText(cci.name, nameBox.reduced(padding), Justification::centredLeft);
+        g.drawText(String(cci.actions.size()), numberOfActionsBox.reduced(padding), Justification::centred);
+        // g.drawText(, numberOfActionsBox, Justification::centred);
+
+        // Draw boxes for all rectangles
+        g.setColour(UICfg::CUE_LIST_ITEM_INSIDE_OUTLINES_COLOUR);
+        g.drawRect(numBox);
+        g.drawRect(idBox);
+        g.drawRect(nameBox);
+        g.drawRect(numberOfActionsBox);
+        g.drawRect(stateBox);
+        g.drawRect(editBox);
+        g.setColour(UICfg::CUE_LIST_ITEM_OUTLINE_COLOUR);
+        g.drawRect(bounds);
     }
 
     void moveAfter(int indexOfItemToMove, int indexOfItemToPlaceAfter) override {
@@ -52,7 +88,6 @@ struct CueListData: public DraggableListBoxItemData {
             cciVector.move(indexOfItemToMove, indexOfItemToPlaceAfter);
         else
             cciVector.move(indexOfItemToMove, indexOfItemToPlaceAfter + 1);
-        notifyListeners(CUE_INDEXS_CHANGED);
     }
 
     void moveBefore(int indexOfItemToMove, int indexOfItemToPlaceBefore) override {
@@ -60,7 +95,6 @@ struct CueListData: public DraggableListBoxItemData {
             cciVector.move(indexOfItemToMove, indexOfItemToPlaceBefore - 1);
         else
             cciVector.move(indexOfItemToMove, indexOfItemToPlaceBefore);
-        notifyListeners(CUE_INDEXS_CHANGED);
     }
 private:
     void notifyListeners(ShowCommand command) {
@@ -78,18 +112,20 @@ private:
 // Item
 class CueListItem: public DraggableListBoxItem {
 public:
-    CueListItem(DraggableListBox& lb, CueListData& data, int rn): DraggableListBoxItem(lb, data, rn) {}
+    CueListItem(DraggableListBox& lb, CueListData& data, int rn): DraggableListBoxItem(lb, data, rn), data(data) {}
     ~CueListItem() override = default;
 
     void paint(Graphics &g) override {
-        g.setColour(Colours::red);
-        g.drawRect(bounds, 2);
         DraggableListBoxItem::paint(g);
     }
-    void resized() override { bounds = getLocalBounds(); }
+
+    void resized() override {
+        bounds = getLocalBounds();
+    }
 
 private:
     Rectangle<int> bounds;
+    CueListData& data;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CueListItem)
 };
@@ -434,17 +470,14 @@ private:
 //==============================================================================
 
 // TODO: Move private variables and methods to custom structs
-class MainComponent : public Component, public ShowCommandListener, public OSCDispatcherListener,
-                      public HighResolutionTimer {
+class MainComponent : public Component, public ShowCommandListener, public OSCDispatcherListener {
 public:
     //==============================================================================
-    // The average human reaction time is around 100ms at minimum, so we can get away with 50ms for the timer callback.
-    MainComponent(int timerCallbackForShowCommandQueueIntervalMS = 50);
+    MainComponent();
 
     ~MainComponent() override {
         dispatcher.stopThread(5000);
         headerBar.unregisterListener(this);
-        stopTimer();
         removeAllChildren();
     }
 
@@ -462,10 +495,6 @@ public:
 
     void setNewIndexForCCI();
 
-    // Actually handles the ShowCommands. commandOccurred can be called from any thread, but this function
-    // will always be called in the main thread.
-    void hiResTimerCallback() override;
-
 
     void sendCommandToAllListeners(ShowCommand);
 
@@ -473,6 +502,7 @@ public:
     void actionFinished(std::string) override;
 
 private:
+    Image backgroundPrerender;
     //==============================================================================
     // Your private member variables go here...
     Slider rotaryKnob;
@@ -505,9 +535,6 @@ private:
     // NOTE: When switching from numberOfCueItems==0 to any other value, a FULL_SHOW_RESET command must be sent.
     // A reminder that currentCueIndex is 0-indexed... but numberOfCueItems is NOT.
     ActiveShowOptions activeShowOptions{"Terrence is Fat", "Test Description"};
-
-    TSQueue<ShowCommand> awaitingShowCommands; // Queue of ShowCommands to be processed in the main thread.
-
 
 
     CurrentCueInfoVector cciVector = CurrentCueInfoVector(

@@ -67,6 +67,7 @@ namespace UICfg {
                                                     static_cast<float>(DEFAULT_TEXT_HEIGHT), Font::plain);
 
     const Colour BG_COLOUR(34, 34, 34);
+    const Colour BG_SECONDARY_COLOUR(51, 51, 51);
     const Colour LIGHT_BG_COLOUR(100, 100, 100);
     const Colour TEXT_COLOUR(238, 238, 238);
     const Colour TEXT_ACCENTED_COLOUR(212, 235, 255);
@@ -74,6 +75,8 @@ namespace UICfg {
     const Colour STRONG_BORDER_COLOUR(212, 212, 212);
     const Colour HEADER_BG_COLOUR(25, 23, 43);
     const Colour HEADER_BTN_DISABLED_BG_COLOUR(15, 14, 27);
+    const Colour CUE_LIST_ITEM_OUTLINE_COLOUR(73, 66, 134);
+    const Colour CUE_LIST_ITEM_INSIDE_OUTLINES_COLOUR(35, 29, 86);
 
     const Colour POSITIVE_BUTTON_COLOUR(89, 177, 128);
     const Colour POSITIVE_OVER_BUTTON_COLOUR(102, 208, 149);

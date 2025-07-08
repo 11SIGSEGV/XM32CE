@@ -3,7 +3,7 @@
 //==============================================================================
 
 
-MainComponent::MainComponent(const int timerCallbackForShowCommandQueueIntervalMS):
+MainComponent::MainComponent():
  cueListModel(cueListBox, cueListData) {
     DBG("OSC Device Connected on " + oscDeviceSender.getIPAddress());
 
@@ -22,14 +22,11 @@ MainComponent::MainComponent(const int timerCallbackForShowCommandQueueIntervalM
         addAndMakeVisible(*comp);
     }
 
-    startTimer(timerCallbackForShowCommandQueueIntervalMS);
 }
 
 
-void MainComponent::paint(Graphics &g) {;
-    // (Our component is opaque, so we must completely fill the background with a solid colour)
-    g.fillAll(getLookAndFeel().findColour(ResizableWindow::backgroundColourId));
-
+void MainComponent::paint(Graphics &g) {
+    g.drawImage(backgroundPrerender, getLocalBounds().toFloat());
 
     g.setFont(FontOptions(16.0f));
     g.setColour(Colours::white);
@@ -45,9 +42,15 @@ void MainComponent::resized() {
     auto bounds = getLocalBounds();
     headerBar.setBounds(bounds.removeFromTop(bounds.getHeight() * 0.05f));
     sidePanel.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.2f));
-    auto boxHeight = bounds.getHeight() * 0.08f;
+    auto boxHeight = bounds.getHeight() * 0.05f;
     cueListBox.setBounds(bounds);
     cueListBox.setRowHeight(boxHeight);
+
+    backgroundPrerender = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
+    // Prerender the background for the cue list area and the titles for the cue list.
+    Graphics g(backgroundPrerender);
+    g.setColour(UICfg::BG_SECONDARY_COLOUR);
+    g.fillRect(bounds);
 
 }
 
@@ -76,21 +79,6 @@ void MainComponent::updateActiveShowOptionsFromCCIIndex(size_t newIndex) {
 
 
 void MainComponent::commandOccurred(ShowCommand cmd) {
-    awaitingShowCommands.push(cmd);
-}
-
-void MainComponent::setNewIndexForCCI() {
-    // Get the new correct CCI
-    activeShowOptions.currentCueIndex = cciVector.getIndexByCCIInternalID(activeShowOptions.currentCueInternalID);
-}
-
-
-void MainComponent::hiResTimerCallback() {
-    if (awaitingShowCommands.empty()) {
-        return; // Nothing to do
-    }
-    auto cmd = awaitingShowCommands.pop();
-
     switch (cmd) {
         case SHOW_NEXT_CUE:
             updateActiveShowOptionsFromCCIIndex(activeShowOptions.currentCueIndex + 1);
@@ -164,13 +152,11 @@ void MainComponent::hiResTimerCallback() {
         }
         sendCommandToAllListeners(cmd);
     } // Force message manager lock to be released here, so that we can call this function from any thread.
+}
 
-
-    // Recursion is very dangerous, but waiting another 50ms for the next timer callback is horrible idea. If there were
-    // 20 actions added to the queue at once, we would have to wait 1 second for the next timer callback to process
-    // all 20 actions.
-    // So, we will just call the function again. If there's nothing to do, it'll return immediately, ending the recursion.
-    hiResTimerCallback();
+void MainComponent::setNewIndexForCCI() {
+    // Get the new correct CCI
+    activeShowOptions.currentCueIndex = cciVector.getIndexByCCIInternalID(activeShowOptions.currentCueInternalID);
 }
 
 

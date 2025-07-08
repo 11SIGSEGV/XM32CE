@@ -517,6 +517,7 @@ protected:
     MouseCursor savedCursor;
     bool insertAfter = false;
     bool insertBefore = false;
+    Image prerendered;
 };
 
 class DraggableListBoxModel : public ListBoxModel
