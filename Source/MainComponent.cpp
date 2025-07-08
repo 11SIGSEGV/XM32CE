@@ -119,7 +119,11 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
         case SHOW_PLAY: {
             // Dispatch the job.
             auto &cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
-            if (cci.isInvalid()) { break; }
+            // If either of these circumstances, we shouldn't pass an invalid CCI onwards. The action is invalid.
+            if (cci.isInvalid() || cci.actions.empty()) {
+                sendCommandToAllListeners(SHOW_STOP);
+                return;
+            }
 
             cci.currentlyPlaying = true;
             activeShowOptions.currentCuePlaying = true;
@@ -171,16 +175,8 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
             break;
         default:
             jassertfalse; // Invalid ShowCommand
-    } {
-        const MessageManagerLock mmLock;
-        if (!mmLock.lockWasGained()) {
-            jassertfalse; // Woah woah woah... where's our message lock?
-        }
-        if (currentCueListItemRequiresRedraw) {
-            cueListBox.repaintRow(activeShowOptions.currentCueIndex);
-        }
-        sendCommandToAllListeners(cmd);
-    } // Force message manager lock to be released here, so that we can call this function from any thread.
+    }
+    sendCommandToAllListeners(cmd, currentCueListItemRequiresRedraw);
 }
 
 
@@ -196,14 +192,23 @@ void MainComponent::sendCueCommandToAllListeners(ShowCommand command, std::strin
 }
 
 
-void MainComponent::sendCommandToAllListeners(ShowCommand cmd) {
-    for (auto *comp: callbackCompsUponActiveShowOptionsChanged) {
-        if (comp != nullptr) {
-            comp->commandOccurred(cmd);
-            continue;
+void MainComponent::sendCommandToAllListeners(ShowCommand cmd, bool currentCueListItemRequiresRedraw) {
+    {
+        const MessageManagerLock mmLock;
+        if (!mmLock.lockWasGained()) {
+            jassertfalse; // Woah woah woah... where's our message lock?
         }
-        jassertfalse; // Invalid pointer to callback
-    }
+        if (currentCueListItemRequiresRedraw) {
+            cueListBox.repaintRow(activeShowOptions.currentCueIndex);
+        }
+        for (auto *comp: callbackCompsUponActiveShowOptionsChanged) {
+            if (comp != nullptr) {
+                comp->commandOccurred(cmd);
+                continue;
+            }
+            jassertfalse; // Invalid pointer to callback
+        }
+    } // Force message manager lock to be released here, so that we can call this function from any thread.
 }
 
 

@@ -451,7 +451,7 @@ public:
     // Implemented to listen for ShowCommands.
     void commandOccurred(ShowCommand) override;
     // Broadcasts all commands to registered callbacks
-    void sendCommandToAllListeners(ShowCommand);
+    void sendCommandToAllListeners(ShowCommand cmd, bool currentCueListItemRequiresRedraw = false);
 
 
     // Implemented to listen for individual-cue ShowCommands
