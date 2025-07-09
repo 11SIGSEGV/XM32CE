@@ -489,9 +489,9 @@ typedef std::variant<OptionParam, NonIter, EnumParam> OSCMessageArguments;
 typedef std::unordered_map<ArgumentEmbeddedPath*, std::vector<OSCMessageArguments>> PathToArgumentMap;
 typedef std::pair<ArgumentEmbeddedPath, std::vector<OSCMessageArguments>> PathToArgumentPair;
 // The below are the same as PathToArgumentPair, but for when one type of argument is used. This makes dealing with types infintely easier.
-typedef std::pair<ArgumentEmbeddedPath, std::vector<NonIter>> NonIter_PathToArgumentPair;
-typedef std::pair<ArgumentEmbeddedPath, std::vector<EnumParam>> EnumParam_PathToArgumentPair;
-typedef std::pair<ArgumentEmbeddedPath, std::vector<OptionParam>> OptionParam_PathToArgumentPair;
+typedef std::pair<ArgumentEmbeddedPath, NonIter> NonIter_PathToArgumentPair;
+typedef std::pair<ArgumentEmbeddedPath, EnumParam> EnumParam_PathToArgumentPair;
+typedef std::pair<ArgumentEmbeddedPath, OptionParam> OptionParam_PathToArgumentPair;
 
 
 // An example. This assumes const std::string& basePath = "/ch".
@@ -562,8 +562,10 @@ inline std::vector<std::string> factorsEnums() {
     return {"1/4", "3/8", "1/2", "2/3", "1", "4/3", "3/2", "2", "3"};
 }
 
+// Temporary commenting to not kill every compilation
+/*
 
-/* Please note: the code below is **AI GENERATED** and may contain errors. */
+// Please note: the code below is **AI GENERATED** and may contain errors.
 const std::set<Effect> X32Effects = {
     // 1. Hall Reverb (HALL)
     {
@@ -1851,3 +1853,4 @@ const std::set<Effect> X32Effects = {
         }
     }
 };
+*/

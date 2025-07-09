@@ -150,6 +150,7 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
         case FULL_SHOW_RESET:
             break; // Don't need to do anything, but we still need to broadcast it to all callbacks.'
         case CUES_ADDED:
+            activeShowOptions.numberOfCueItems = cciVector.getSize();
             break;
         case CUES_DELETED:
             // We also have to check that the current activeShowOptions hasn't just been deleted.

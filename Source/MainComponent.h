@@ -37,9 +37,11 @@ struct CueListData: public DraggableListBoxItemData {
 
     void deleteItem(int index) override {
         cciVector.erase(cciVector.begin() + index);
-    };
+    }
 
-    void addItemAtEnd() override { } // TODO: Figure out how to add a new CCI at the end of the vector... the virtual method does not implement passing a value to this function.
+    // Not to be used as the virtual method does not provide enough info
+    void addItemAtEnd() override {
+    } // TODO: Figure out how to add a new CCI at the end of the vector... the virtual method does not implement passing a value to this function.
 
     // Semi-static function. Requires item and bounds to paint CueListItem.
     void paintContents(int rowNum, Graphics &g, Rectangle<int> bounds) override;
@@ -510,24 +512,25 @@ private:
                 "FT1", "Speaker 2",
                 "Switch to Speaker 2. Fades channel level to -inf, changes name, icon and colour.",
                 {
-                    CueOSCAction("/ch/02/config/name", Channel::NAME.second[0], ValueStorer("Speaker 2")),
-                    CueOSCAction("/ch/02/config/icon", Channel::ICON.second[0], ValueStorer(52)),
-                    CueOSCAction("/ch/02/config/color", Channel::COLOUR.second[0], ValueStorer(11)),
-                    CueOSCAction("/ch/02/mix/fader", 2.f, Channel::FADER.second[0], ValueStorer(-20.f), ValueStorer(-90.f))
+                    CueOSCAction("/ch/02/config/name", Channel::NAME.second, ValueStorer("Speaker 2")),
+                    CueOSCAction("/ch/02/config/icon", Channel::ICON.second, ValueStorer(52)),
+                    CueOSCAction("/ch/02/config/color", Channel::COLOUR.second, ValueStorer(11)),
+                    CueOSCAction("/ch/02/mix/fader", 2.f, Channel::FADER.second, ValueStorer(-20.f), ValueStorer(-90.f))
                 }
             },
             {
                 "FT2", "Speaker 2 Prepare",
                 "Prepares Speaker 2. Fades chanel up and changes colour.",
                 {
-                    CueOSCAction("/ch/02/mix/fader", 5.f, Channel::FADER.second[0], ValueStorer(-90.f), ValueStorer(0.f)),
-                    CueOSCAction("/ch/02/config/color", Channel::COLOUR.second[0], ValueStorer(3)),
+                    CueOSCAction("/ch/02/mix/fader", 5.f, Channel::FADER.second, ValueStorer(-90.f), ValueStorer(0.f)),
+                    CueOSCAction("/ch/02/config/color", Channel::COLOUR.second, ValueStorer(3)),
                 },
             },
             {
                 "FATTerrence", "Terrence is actually so fat", "",
                 {
-                    CueOSCAction("/ch/02/delay/time", Channel::DELAY_TIME.second[0], ValueStorer(100.f))
+                    CueOSCAction("/ch/02/gate/range", Channel::GATE_RANGE.second, ValueStorer(10.5f)),
+                    CueOSCAction("/ch/02/preamp/hpslope", Channel::HPF_SLOPE.second, ValueStorer(2))
                 },
             }
         }
@@ -543,7 +546,7 @@ private:
     const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};
     const std::vector<Component *> activeComps = {&headerBar, &sidePanel, &cueListBox};
 
-    OSCDeviceSender oscDeviceSender{"192.168.0.100", "10023", "X32"};
+    OSCDeviceSender oscDeviceSender{"192.168.0.105", "10023", "X32"};
     OSCCueDispatcherManager dispatcher{oscDeviceSender};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
