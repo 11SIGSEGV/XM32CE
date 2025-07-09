@@ -11,6 +11,8 @@
 #include "Helpers.h"
 
 
+void ShowCommandListener::cueCommandOccurred(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex) {}
+
 Image getIconImageFile(int iconID) {
     if (ICON_FILE_MAP.find(iconID) != ICON_FILE_MAP.end()) {
         auto file = FileInfo::ICONS_DIRECTORY.getChildFile(ICON_FILE_MAP.at(iconID));
@@ -171,7 +173,7 @@ float XM32::dbToFloat(float db) {
 
 
 // This function (and its oppsite) are both actually quite fast. They can be used for realtime applications
-const double inferValueFromMinMaxAndPercentage(double minVal, double maxVal, double percentage, ParamType algorithm) {
+double inferValueFromMinMaxAndPercentage(double minVal, double maxVal, double percentage, const ParamType algorithm) {
     if (percentage == 0.0) {
         // If default is 0, then we can assume that the value is just the min.
         return minVal;
@@ -219,7 +221,7 @@ const double inferValueFromMinMaxAndPercentage(double minVal, double maxVal, dou
 }
 
 
-const double inferPercentageFromMinMaxAndValue(double minVal, double maxVal, double value, ParamType algorithm) {
+double inferPercentageFromMinMaxAndValue(const double minVal, const double maxVal, const double value, const ParamType algorithm) {
     if (value == minVal) {
         // If default value is the minimum, the normalised percentage is 0.
         return 0.0;

@@ -2,6 +2,7 @@
 // Created by anony on 11/05/25.
 //
 
+// ReSharper disable CppDFANotInitializedField
 #pragma once
 #include <bitset>
 #include <utility> // For std::move
@@ -394,7 +395,7 @@ struct OptionParam {
     const std::string verboseName;
     const std::string description;
     const std::vector<std::string> value {}; // OPTION
-    const ParamType _meta_PARAMTYPE {ParamType::OPTION};
+    const ParamType _meta_PARAMTYPE {OPTION};
     const unsigned int len {}; // Number of options
 
     OptionParam(const std::string &name, const std::string &verboseName, const std::string &description,
@@ -408,7 +409,7 @@ struct EnumParam {
     const std::string verboseName;
     const std::string description;
     const std::vector<std::string> value {}; // ENUM
-    const ParamType _meta_PARAMTYPE {ParamType::ENUM};
+    const ParamType _meta_PARAMTYPE {ENUM};
     const unsigned int len {}; // Number of options
 
     EnumParam(const std::string &name, const std::string &verboseName, const std::string &description,
@@ -483,12 +484,11 @@ struct NonIter {
 
 
 
-typedef std::vector<std::variant<std::string, OptionParam, EnumParam, NonIter>> ArgumentEmbeddedPath;
 typedef std::vector<ValueStorer> ValueStorerArray;
+typedef std::vector<std::variant<std::string, OptionParam, EnumParam, NonIter>> ArgumentEmbeddedPath;
 typedef std::variant<OptionParam, NonIter, EnumParam> OSCMessageArguments;
-typedef std::unordered_map<ArgumentEmbeddedPath*, std::vector<OSCMessageArguments>> PathToArgumentMap;
-typedef std::pair<ArgumentEmbeddedPath, std::vector<OSCMessageArguments>> PathToArgumentPair;
-// The below are the same as PathToArgumentPair, but for when one type of argument is used. This makes dealing with types infintely easier.
+typedef std::pair<ArgumentEmbeddedPath, OSCMessageArguments> PathToArgumentPair;
+// The below are the same as PathToArgumentPair, but for when one type of argument is used. This makes dealing with types infinitely easier.
 typedef std::pair<ArgumentEmbeddedPath, NonIter> NonIter_PathToArgumentPair;
 typedef std::pair<ArgumentEmbeddedPath, EnumParam> EnumParam_PathToArgumentPair;
 typedef std::pair<ArgumentEmbeddedPath, OptionParam> OptionParam_PathToArgumentPair;
@@ -499,12 +499,9 @@ typedef std::pair<ArgumentEmbeddedPath, OptionParam> OptionParam_PathToArgumentP
 //     NonIter("channel", 1, 1, 32), "/mix/fader"};
 
 
-inline const OptionParam _nullOption = {"", "", "", {}};
-inline const EnumParam _nullEnum = {"", "", "", {}};
-inline const NonIter _nullNonIter = {};
-inline const ValueStorerArray _nullValueStorerArray = {};
-inline ValueStorerArray _nullNonConstValueStorerArray = {};
-inline std::vector<OSCMessageArguments> _nullNonConstOSCMessageArguments = {};
+inline const OptionParam nullOption = {"", "", "", {}};
+inline const EnumParam nullEnum = {"", "", "", {}};
+inline const NonIter nullNonIter = {};
 
 
 

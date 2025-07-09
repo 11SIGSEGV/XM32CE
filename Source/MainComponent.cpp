@@ -146,9 +146,8 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
             break;
         }
         case SHOW_NAME_CHANGE:
-            break;
         case FULL_SHOW_RESET:
-            break; // Don't need to do anything, but we still need to broadcast it to all callbacks.'
+            break; // Don't need to do anything, but we still need to broadcast it to all callbacks.
         case CUES_ADDED:
             activeShowOptions.numberOfCueItems = cciVector.getSize();
             break;
@@ -181,8 +180,8 @@ void MainComponent::commandOccurred(ShowCommand cmd) {
 }
 
 
-void MainComponent::sendCueCommandToAllListeners(ShowCommand command, std::string cciInternalID,
-                                                 size_t cciCurrentIndex) {
+void MainComponent::sendCueCommandToAllListeners(const ShowCommand command, const std::string &cciInternalID,
+                                                 const size_t cciCurrentIndex) const {
     for (auto *comp: callbackCompsUponActiveShowOptionsChanged) {
         if (comp != nullptr) {
             comp->cueCommandOccurred(command, cciInternalID, cciCurrentIndex);
@@ -193,7 +192,7 @@ void MainComponent::sendCueCommandToAllListeners(ShowCommand command, std::strin
 }
 
 
-void MainComponent::sendCommandToAllListeners(ShowCommand cmd, bool currentCueListItemRequiresRedraw) {
+void MainComponent::sendCommandToAllListeners(const ShowCommand cmd, bool currentCueListItemRequiresRedraw) {
     {
         const MessageManagerLock mmLock;
         if (!mmLock.lockWasGained()) {
@@ -241,7 +240,7 @@ void MainComponent::cueCommandOccurred(ShowCommand command, std::string cciInter
 
 void MainComponent::actionFinished(std::string actionID) {
     auto remaining = cciVector.removeFromRunning(actionID);
-    if (remaining == cciVector.sizeTLimit) {
+    if (remaining == CurrentCueInfoVector::sizeTLimit) {
         // Oh no... we done goofed up.
         // Let's just... pretend nothing happened.
         // We're only returning without jassert because removeFromRunning should've already jasserted.
@@ -251,14 +250,14 @@ void MainComponent::actionFinished(std::string actionID) {
         // Wait... that's the last action running for the CCI!
         // Let's update the active show options to reflect that the current cue is no longer playing.
         // First, find the CCI internal ID for the action ID
-        auto cciInternalID = cciVector.getParentCCIInternalID(actionID);
+        const auto cciInternalID = cciVector.getParentCCIInternalID(actionID);
         if (cciInternalID.empty()) {
             jassertfalse; // Invalid CCI Internal ID. That means it wasn't in the actionIDtoCCIInternalIDMap.
             return;
         }
         // Now, find the index of the CCI internal ID in the cciIDtoIndexMap
         size_t cciIndex = cciVector.getIndexByCCIInternalID(cciInternalID);
-        if (cciIndex == cciVector.sizeTLimit) {
+        if (cciIndex == CurrentCueInfoVector::sizeTLimit) {
             jassertfalse; // Invalid CCI Index. That means it wasn't in the cciIDtoIndexMap.
             return;
         }
@@ -345,15 +344,14 @@ int CCIActionList::getTheoreticallyRequiredHeight(float usingFontSize) {
         switch (action.oat) {
             case OAT_COMMAND:
                 // Verbose Name         Val (s/f/i)
-                // ...
-                height += (usingFontSize + eachActionPadding) * action.oatCommandOSCArgumentTemplate.size();
+                height += usingFontSize + eachActionPadding;
                 break;
             case OAT_FADE:
                 // Verbose Name         0.0 >> 1.0
                 // Fade Time            0.0
                 height += 2 * (usingFontSize + eachLinePadding);
                 break;
-            case _EXIT_THREAD:
+            case EXIT_THREAD:
                 jassertfalse; // Why is an _EXIT_THREAD command being passed to CCIActionList...?
                 break;
         }
@@ -398,7 +396,7 @@ void CCIActionList::resized() {
 }
 
 
-String CCIActionList::getWidthAdjustedArgumentValueString(const String &value, const String &typeAlias) {
+String CCIActionList::getWidthAdjustedArgumentValueString(const String &value, const String &typeAlias) const {
     auto finalTypeAlias = typeAlias;
     if (typeAlias.length() != 1) {
         jassertfalse; // It's a type alias, not a typename... only meant to be one character.
@@ -434,7 +432,7 @@ String CCIActionList::getWidthAdjustedArgumentValueString(const String &value, c
 }
 
 
-String CCIActionList::getWidthAdjustedArgumentValueString(const ValueStorer &value, ParamType type) {
+String CCIActionList::getWidthAdjustedArgumentValueString(const ValueStorer &value, ParamType type) const {
     String valueAsString;
     String typeAlias;
     switch (type) {
@@ -467,7 +465,7 @@ String CCIActionList::getWidthAdjustedArgumentValueString(const ValueStorer &val
 }
 
 
-String CCIActionList::getWidthAdjustedVerboseName(const String &verboseName) {
+String CCIActionList::getWidthAdjustedVerboseName(const String &verboseName) const {
     int strLen = verboseName.length();
     if (strLen <= verboseNameMaxChars) {
         return verboseName;
@@ -481,7 +479,7 @@ String CCIActionList::getWidthAdjustedVerboseName(const String &verboseName) {
 }
 
 
-String CCIActionList::oatAppropriateForWidth(OSCActionType oat) {
+String CCIActionList::oatAppropriateForWidth(OSCActionType oat) const {
     switch (oat) {
         case OAT_COMMAND:
             // It's actually meant to say arguments... not commands. Fixed!
@@ -495,7 +493,7 @@ String CCIActionList::oatAppropriateForWidth(OSCActionType oat) {
             if (oatFontMaxChars >= 4) { return "FADE"; }
             if (oatFontMaxChars == 3) { return "FDE"; }
             return "";
-        case _EXIT_THREAD:
+        case EXIT_THREAD:
             jassertfalse; // PLEASE.
             // FOR. THE. LAST. TIME.
             // STOP.
@@ -636,37 +634,29 @@ void CCIActionList::paint(Graphics &g) {
         // Now, draw each/the osc argument(s) associated with each action
         switch (action.oat) {
             case OAT_COMMAND: {
-                // For OAT_COMMAND, we could have numerous parameters.
-                // First check the len of templates and valuestorers is the same.
-                if (action.oatCommandOSCArgumentTemplate.size() != action.arguments.size()) {
-                    jassertfalse; // OSC Action Argument Templates and Argument ValueStorer Vector must be the same size
-                    break;
-                }
-                // This loop draws the argument verbose name and value for each argument in the action
-                for (int i = 0; i < action.oatCommandOSCArgumentTemplate.size(); i++) {
-                    // Make a copy of the current template. Sacrifice the memory, not the compiler.
-                    OSCMessageArguments currentTemplate = action.oatCommandOSCArgumentTemplate[i];
-                    // Figure out which template type this is to get the verbose name
-                    String verboseName;
-                    if (auto *optVal = std::get_if<OptionParam>(&currentTemplate)) {
-                        verboseName = optVal->verboseName;
-                    } else if (auto *enumVal = std::get_if<EnumParam>(&currentTemplate)) {
-                        verboseName = enumVal->verboseName;
-                    } else if (auto *nonIter = std::get_if<NonIter>(&currentTemplate)) {
-                        verboseName = nonIter->verboseName;
-                    }
-                    auto currentArgument = action.arguments[i];
+                // For OAT_COMMAND, we previously could have multiple parameters. THIS IS NOT TRUE ANYMORE!
+                // Make a copy of the current template. Sacrifice the memory, not the compiler.
+                OSCMessageArguments currentTemplate = action.oatCommandOSCArgumentTemplate;
 
-                    // Draw the verbose name and value
-                    auto drawnTextBox = drawArgumentNameAndValue(
-                        g, leftmostX, currentHeight,
-                        getWidthAdjustedVerboseName(verboseName),
-                        getWidthAdjustedArgumentValueString(currentArgument, currentArgument._meta_PARAMTYPE),
-                        verboseNameFontHeight, oscArgumentFontHeight
-                    );
-
-                    currentHeight += drawnTextBox.getHeight() + EACH_LINE_PADDING;
+                // Figure out which template type this is to get the verbose name
+                String verboseName;
+                if (auto *optVal = std::get_if<OptionParam>(&currentTemplate)) {
+                    verboseName = optVal->verboseName;
+                } else if (auto *enumVal = std::get_if<EnumParam>(&currentTemplate)) {
+                    verboseName = enumVal->verboseName;
+                } else if (auto *nonIter = std::get_if<NonIter>(&currentTemplate)) {
+                    verboseName = nonIter->verboseName;
                 }
+
+                auto currentArgument = action.argument;
+                // Draw the verbose name and value
+                auto drawnTextBox = drawArgumentNameAndValue(
+                    g, leftmostX, currentHeight,
+                    getWidthAdjustedVerboseName(verboseName),
+                    getWidthAdjustedArgumentValueString(currentArgument, currentArgument._meta_PARAMTYPE),
+                    verboseNameFontHeight, oscArgumentFontHeight);
+
+                currentHeight += drawnTextBox.getHeight() + EACH_LINE_PADDING;
                 break;
             }
             case OAT_FADE: {
@@ -713,7 +703,7 @@ void CCIActionList::paint(Graphics &g) {
                 currentHeight += drawnTextBox.getHeight() + EACH_LINE_PADDING;
                 break;
             }
-            case _EXIT_THREAD:
+            case EXIT_THREAD:
                 jassertfalse; // ...you realise no matter how many times you insist on passing an invalid ParamType,
                 // I'm still not implementing a special case for it?
                 break;
@@ -872,7 +862,7 @@ void CCISidePanel::paint(Graphics &g) {
 }
 
 
-void CCISidePanel::commandOccurred(ShowCommand command) {
+void CCISidePanel::commandOccurred(const ShowCommand command) {
     switch (command) {
         case SHOW_PLAY:
         case SHOW_STOP:
@@ -1030,7 +1020,6 @@ void HeaderBar::resized() {
 
     // The bounds passed should be the bounds of ONLY the intended header bar.
     auto boundWidthTenths = bounds.getWidth() / 10;
-    float fontSize = bounds.getHeight() * 0.6f;
 
     showNameBox = bounds.removeFromLeft(boundWidthTenths * 2);
     cueIDBox = bounds.removeFromLeft(boundWidthTenths * 1.5f);
@@ -1108,7 +1097,7 @@ void HeaderBar::paint(Graphics &g) {
 }
 
 
-void HeaderBar::commandOccurred(ShowCommand command) {
+void HeaderBar::commandOccurred(const ShowCommand command) {
     if (activeShowOptions.numberOfCueItems == 0) {
         upButton.setEnabled(false);
         downButton.setEnabled(false);

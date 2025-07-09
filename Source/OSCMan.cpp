@@ -36,7 +36,7 @@ OSCDeviceSender::OSCDeviceSender(const String &ipAddress, const String &port, co
 }
 
 /* Assumes device is valid*/
-OSCDeviceSender::OSCDeviceSender(OSCDevice device) {
+OSCDeviceSender::OSCDeviceSender(const OSCDevice &device) {
     if (device.deviceName.isEmpty()) {
         throw std::invalid_argument("Empty OSCDevice");
     }
@@ -45,7 +45,8 @@ OSCDeviceSender::OSCDeviceSender(OSCDevice device) {
     this->deviceName = device.deviceName;
 }
 
-OSCDeviceSender::OSCDeviceSender(const String &ipAddress, int port, const String &deviceName) {
+
+OSCDeviceSender::OSCDeviceSender(const String &ipAddress, const int port, const String &deviceName) {
     auto ipv4AddrValidatorOut = isValidIPv4(ipAddress);
     if (!ipv4AddrValidatorOut.isValid) {
         throw std::invalid_argument(
@@ -145,7 +146,7 @@ std::vector<OSCArgument> OSCDeviceSender::compileOSCArguments(
 }
 
 
-String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(ArgumentEmbeddedPath &path, std::vector<ValueStorer> &pthArgVal) {
+String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath &path, const std::vector<ValueStorer> &pthArgVal) {
     String finalString;
 
     // Loop through each element of path. If it's a string, directly append it to finalString. Otherwise,
@@ -154,78 +155,78 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(ArgumentEmbeddedPath &path
     // Being by checks. Find number of in-path arguments.
     int argIndx{0};
     const int pathArgValsSize = pthArgVal.size();
-    for (size_t i = 0; i < path.size(); ++i) {
+    for (auto &segment : path) {
         // First, check if path[i] exists, or if it's out of range
         if (argIndx >= pathArgValsSize) {
-            throw std::out_of_range("Path argument index out of range");
+            jassertfalse; // Path argument index out of range
         }
-        if (auto *strVal = std::get_if<std::string>(&path[i])) {
+        if (const auto *strVal = std::get_if<std::string>(&segment)) {
             // If it's a string, append it directly
             finalString += String(*strVal);
-        } else if (auto *optVal = std::get_if<OptionParam>(&path[i])) {
+        } else if (const auto *optVal = std::get_if<OptionParam>(&segment)) {
             if (argIndx < pthArgVal.size()) {
                 // If it's an OptionParam, the value from the ValueStorer will be the string.
                 // Do a quick check that the stringValue is a valid option
                 if (std::find(optVal->value.begin(), optVal->value.end(), pthArgVal[argIndx].stringValue)
                     == optVal->value.end()) {
                     // Value not found in the options
-                    throw std::invalid_argument("Invalid option value provided for the path");
+                    jassertfalse; // Invalid option value provided for the path
                 }
                 finalString += String(pthArgVal[argIndx].stringValue);
                 ++argIndx;
             } else
-                throw std::out_of_range("Not enough path arguments provided for the path");
-        } else if (auto *enumVal = std::get_if<EnumParam>(&path[i])) {
+                jassertfalse; // Not enough path arguments provided for the path
+        } else if (const auto *enumVal = std::get_if<EnumParam>(&segment)) {
             // When the value is an enum, the ValueStore will have an int which the vector of the enum options will have
             // To check for this, check the int in the ValueStore is smaller than the size of the vector
             if (enumVal->value.size() < pthArgVal[argIndx].intValue) {
-                throw std::out_of_range("Enum value out of range");
+                jassertfalse; // Enum value out of range
             }
             // As this is not a OPTIONS, we only need the index of the ENUM as the value.
             finalString += String(pthArgVal[argIndx].intValue);
             ++argIndx;
-        } else if (auto *nonIter = std::get_if<NonIter>(&path[i])) {
+        } else if (const auto *nonIter = std::get_if<NonIter>(&segment)) {
             // Let's first determine if the value is int, float, string or bitset
             // The NonIter will indicate the type (_meta_PARAMTYPE)
             switch (nonIter->_meta_PARAMTYPE) {
-                case ParamType::INT: {
+                case INT: {
                     // Get the value from the ValueStorer and append it to the finalString, after checking constraints
                     if (nonIter->intMin > pthArgVal[argIndx].intValue ||
                         nonIter->intMax < pthArgVal[argIndx].intValue) {
-                        throw std::out_of_range("Integer value out of range");
+                        jassertfalse; // Integer value out of range
                     }
                     finalString += String(pthArgVal[argIndx].intValue);
                     break;
                 }
-                case ParamType::STRING: {
+                case STRING: {
                     // Check string length limitations and append
                     // Remember, intMax and intMin are the max and min length of the string
                     if (pthArgVal[argIndx].stringValue.length() < nonIter->intMin ||
                         pthArgVal[argIndx].stringValue.length() > nonIter->intMax) {
-                        throw std::out_of_range("String value out of size range");
+                        jassertfalse; // String value out of size range
                     }
                     finalString += String(pthArgVal[argIndx].stringValue);
                     break;
                 }
-                case ParamType::BITSET: {
+                case BITSET: {
                     // Basically, it's already formatted 💀
                     // Just append it to the finalString...
                     // But first, check the size of the bitset
                     if (nonIter->intMax != pthArgVal[argIndx].stringValue.size()) {
-                        throw std::out_of_range("Bitset value is not expected size");
+                        jassertfalse; // Bitset size incorrect
+                        break;
                     }
                     // Append the bitset to the finalString
                     finalString += String(pthArgVal[argIndx].stringValue);
                     break;
                 }
                 default:
-                    // Float not included in switch-case - should NEVER be used in Embedded Path Argument
-                    throw std::invalid_argument(
-                        "Unsupported ParamType for NonIter Parameter Template in Embedded Path");
+                    jassertfalse; // Float not included in switch-case - should NEVER be used in Embedded Path Argument
+                    break;
             }
             ++argIndx;
         } else
-            throw std::invalid_argument("Unable to cast variant to valid parameter type for in-path arguments");
+            jassertfalse; // Unable to cast variant to valid parameter type for in-path arguments
     }
 
     // Check number of arguments was the same as the number of arguments in the path
@@ -237,54 +238,50 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(ArgumentEmbeddedPath &path
     return finalString;
 }
 
-// Sends actual message. For performance sake, no checks are done here, so ensure the message is valid before calling this function.
+// Sends actual message. For performance’s sake, no checks are done here, so ensure the message is valid before calling this function.
 ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
     if (cueAction.oat == OAT_COMMAND) {
         OSCMessage msg{cueAction.oscAddress};
-        for (unsigned i: indices(cueAction.oatCommandOSCArgumentTemplate)) {
-            auto argTemplate = cueAction.oatCommandOSCArgumentTemplate[i];
-            auto valueStorer = cueAction.arguments[i];
-            if (auto *optVal = std::get_if<OptionParam>(&argTemplate)) {
-                // If it's an OptionParam, the value from the ValueStorer will be the string.
-                msg.addString(cueAction.arguments[0].stringValue);
-            } else if (auto *enumVal = std::get_if<EnumParam>(&argTemplate)) {
-                // As this is not a OPTIONS, we only need the index of the ENUM as the value.
-                msg.addInt32(valueStorer.intValue);
-            } else if (auto *nonIter = std::get_if<NonIter>(&argTemplate)) {
-                // Let's first determine if the value is int, float, string or bitset
-                // The NonIter will indicate the type (_meta_PARAMTYPE)
-                switch (nonIter->_meta_PARAMTYPE) {
-                    case INT: {
-                        // Don't try "lin-f" it. Let it be.
-                        msg.addInt32(valueStorer.intValue);
-                        break;
-                    }
-                    case LINF:
-                    case LOGF:
-                    case LEVEL_161:
-                    case LEVEL_1024: {
-                        // Adjust to normalised range (0.f-1.f)
-                        msg.addFloat32(
-                            inferPercentageFromMinMaxAndValue(nonIter->floatMin, nonIter->floatMax, valueStorer.floatValue, nonIter->_meta_PARAMTYPE));
-                        break;
-                    }
-                    case STRING: {
-                        msg.addString(valueStorer.stringValue);
-                        break;
-                    }
-                    case BITSET: {
-                        msg.addInt32(std::stoi(valueStorer.stringValue, nullptr, 2));
-                        break;
-                    }
-                    default:
-                        jassertfalse;
-                        // Unsupported ParamType for NonIter Parameter Template. Is it a template ValueStorer (i.e., ParamType blank?)
+        if (std::get_if<OptionParam>(&cueAction.oatCommandOSCArgumentTemplate)) {
+            // If it's an OptionParam, the value from the ValueStorer will be the string.
+            msg.addString(cueAction.argument.stringValue);
+        } else if (std::get_if<EnumParam>(&cueAction.oatCommandOSCArgumentTemplate)) {
+            // As this is not a OPTIONS, we only need the index of the ENUM as the value.
+            msg.addInt32(cueAction.argument.intValue);
+        } else if (auto *nonIter = std::get_if<NonIter>(&cueAction.oatCommandOSCArgumentTemplate)) {
+            // Let's first determine if the value is int, float, string or bitset
+            // The NonIter will indicate the type (_meta_PARAMTYPE)
+            switch (nonIter->_meta_PARAMTYPE) {
+                case INT: {
+                    // Don't try "lin-f" it. Let it be.
+                    msg.addInt32(cueAction.argument.intValue);
+                    break;
                 }
-            } else {
-                jassertfalse; // Invalid OSCMessageArguments type in the action
+                case LINF:
+                case LOGF:
+                case LEVEL_161:
+                case LEVEL_1024: {
+                    // Adjust to normalised range (0.f-1.f)
+                    msg.addFloat32(
+                        inferPercentageFromMinMaxAndValue(nonIter->floatMin, nonIter->floatMax, cueAction.argument.floatValue, nonIter->_meta_PARAMTYPE));
+                    break;
+                }
+                case STRING: {
+                    msg.addString(cueAction.argument.stringValue);
+                    break;
+                }
+                case BITSET: {
+                    msg.addInt32(std::stoi(cueAction.argument.stringValue, nullptr, 2));
+                    break;
+                }
+                default:
+                    jassertfalse;
+                    // Unsupported ParamType for NonIter Parameter Template. Is it a template ValueStorer (i.e., ParamType blank?)
             }
-        }
 
+        } else {
+            jassertfalse; // Invalid OSCMessageArguments type in the action
+        }
         oscSender.send(msg);
     } else if (cueAction.oat == OAT_FADE) {
         // This is where it gets exponentially more complicated exponentially fast.

@@ -165,13 +165,13 @@ private:
     - i: integer
     - ?: unknown (though... you should probably not use it)
     */
-    String getWidthAdjustedArgumentValueString(const String &value, const String &typeAlias);
+    String getWidthAdjustedArgumentValueString(const String &value, const String &typeAlias) const;
 
-    String getWidthAdjustedArgumentValueString(const ValueStorer &value, ParamType type);
+    String getWidthAdjustedArgumentValueString(const ValueStorer &value, ParamType type) const;
 
-    String getWidthAdjustedVerboseName(const String &verboseName);
+    String getWidthAdjustedVerboseName(const String &verboseName) const;
 
-    String oatAppropriateForWidth(OSCActionType oat);
+    String oatAppropriateForWidth(OSCActionType oat) const;
 
 
     CurrentCueInfo& getCCI() {
@@ -459,7 +459,7 @@ public:
     // Implemented to listen for individual-cue ShowCommands
     void cueCommandOccurred(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex) override;
     // Broadcasts cue commands to registered callbacks
-    void sendCueCommandToAllListeners(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex);
+    void sendCueCommandToAllListeners(ShowCommand, const std::string &cciInternalID, size_t cciCurrentIndex) const;
 
     // Set the correct index for the new CCI. Useful for when cue is moved.
     void setNewIndexForCCI() {

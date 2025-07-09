@@ -43,7 +43,7 @@ Encoder::Encoder(
                                                      overrideRoundingToXDecimalPlaces, paramType,
                                                      middleProvidedAsPercentage, defaultProvidedAsPercentage),
                                              _roundingMultiplier(std::pow(10.0, roundTo)), _isOptionParam(false),
-                                             _isEnumParam(false), _option(_nullOption), _enumParam(_nullEnum) {
+                                             _isEnumParam(false), _option(nullOption), _enumParam(nullEnum) {
     if (minValue >= maxValue) {
         jassertfalse; // Min value must be less than max value
         return;
@@ -65,7 +65,7 @@ Encoder::Encoder(const OptionParam &option, const double minDeg, const double ma
                                                                           maxLabel),
                                                                   _roundingMultiplier(-1.0), _isOptionParam(true),
                                                                   _isEnumParam(false),
-                                                                  _option(option), _enumParam(_nullEnum) {
+                                                                  _option(option), _enumParam(nullEnum) {
     init();
 }
 
@@ -83,7 +83,7 @@ Encoder::Encoder(const EnumParam &enumParam, const double minDeg, const double m
                                                                           maxLabel),
                                                                   _roundingMultiplier(-1.0), _isOptionParam(false),
                                                                   _isEnumParam(true),
-                                                                  _option(_nullOption), _enumParam(enumParam) {
+                                                                  _option(nullOption), _enumParam(enumParam) {
     init();
 }
 
@@ -108,8 +108,8 @@ EncoderRotary::EncoderRotary(
                                              minValue(minValue), minPos(degreesToRadians(minDeg)), minLabel(minLabel),
                                              maxValue(maxValue), maxPos(degreesToRadians(maxDeg)), maxLabel(maxLabel),
                                              isOptionParam(false), isEnumParam(false),
-                                             Slider(SliderStyle::RotaryHorizontalVerticalDrag, Slider::NoTextBox),
-                                             option(_nullOption), enumParam(_nullEnum) {
+                                             Slider(RotaryHorizontalVerticalDrag, NoTextBox),
+                                             option(nullOption), enumParam(nullEnum) {
     if (minValue >= maxValue) {
         jassertfalse; // Min value must be less than max value
         return;
@@ -160,7 +160,8 @@ EncoderRotary::EncoderRotary(
 }
 
 
-EncoderRotary::EncoderRotary(const OptionParam &option, const double minDeg, const double maxDeg, const int defaultIndex,
+EncoderRotary::EncoderRotary(const OptionParam &option, const double minDeg, const double maxDeg,
+                             const int defaultIndex,
                              const String &minLabel, const String &maxLabel): isOptionParam(true), isEnumParam(false),
                                                                               option(option),
                                                                               paramType(ParamType::LINF),
@@ -173,7 +174,7 @@ EncoderRotary::EncoderRotary(const OptionParam &option, const double minDeg, con
                                                                               Slider(
                                                                                   SliderStyle::RotaryHorizontalVerticalDrag,
                                                                                   Slider::NoTextBox),
-                                                                              enumParam(_nullEnum) {
+                                                                              enumParam(nullEnum) {
     // Let's set the default value and position
     setDoubleClickReturnValue(true, defaultIndex);
     setValue(defaultIndex);
@@ -195,7 +196,7 @@ EncoderRotary::EncoderRotary(const EnumParam &enumParam, const double minDeg, co
       Slider(
           SliderStyle::RotaryHorizontalVerticalDrag,
           Slider::NoTextBox),
-      option(_nullOption) {
+      option(nullOption) {
     // Let's set the default value and position
     setDoubleClickReturnValue(true, defaultIndex);
     setValue(defaultIndex);

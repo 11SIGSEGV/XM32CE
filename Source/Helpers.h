@@ -13,7 +13,6 @@
 #include <unordered_map>
 #include "XM32Maps.h"
 #include "modules.h"
-#include "X32Templates.h"
 
 
 enum ShowCommand {
@@ -59,7 +58,7 @@ public:
      * command applies the current cue, but if a cue event happens to a specific cue that is not currently selected,
      * some components may still require it (e.g., CueList classes). This is for those components.
      */
-    virtual void cueCommandOccurred(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex) {}
+    virtual void cueCommandOccurred(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex);
 };
 
 
@@ -151,23 +150,18 @@ Image getIconImageFile(int iconID);
 enum OSCActionType {
     OAT_COMMAND,
     OAT_FADE,
-    _EXIT_THREAD
+    EXIT_THREAD
 };
 
 
 
 struct CueOSCAction {
-    CueOSCAction(bool exitThread): oat(_EXIT_THREAD), oscAddress("/") {
+    explicit CueOSCAction(bool exitThread): oat(EXIT_THREAD), oscAddress("/") {
     }
 
     // For OAT_COMMAND, the arguments are used to fill in the OSC Message.
-    CueOSCAction(OSCAddressPattern oscAddress, std::vector<OSCMessageArguments> argumentTemplates, ValueStorerArray arguments):
-    oat(OAT_COMMAND), arguments(arguments), oatCommandOSCArgumentTemplate(argumentTemplates),
-                                                                     oscAddress(oscAddress), ID(uuidGen.generate()) {
-    }
-    // A lot of OAT_COMMANDs only have one OSCMessageArgument, so let's allow a single argument template
     CueOSCAction(OSCAddressPattern oscAddress, OSCMessageArguments argumentTemplate, ValueStorer argument): oat(OAT_COMMAND),
-        oatCommandOSCArgumentTemplate({argumentTemplate}), arguments({std::move(argument)}), oscAddress(oscAddress), ID(uuidGen.generate()) {
+        oatCommandOSCArgumentTemplate(argumentTemplate), argument(std::move(argument)), oscAddress(oscAddress), ID(uuidGen.generate()) {
     }
 
 
@@ -180,7 +174,7 @@ struct CueOSCAction {
     }
 
 
-    void _checks() {
+    void _checks() const {
         if (oat == OAT_FADE) {
             if (oscArgumentTemplate._meta_PARAMTYPE == INT &&
                 (startValue.intValue < oscArgumentTemplate.intMin ||
@@ -198,12 +192,6 @@ struct CueOSCAction {
                 jassertfalse; // Start and end values must be within the NonIter template's floatMin and floatMax
             }
         }
-
-        if (oat == OAT_COMMAND) {
-            if (arguments.size() != oatCommandOSCArgumentTemplate.size()) {
-                jassertfalse; // The number of arguments must match the number of argument templates
-            }
-        }
     }
 
     const std::string ID;
@@ -213,13 +201,13 @@ struct CueOSCAction {
 
     // For OAT_COMMAND
     // Let's sacrifice the extra memory for the sake of reliability and stability.
-    std::vector<OSCMessageArguments> oatCommandOSCArgumentTemplate;
-    ValueStorerArray arguments; // The arguments to send with the OSC Message, only used for OAT_COMMAND
+    OSCMessageArguments oatCommandOSCArgumentTemplate = nullNonIter;
+    ValueStorer argument; // The arguments to send with the OSC Message, only used for OAT_COMMAND
 
 
     // For OAT_FADE
     float fadeTime{0.f}; // The fade time in seconds, only used for OAT_FADE
-    NonIter oscArgumentTemplate = _nullNonIter; // Used to find algorithm and type for parameter
+    NonIter oscArgumentTemplate = nullNonIter; // Used to find algorithm and type for parameter
     ValueStorer startValue;
     ValueStorer endValue;
 };
@@ -240,14 +228,14 @@ struct CurrentCueInfo {
     }
 
     // Used for blank CCI (i.e., invalid CCI)
-    CurrentCueInfo(): id(""), name(""), description(""), actions({}), INTERNAL_ID("") {
+    CurrentCueInfo(): id(""), name(""), description(""), actions({}) {
     }
 
-    bool isInvalid() {
+    [[nodiscard]] bool isInvalid() const {
         return INTERNAL_ID.empty();
     }
 
-    std::string getInternalID() const {
+    [[nodiscard]] std::string getInternalID() const {
         return INTERNAL_ID;
     }
 
@@ -269,7 +257,7 @@ struct CurrentCueInfoVector {
     }
 
     // Returns true if a CCI is in the vector. Uses the CCIIndexMap.
-    bool cciInVector(std::string cciInternalID) {
+    bool cciInVector(const std::string &cciInternalID) {
         return cciIDtoIndexMap.find(cciInternalID) != cciIDtoIndexMap.end();
     }
 
@@ -296,7 +284,7 @@ struct CurrentCueInfoVector {
 
 
     // Just passes index to getCurrentCueInfoByIndex(). Again, ensure use auto&, not auto.
-    CurrentCueInfo& operator[](size_t index) {
+    CurrentCueInfo& operator[](const size_t index) {
         // TODO: Test because i have no clue what i'm doing
         return getCurrentCueInfoByIndex(index);
     }
@@ -375,14 +363,14 @@ struct CurrentCueInfoVector {
 
     // Gets the parent CCI Internal ID of the CueOSCAction. Expects actionIDtoCCIInternalIDMap to be constructed and valid
     // If not, returns empty string.
-    std::string getParentCCIInternalID(std::string actionID) {
+    std::string getParentCCIInternalID(const std::string &actionID) {
         auto it = actionIDtoCCIInternalIDMap.find(actionID);
         return it != actionIDtoCCIInternalIDMap.end() ? it->second : "";
     }
 
     // Sets an actionID as running. Automatically tries to get the cciInternalID from the actionIDtoCCIInternalIDMap
     // If fail, nothing will occur.
-    void setAsRunning(std::string actionID, std::string cciInternalID = "") {
+    void setAsRunning(const std::string &actionID, std::string cciInternalID = "") {
         if (cciInternalID.empty()) {
             // Figure it out ourselves
             auto it = actionIDtoCCIInternalIDMap.find(actionID);
@@ -409,7 +397,7 @@ struct CurrentCueInfoVector {
     // Does nothing if the actionID is not in the set of running actions for the CCI.
     // Returns size_t limit (this->sizeTLimit) when failed. Otherwise, returns the number of actionIDs left
     // in the set of running actionIDs for the cciInternalID (i.e., the number of running actions)
-    size_t removeFromRunning(std::string actionID, std::string cciInternalID = "") {
+    size_t removeFromRunning(const std::string &actionID, std::string cciInternalID = "") {
         if (cciInternalID.empty()) {
             // Figure it out ourselves
             auto it = actionIDtoCCIInternalIDMap.find(actionID);
@@ -446,7 +434,7 @@ private:
     // A.k.a., ActionCCIMap
     // A few notes about this:
     // 1. An actionID's parent CCI should never change; hence its CCI Internal ID should never change
-    std::unordered_map<std::string, std::string> actionIDtoCCIInternalIDMap; // Maps actionIDs of each action in cci.actions to its parent's INTERNAL_ID (cci.INTERNAL_ID) TODO: Implement
+    std::unordered_map<std::string, std::string> actionIDtoCCIInternalIDMap; // Maps actionIDs of each action in cci.actions to its parent's INTERNAL_ID (cci.INTERNAL_ID)
 
     // A.k.a. RunningActionsMap
     std::unordered_map<std::string, std::set<std::string>> cciIDtoRunningActionIDsMap; // Maps the CCI Internal IDs to the action IDs of the CCI which are still running
@@ -474,7 +462,7 @@ private:
     }
 
 
-    void _notifyListeners(ShowCommand command) {
+    void _notifyListeners(const ShowCommand command) const {
         for (auto& listener: listeners) {
             if (listener != nullptr) {
                 listener->commandOccurred(command);
@@ -510,7 +498,7 @@ private:
      */
     void addCCIToIndexMap(const std::string &cciInternalID) {
         // Identify the index of the CCI
-        size_t index = manuallyFindIndexOfCCIByInternalID(cciInternalID);
+        const size_t index = manuallyFindIndexOfCCIByInternalID(cciInternalID);
         if (index == sizeTLimit) {
             jassertfalse; // This should never happen! We should always have a CCI internal ID in the vector.
             cciIDtoIndexMap[cciInternalID] = sizeTLimit;
@@ -522,9 +510,9 @@ private:
         }
         // For every index in the cciIDToIndexMap after the newly added CCI's index, we need to increment it by one
         // This is because we're basically pushing back the vector by one.
-        for (auto& it: cciIDtoIndexMap) {
-            if (it.second > index) {
-                it.second++;
+        for (auto&[cciID, previousIndex]: cciIDtoIndexMap) {
+            if (previousIndex > index) {
+                previousIndex++;
             }
         }
 
@@ -550,18 +538,18 @@ private:
 
         // Remove the old index from the map
         // No `const auto&` it as we need to modify the map's elements
-        for (auto& it : cciIDtoIndexMap) {
+        for (auto&[cciID, previousIndex] : cciIDtoIndexMap) {
             // If the index matches the old index, changed it to the new index.
-            if (it.second == oldIndex) {
-                it.second = newIndex;
+            if (previousIndex == oldIndex) {
+                previousIndex = newIndex;
                 continue;
             }
-            if (it.second < firstIndexChanged || it.second > lastIndexChanged) { continue; }
+            if (previousIndex < firstIndexChanged || previousIndex > lastIndexChanged) { continue; }
 
             if (increment)
-                it.second++;
+                previousIndex++;
             else
-                it.second--;
+                previousIndex--;
         }
     }
 
@@ -734,13 +722,13 @@ When percentage is 1, it returns maxVal.
 When percentage is between 0 and 1, it uses the specified algorithm to interpolate between minVal and maxVal.
 If an error occurs (e.g., percentage is out of range), it asserts false and fallbacks by returning minVal.
 */
-const double inferValueFromMinMaxAndPercentage(
+double inferValueFromMinMaxAndPercentage(
     double minVal, double maxVal, double percentage, ParamType algorithm = ParamType::LINF);
 
 
 /* Basically, inverse of inferValueFromMinMaxAndPercentage. (i.e., normalises a value).
  * When value is out of range, fallbacks to returning 0.0 */
-const double inferPercentageFromMinMaxAndValue(
+double inferPercentageFromMinMaxAndValue(
     double minVal, double maxVal, double value, ParamType algorithm = ParamType::LINF);
 
 

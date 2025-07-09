@@ -15,7 +15,7 @@ using util::lang::indices;
 
 struct OSCDevice {
     String ipAddress;
-    int port;
+    int port{};
     String deviceName;
 };
 
@@ -35,7 +35,7 @@ public:
 
     OSCDeviceSender(const String &ipAddress, int port, const String &deviceName);
 
-    explicit OSCDeviceSender(OSCDevice device);
+    explicit OSCDeviceSender(const OSCDevice &device);
 
     ~OSCDeviceSender();
 
@@ -54,19 +54,13 @@ public:
     //     return oscSender.send(message);
     // }
 
-    // Converts argument embedded path and arguments into actual message
-    static OSCMessage compileMessageFromArgumentEmbeddedPathAndOSCMessageArguments(
-        ArgumentEmbeddedPath &path,
-        ValueStorerArray &pathArgumentValues,
-        std::vector<OSCArgument> &arguments,
-        ValueStorerArray &argumentValues);
 
     /* Accepts path with embedded arguments (X32Maps::ArgumentEmbeddedPath), then using provided argument values
      * (X32Maps::ValueStorerArray), it will fill in the path with the values provided.
      * Does NOT do type checking for NonIter types (e.g., int vs string) - if the ValueStorer values provided are not
      * the same type as the NonIter type in the embedded argument path, it will NOT throw an exception...
      */
-    static String fillInArgumentsOfEmbeddedPath(ArgumentEmbeddedPath &path, ValueStorerArray &pthArgVal);
+    static String fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath &path, const ValueStorerArray &pthArgVal);
 
 
     // Accepts Vector of Expected Arguments (i.e., templates) and Vector of ValueStore.
@@ -95,7 +89,7 @@ public:
      * oatFadeMillisecondsMinimumIterationDuration - The minimum duration for each iteration of the fade in milliseconds.
      *  Basically acts like a frame limiter.
      */
-    OSCSingleActionDispatcher(CueOSCAction cueAction, OSCDeviceSender &oscDevice, String jobName = "",
+    OSCSingleActionDispatcher(CueOSCAction cueAction, OSCDeviceSender &oscDevice, const String &jobName = "",
                               int oatFadeMillisecondsMinimumIterationDuration = 50): ThreadPoolJob(jobName),
         oscSender(oscDevice), cueAction(cueAction), FMMID(oatFadeMillisecondsMinimumIterationDuration) {
     }
@@ -118,8 +112,8 @@ private:
 
 class OSCCueDispatcherManager : public Thread, public Thread::Listener {
 public:
-    OSCCueDispatcherManager(OSCDeviceSender &oscDevice, unsigned int maximumSimultaneousMessageThreads = 100,
-                            unsigned int waitFormsWhenActionQueueIsEmpty = 50);
+    explicit OSCCueDispatcherManager(OSCDeviceSender &oscDevice, unsigned int maximumSimultaneousMessageThreads = 100,
+                                     unsigned int waitFormsWhenActionQueueIsEmpty = 50);
 
 
 
@@ -178,7 +172,7 @@ public:
         setOpaque(true);
         setSize(600, 400);
         initaliseComponents();
-        setVisible(true);
+        Component::setVisible(true);
     }
 
     // Does a lot of repetitive initalisations.
@@ -252,7 +246,7 @@ public:
 
     OSCDevice getDevice() {
         if (!validateTextEditorOutputs()) {
-            return OSCDevice();
+            return {};
         }
         OSCDevice device;
         device.ipAddress = ipAddressString;
@@ -299,19 +293,20 @@ private:
     Image backgroundImage;
 
 
-    void waitForResize(int waitLoops = 100) {
+    void waitForResize(int waitLoops = 100) const {
         if (!resizeReady) {
             bool naturalExit = true;
             // Loop 100 times to wait for the resize to be ready. If not ready by end of for loop, return
             for (int i = 0; i < waitLoops; i++) {
+                // ReSharper disable once CppDFAConstantConditions
                 if (resizeReady) {
                     naturalExit = false;
                     break;
                 }
             }
+            // ReSharper disable once CppDFAConstantConditions
             if (naturalExit)
                 DBG("Exited paint() due to resize not being ready");
-            return;
         }
     }
 
@@ -321,7 +316,7 @@ private:
 
 class OSCDeviceSelectorWindow : public DocumentWindow {
 public:
-    OSCDeviceSelectorWindow(String name = "OSC Device Selector")
+    explicit OSCDeviceSelectorWindow(const String &name = "OSC Device Selector")
         : DocumentWindow(name,
                          Desktop::getInstance().getDefaultLookAndFeel()
                          .findColour(ResizableWindow::backgroundColourId),
