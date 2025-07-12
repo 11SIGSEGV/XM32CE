@@ -20,6 +20,10 @@ MainComponent::MainComponent(): cueListModel(cueListBox, cueListData) {
     for (auto *comp: activeComps) {
         addAndMakeVisible(*comp);
     }
+
+    auto uuid = uuidGen.generate();
+    actionConstructorWindows[uuid].reset(new OSCActionConstructor(uuid));
+    actionConstructorWindows[uuid].get()->setParentListener(this);
 }
 
 
@@ -270,6 +274,23 @@ void MainComponent::actionFinished(std::string actionID) {
         }
         // Call the listener... the cueCommandOccurred listener will pass on a SHOW_STOP ShowCommand if the CCI is the current CCI.
         cueCommandOccurred(CUE_STOPPED, cci.getInternalID(), cciIndex);
+    }
+}
+
+
+void MainComponent::closeRequested(WindowType windowType, std::string uuid) {
+    switch (windowType) {
+        case AppComponents_OSCActionConstructor:
+            auto it = actionConstructorWindows.find(uuid);
+            if (it != actionConstructorWindows.end()) {
+                it->second.reset();
+            }
+    }
+}
+
+void MainComponent::terminateChildWindows() {
+    for (auto& [id, ptr]: actionConstructorWindows) {
+        ptr.reset();
     }
 }
 

@@ -11,13 +11,17 @@
 #pragma once
 #include <JuceHeader.h>
 #include "Helpers.h"
-using util::lang::indices;
+#include "AppComponents.h"
+
+
 
 struct OSCDevice {
     String ipAddress;
     int port{};
     String deviceName;
 };
+
+
 
 
 class OSCDispatcherListener {
@@ -28,6 +32,7 @@ public:
     */
     virtual void actionFinished(std::string) = 0;
 };
+
 
 class OSCDeviceSender {
 public:

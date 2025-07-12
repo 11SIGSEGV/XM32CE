@@ -10,40 +10,39 @@
 
 #pragma once
 #include <JuceHeader.h>
-#include "OSCMan.h"
 #include "Helpers.h"
 
 
 // TODO: Test if setting non-default minDeg and maxDeg works as expected... I'm scared.
 struct EncoderRotary : public Slider {
-    EncoderRotary(Units unit,
-                  const double minDeg = -135.0, const double minValue = 0.0,
-                  const double maxDeg = 135.0, const double maxValue = 1.0,
-                  const double middlePV = 0.5,
-                  const double defaultPV = 0.0,
+    explicit EncoderRotary(Units unit,
+                  double minDeg = -135.0, double minValue = 0.0,
+                  double maxDeg = 135.0, double maxValue = 1.0,
+                  double middlePV = 0.5,
+                  double defaultPV = 0.0,
                   const String &minLabel = "",
                   const String &maxLabel = "",
-                  const int overrideRoundingToXDecimalPlaces = -1,
-                  const ParamType paramType = ParamType::LINF,
-                  const bool middleProvidedAsPercentage = true,
-                  const bool defaultProvidedAsPercentage = true
+                  int overrideRoundingToXDecimalPlaces = -1,
+                  ParamType paramType = ParamType::LINF,
+                  bool middleProvidedAsPercentage = true,
+                  bool defaultProvidedAsPercentage = true
     );
 
     // We'll also allow Enum and OptionParams
-    EncoderRotary(const OptionParam &option,
-                  const double minDeg = -135.0,
-                  const double maxDeg = 135.0,
-                  const int defaultIndex = 0,
-                  const String &minLabel = "",
-                  const String &maxLabel = ""
+    explicit EncoderRotary(const OptionParam &option,
+                           double minDeg = -135.0,
+                           double maxDeg = 135.0,
+                           int defaultIndex = 0,
+                           const String &minLabel = "",
+                            const String &maxLabel = ""
     );
 
-    EncoderRotary(const EnumParam &enumParam,
-                  const double minDeg = -135.0,
-                  const double maxDeg = 135.0,
-                  const int defaultIndex = 0,
-                  const String &minLabel = "",
-                  const String &maxLabel = ""
+    explicit EncoderRotary(const EnumParam &enumParam,
+                           double minDeg = -135.0,
+                           double maxDeg = 135.0,
+                           int defaultIndex = 0,
+                           const String &minLabel = "",
+                           const String &maxLabel = ""
     );
 
     void resized() override;
@@ -84,30 +83,30 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
      * automatically interpolated based on the middlePV/defaultPV percentage and the minValue and maxValue.
      * Otherwise, the middlePV and defaultPV are used as the actual values.
      */
-    Encoder(Units unit,
-            const double minDeg = -135.0, const double minValue = 0.0,
-            const double maxDeg = 135.0, const double maxValue = 1.0,
-            const double middlePV = 0.5,
-            const double defaultPV = 0.0,
-            const String &minLabel = "",
-            const String &maxLabel = "",
-            const int overrideRoundingToXDecimalPlaces = -1,
-            const ParamType paramType = ParamType::LINF,
-            const bool middleProvidedAsPercentage = true,
-            const bool defaultProvidedAsPercentage = true
+    explicit Encoder(Units unit,
+                     double minDeg = -135.0, double minValue = 0.0,
+                     double maxDeg = 135.0, double maxValue = 1.0,
+                     double middlePV = 0.5,
+                     double defaultPV = 0.0,
+                     const String &minLabel = "",
+                     const String &maxLabel = "",
+                     int overrideRoundingToXDecimalPlaces = -1,
+                     ParamType paramType = LINF,
+                     bool middleProvidedAsPercentage = true,
+                     bool defaultProvidedAsPercentage = true
     );
 
-    Encoder(const OptionParam &option,
-                  const double minDeg = -135.0,
-                  const double maxDeg = 135.0,
-                  const int defaultIndex = 0,
-                  const String &minLabel = "",
-                  const String &maxLabel = "");
+    explicit Encoder(const OptionParam &option,
+                     double minDeg = -135.0,
+                     double maxDeg = 135.0,
+                     int defaultIndex = 0,
+                     const String &minLabel = "",
+                     const String &maxLabel = "");
 
-    Encoder(const EnumParam &enumParam,
-                  const double minDeg = -135.0,
-                  const double maxDeg = 135.0,
-                  const int defaultIndex = 0,
+    explicit Encoder(const EnumParam &enumParam,
+                     double minDeg = -135.0,
+                     double maxDeg = 135.0,
+                     int defaultIndex = 0,
                   const String &minLabel = "",
                   const String &maxLabel = "");
 
@@ -129,14 +128,14 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
     }
 
 
-    const String getValueAsDisplayString() {
+    String getValueAsDisplayString() const {
         // Value should be index when isOptionParam or isEnumParam, and a numerical value otherwise.
         auto value = encoder.getValue();
 
         if (_isOptionParam) {
-            return String(_option.value.at(static_cast<int>(value)));
+            return _option.value.at(static_cast<int>(value));
         } if (_isEnumParam) {
-            return String(_enumParam.value.at(static_cast<int>(value)));
+            return _enumParam.value.at(static_cast<int>(value));
         }
         switch (unit) {
             case HERTZ: {
@@ -227,3 +226,79 @@ private:
     const double _roundingMultiplier;
     const ParamType paramType;
 };
+
+
+
+class ParentWindowListener {
+public:
+    enum WindowType {
+        AppComponents_OSCActionConstructor,
+    };
+    virtual ~ParentWindowListener() = default;
+    // Please don't pass std::string uuid as reference... this is setting ourselves up for SIGSEGVs!
+    virtual void closeRequested(WindowType windowType, std::string uuid) = 0;
+};
+
+
+
+class OSCActionConstructor : public DocumentWindow
+{
+public:
+    OSCActionConstructor (const std::string& uuid, String name = "Cue OSC Action Constructor") : DocumentWindow (name,
+                                         UICfg::BG_COLOUR,
+                                         allButtons), uuid(uuid)
+    {
+        centreWithSize (1000, 800);
+        setUsingNativeTitleBar(true);
+        setAlwaysOnTop(true);
+        setContentOwned (new MainComp(), true);
+        setVisible (true);
+    }
+
+    void closeButtonPressed() override {
+        if (registeredListener != nullptr) {
+            registeredListener->closeRequested(ParentWindowListener::AppComponents_OSCActionConstructor, uuid);
+        }
+    }
+
+    void setParentListener(ParentWindowListener* lstnr) {
+        registeredListener = lstnr;
+    }
+
+    void removeParentListener() { registeredListener = nullptr; }
+
+
+    class MainComp: public Component, public ComboBox::Listener {
+        public:
+            MainComp() {
+                setSize (1000, 800);
+            }
+            ~MainComp() override {};
+
+            void resized() override;
+
+            void paint(Graphics &g) override;
+
+            void comboBoxChanged(ComboBox *comboBoxThatHasChanged) override {};
+
+    private:
+        ComboBox templateCategoryDropdown;
+        ComboBox templateDropdown;
+
+        Rectangle<int> templateSelectionBox;
+        Rectangle<int> pathBox;
+        Rectangle<int> argumentsBox;
+        Rectangle<int> buttonsBox;
+    };
+private:
+    const std::string uuid;
+    ParentWindowListener* registeredListener = nullptr;
+
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OSCActionConstructor)
+};
+
+
+
+
+

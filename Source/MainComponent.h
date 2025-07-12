@@ -430,12 +430,14 @@ private:
 //==============================================================================
 
 
-class MainComponent : public Component, public ShowCommandListener, public OSCDispatcherListener {
+class MainComponent : public Component, public ShowCommandListener, public OSCDispatcherListener,
+    public ParentWindowListener {
 public:
     //==============================================================================
     MainComponent();
 
     ~MainComponent() override {
+        terminateChildWindows();
         dispatcher.stopThread(5000);
         headerBar.unregisterListener(this);
         removeAllChildren();
@@ -470,7 +472,14 @@ public:
     // Callbacks to cueCommandOccurred when an entire CCI's actions is completed.
     void actionFinished(std::string) override;
 
+    // Receives callbacks when a child window needs to close.
+    void closeRequested(WindowType windowType, std::string uuid) override;
+
+    // Closes all child windows registered.
+    void terminateChildWindows();
+
 private:
+    std::unordered_map<std::string, std::unique_ptr<OSCActionConstructor>> actionConstructorWindows;
     Image backgroundPrerender;
     //==============================================================================
     // Your private member variables go here...

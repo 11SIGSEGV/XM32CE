@@ -25,6 +25,23 @@ void Encoder::resized() {
     manualInputBox.setBounds(inputBoxBounds);
 }
 
+void OSCActionConstructor::MainComp::resized() {
+    auto bounds = getLocalBounds();
+    auto heightTenths = bounds.getHeight() * 0.1;
+
+    templateSelectionBox = bounds.removeFromTop(heightTenths * 2);
+    pathBox = bounds.removeFromTop(heightTenths * 2);
+    buttonsBox = bounds.removeFromBottom(heightTenths);
+
+}
+
+void OSCActionConstructor::MainComp::paint(Graphics &g) {
+    g.setColour(Colours::red);
+    g.drawRect(templateSelectionBox);
+    g.drawRect(pathBox);
+    g.drawRect(buttonsBox);
+}
+
 
 Encoder::Encoder(
     Units unit, const double minDeg, const double minValue, const double maxDeg, const double maxValue,
