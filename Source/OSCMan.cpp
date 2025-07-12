@@ -10,7 +10,6 @@
 
 #include "OSCMan.h"
 
-#include <complex>
 
 OSCDeviceSender::OSCDeviceSender(const String &ipAddress, const String &port, const String &deviceName) {
     auto ipv4AddrValidatorOut = isValidIPv4(ipAddress);
@@ -457,7 +456,7 @@ void OSCCueDispatcherManager::run() {
 
         auto action = actionQueue.front();
         actionQueue.pop();
-        if (action.oat == _EXIT_THREAD) {
+        if (action.oat == EXIT_THREAD) {
             return;
         }
         auto *dispatcher = new OSCSingleActionDispatcher(action, oscSender);

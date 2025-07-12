@@ -13,6 +13,8 @@
 #include <unordered_map>
 #include "XM32Maps.h"
 #include "modules.h"
+#include "X32Templates.h"
+
 
 
 enum ShowCommand {

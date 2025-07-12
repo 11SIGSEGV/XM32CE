@@ -352,7 +352,7 @@ int CCIActionList::getTheoreticallyRequiredHeight(float usingFontSize) {
                 height += 2 * (usingFontSize + eachLinePadding);
                 break;
             case EXIT_THREAD:
-                jassertfalse; // Why is an _EXIT_THREAD command being passed to CCIActionList...?
+                jassertfalse; // Why is an EXIT_THREAD command being passed to CCIActionList...?
                 break;
         }
         height += eachActionPadding;

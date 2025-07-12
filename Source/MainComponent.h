@@ -512,25 +512,25 @@ private:
                 "FT1", "Speaker 2",
                 "Switch to Speaker 2. Fades channel level to -inf, changes name, icon and colour.",
                 {
-                    CueOSCAction("/ch/02/config/name", Channel::NAME.second, ValueStorer("Speaker 2")),
-                    CueOSCAction("/ch/02/config/icon", Channel::ICON.second, ValueStorer(52)),
-                    CueOSCAction("/ch/02/config/color", Channel::COLOUR.second, ValueStorer(11)),
-                    CueOSCAction("/ch/02/mix/fader", 2.f, Channel::FADER.second, ValueStorer(-20.f), ValueStorer(-90.f))
+                    CueOSCAction("/ch/02/config/name", Channel::NAME.getRawMessageArgument(), ValueStorer("Speaker 2")),
+                    CueOSCAction("/ch/02/config/icon", Channel::ICON.getRawMessageArgument(), ValueStorer(52)),
+                    CueOSCAction("/ch/02/config/color", Channel::COLOUR.getRawMessageArgument(), ValueStorer(11)),
+                    CueOSCAction("/ch/02/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-20.f), ValueStorer(-90.f))
                 }
             },
             {
                 "FT2", "Speaker 2 Prepare",
                 "Prepares Speaker 2. Fades chanel up and changes colour.",
                 {
-                    CueOSCAction("/ch/02/mix/fader", 5.f, Channel::FADER.second, ValueStorer(-90.f), ValueStorer(0.f)),
-                    CueOSCAction("/ch/02/config/color", Channel::COLOUR.second, ValueStorer(3)),
+                    CueOSCAction("/ch/02/mix/fader", 5.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
+                    CueOSCAction("/ch/02/config/color", Channel::COLOUR.getRawMessageArgument(), ValueStorer(3)),
                 },
             },
             {
                 "FATTerrence", "Terrence is actually so fat", "",
                 {
-                    CueOSCAction("/ch/02/gate/range", Channel::GATE_RANGE.second, ValueStorer(10.5f)),
-                    CueOSCAction("/ch/02/preamp/hpslope", Channel::HPF_SLOPE.second, ValueStorer(2))
+                    CueOSCAction("/ch/02/gate/range", Channel::GATE_RANGE.getRawMessageArgument(), ValueStorer(10.5f)),
+                    CueOSCAction("/ch/02/preamp/hpslope", Channel::HPF_SLOPE.getRawMessageArgument(), ValueStorer(2))
                 },
             }
         }
