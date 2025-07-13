@@ -36,13 +36,18 @@ enum TemplateCategory {
 };
 
 
+// Used by XM32Templates to determine which NonIters assume fading available
+inline const std::set<ParamType> DEFAULT_FADING_ENABLED = {LINF, LOGF, INT, LEVEL_161, LEVEL_1024};
+
 
 // OptionParam not here! This is because X/M32 OSC never actually requires an option parameter.
 // It only exists for compatability with non-X/M32 devices.
 struct XM32Template {
     const std::string NAME;
-    const std::string ID; // The first letter of the ID refers to the template category. See above. The ID is recommended to be 5 characters long.
-    const bool FADE_ENABLED;  // Defaults to true for NonIter templates... but can be overwritten. Should NEVER be true for EnumParams. Overwrites should be respected.
+    const std::string ID;
+    // The first letter of the ID refers to the template category. See above. The ID is recommended to be 5 characters long.
+    const bool FADE_ENABLED;
+    // Defaults to true for NonIter templates when not bitset or string... but can be overwritten. Should NEVER be true for EnumParams. Overwrites should be respected.
     const TemplateCategory CATEGORY;
     const ArgumentEmbeddedPath PATH;
     const NonIter NONITER;
@@ -50,24 +55,57 @@ struct XM32Template {
     const bool _META_UsesNonIter;
 
     // Blank Template
-    XM32Template(): CATEGORY(NUL), NONITER(nullNonIter), ENUMPARAM(nullEnum), FADE_ENABLED(false), _META_UsesNonIter(false) {}
+    XM32Template(): CATEGORY(NUL), NONITER(nullNonIter), ENUMPARAM(nullEnum), FADE_ENABLED(false),
+                    _META_UsesNonIter(false) {
+    }
+
+    // Uses nonIter.verboseName as name for template and automatically determine if fading is enabled
+    XM32Template(const std::string &id, const TemplateCategory category, const ArgumentEmbeddedPath &path,
+                 const NonIter &nonIter): NAME(nonIter.verboseName), ID(id), CATEGORY(category), PATH(path),
+                                          NONITER(nonIter),
+                                          ENUMPARAM(nullEnum), _META_UsesNonIter(true),
+                                          FADE_ENABLED(DEFAULT_FADING_ENABLED.count(nonIter._meta_PARAMTYPE)) {
+    }
 
     // Uses nonIter.verboseName as name for template
-    XM32Template(const std::string& id, const TemplateCategory category, const ArgumentEmbeddedPath &path, const NonIter &nonIter, const bool fadeEnabled = true):
-    NAME(nonIter.verboseName), ID(id), FADE_ENABLED(fadeEnabled), CATEGORY(category), PATH(path), NONITER(nonIter), ENUMPARAM(nullEnum), _META_UsesNonIter(true) {}
+    XM32Template(const std::string &id, const TemplateCategory category, const ArgumentEmbeddedPath &path,
+                 const NonIter &nonIter, const bool fadeEnabled): NAME(nonIter.verboseName), ID(id),
+                                                                  FADE_ENABLED(fadeEnabled), CATEGORY(category),
+                                                                  PATH(path), NONITER(nonIter), ENUMPARAM(nullEnum),
+                                                                  _META_UsesNonIter(true) {
+    }
 
     // Manually specify name
-    XM32Template(const std::string& id, const std::string& name, const TemplateCategory category, const ArgumentEmbeddedPath &path, const NonIter &nonIter, const bool fadeEnabled = true):
-    NAME(name), ID(id), FADE_ENABLED(fadeEnabled), CATEGORY(category), PATH(path), NONITER(nonIter), ENUMPARAM(nullEnum), _META_UsesNonIter(true) {}
+    XM32Template(const std::string &id, const std::string &name, const TemplateCategory category,
+                 const ArgumentEmbeddedPath &path, const NonIter &nonIter,
+                 const bool fadeEnabled = true): NAME(name), ID(id), FADE_ENABLED(fadeEnabled), CATEGORY(category),
+                                                 PATH(path), NONITER(nonIter), ENUMPARAM(nullEnum),
+                                                 _META_UsesNonIter(true) {
+    }
+
+    // Manually specify name and automatically determine if fading is enabled
+    XM32Template(const std::string &id, const std::string &name, const TemplateCategory category,
+                 const ArgumentEmbeddedPath &path, const NonIter &nonIter): NAME(name), ID(id), CATEGORY(category),
+                                                                            PATH(path), NONITER(nonIter),
+                                                                            ENUMPARAM(nullEnum),
+                                                                            _META_UsesNonIter(true),
+                                                                            FADE_ENABLED(
+                                                                                DEFAULT_FADING_ENABLED.count(
+                                                                                    nonIter._meta_PARAMTYPE)) {
+    }
 
     // Uses enumParam.verboseName as name for template
-    XM32Template(const std::string& id, const TemplateCategory category, const ArgumentEmbeddedPath &path, const EnumParam &enumParam):
-NAME(enumParam.verboseName), ID(id), FADE_ENABLED(false), CATEGORY(category), PATH(path), NONITER(nullNonIter), ENUMPARAM(enumParam), _META_UsesNonIter(false) {}
+    XM32Template(const std::string &id, const TemplateCategory category, const ArgumentEmbeddedPath &path,
+                 const EnumParam &enumParam): NAME(enumParam.verboseName), ID(id), FADE_ENABLED(false),
+                                              CATEGORY(category), PATH(path), NONITER(nullNonIter),
+                                              ENUMPARAM(enumParam), _META_UsesNonIter(false) {
+    }
 
     // Manually specify name
-    XM32Template(const std::string& id, const std::string& name, const TemplateCategory category, const ArgumentEmbeddedPath &path, const EnumParam &enumParam):
-NAME(name), ID(id), FADE_ENABLED(false), CATEGORY(category), PATH(path), NONITER(nullNonIter), ENUMPARAM(enumParam), _META_UsesNonIter(false) {}
-
+    XM32Template(const std::string &id, const std::string &name, const TemplateCategory category,
+                 const ArgumentEmbeddedPath &path, const EnumParam &enumParam): NAME(name), ID(id), FADE_ENABLED(false),
+        CATEGORY(category), PATH(path), NONITER(nullNonIter), ENUMPARAM(enumParam), _META_UsesNonIter(false) {
+    }
 
 
     // Not recommended. For performance, the type of the template should be checked first, then a control path should be entered depending
@@ -83,12 +121,14 @@ NAME(name), ID(id), FADE_ENABLED(false), CATEGORY(category), PATH(path), NONITER
 
 struct XM32TemplateGroup {
     const TemplateCategory category;
-    const std::vector<XM32Template>& templates;
+    const std::vector<XM32Template> &templates;
     const std::string name;
     const int size;
 
-    XM32TemplateGroup(const TemplateCategory category, const std::string& name, const std::vector<XM32Template>& templates):
-    category(category), templates(templates), name(name), size(templates.size()) {}
+    XM32TemplateGroup(const TemplateCategory category, const std::string &name,
+                      const std::vector<XM32Template> &templates): category(category), templates(templates), name(name),
+                                                                   size(templates.size()) {
+    }
 };
 
 

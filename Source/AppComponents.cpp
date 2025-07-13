@@ -131,10 +131,8 @@ void OSCActionConstructor::MainComp::reconstructImage() {
 
 
     // We need to reset the inputs upon a reconstruction.
+    // HOWEVER, everything else stays.
     pathLabelInputs.clear();
-    pathLabelInputValues.clear();
-    pathLabelInputTemplates.clear();
-    pathLabelFormattedValues.clear();
 
     // No template is selected the first time the component is started, so check for nullptr.
     if (currentTemplateCopy == nullptr) {
@@ -149,7 +147,11 @@ void OSCActionConstructor::MainComp::reconstructImage() {
     g.setFont(fCopy);
     Rectangle<int> pathBoxRemaining = pathInputBox;
 
-
+    // Number of items in pathLabelInputValues (i.e., already generated values and not
+    // cleared). If this is above 0, it is basically guaranteed the reconstructImage was called as a result of a resize
+    // so the previous text should be restored.
+    size_t existingLabelValuesSize = pathLabelInputValues.size();
+    int numArgs {0};
     DBG(currentTemplateCopy.get()->NAME);
     for (const auto& argTemplate: currentTemplateCopy->PATH) {
         if (pathBoxRemaining.getWidth() == 0) {
@@ -162,7 +164,18 @@ void OSCActionConstructor::MainComp::reconstructImage() {
             pathBoxRemaining.removeFromLeft(GlyphArrangement::getStringWidthInt(fCopy, str));
         }
         else if (auto *nonIter = std::get_if<NonIter>(&argTemplate)) {
-            addInPathArgLabel(*nonIter, pathBoxRemaining, fCopy);
+            bool autoAddToOtherVectors = true;
+            numArgs++;
+            String lblTxt;
+            if (numArgs <= existingLabelValuesSize) {
+                // Ok, we have an existing value to pull.
+                lblTxt = pathLabelInputValues.at(numArgs - 1);
+                autoAddToOtherVectors = false; // We already have a corresponding value for this label,
+                // and hence we'd have a corresponding template and formatted value, and hence we don't need a new one.
+                // Adding a new one would result in the 4 vectors being different sizes.
+            }
+            // See if previously registered text is available
+            addInPathArgLabel(*nonIter, pathBoxRemaining, fCopy, lblTxt, autoAddToOtherVectors);
         }
     }
 }
@@ -189,7 +202,7 @@ bool OSCActionConstructor::MainComp::validateTextInput(const String &input, cons
     return true;
 }
 
-Rectangle<int> OSCActionConstructor::MainComp::findInPathLabelBounds(const NonIter &argTemplate,
+Rectangle<int> OSCActionConstructor::MainComp::findProperLabelBounds(const NonIter &argTemplate,
     Rectangle<int> &remainingBox, const Font &fontInUse) {
 
     int boxWidth = 0;
@@ -223,9 +236,10 @@ Rectangle<int> OSCActionConstructor::MainComp::findInPathLabelBounds(const NonIt
 
 
 void OSCActionConstructor::MainComp::addInPathArgLabel(const NonIter& argTemplate, Rectangle<int>& remainingBox,
-                                                       const Font& fontInUse, const String &text) {
-    auto lblBounds = findInPathLabelBounds(argTemplate, remainingBox, fontInUse);
-    auto lbl = std::make_unique<Label>(argTemplate.name, text);
+                                                       const Font& fontInUse, const String &text,
+                                                       bool automaticallyAddToOtherVectors) {
+    auto lblBounds = findProperLabelBounds(argTemplate, remainingBox, fontInUse);
+    auto lbl = std::make_unique<Label>(argTemplate.name);
 
     lbl->setColour(Label::ColourIds::textColourId, UICfg::TEXT_ACCENTED_COLOUR);
     lbl->setColour(Label::ColourIds::backgroundWhenEditingColourId, UICfg::BG_SECONDARY_COLOUR);
@@ -235,12 +249,27 @@ void OSCActionConstructor::MainComp::addInPathArgLabel(const NonIter& argTemplat
     lbl->setHelpText(argTemplate.verboseName);
     lbl->setBounds(lblBounds);
     lbl->addListener(this);
-    addAndMakeVisible(*lbl);
 
-    pathLabelInputTemplates.push_back(argTemplate);
-    pathLabelInputValues.push_back(text);
+    if (text.isEmpty()) {
+        addAndMakeVisible(*lbl);
+    }
+
+    if (automaticallyAddToOtherVectors) {
+        pathLabelInputTemplates.push_back(argTemplate);
+        pathLabelInputValues.push_back(text);
+        pathLabelFormattedValues.push_back({});
+    }
     pathLabelInputs.push_back(std::move(lbl));
-    pathLabelFormattedValues.push_back({});
+
+
+    // If the string is not empty, we have to get lbl again... yayyyyyyyyyyyyyyyyy
+    // Remember, lbl is now invalid because we've just moved it into the pathLabelInputs vector.
+    if (text.isNotEmpty()) {
+        auto lblFromVec = pathLabelInputs.back().get();
+        // Manually set text to trigger listener callback
+        lblFromVec->setText(text, sendNotification);
+        addAndMakeVisible(*lblFromVec);
+    }
 }
 
 void OSCActionConstructor::MainComp::comboBoxChanged(ComboBox *comboBoxThatHasChanged) {
@@ -290,7 +319,7 @@ void OSCActionConstructor::MainComp::labelTextChanged(Label *labelThatHasChanged
         jassertfalse; // Uh oh... someone forgot to make sure the 3 vectors were properly updated...
         return;
     }
-    for (int i = 0; i < pathLabelInputs.size(); i++) {
+    for (size_t i = 0; i < pathLabelInputs.size(); i++) {
         // Check pointer validity
         auto& lblUniquePtr = pathLabelInputs.at(i);
         if (lblUniquePtr == nullptr) {

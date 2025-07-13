@@ -301,15 +301,19 @@ public:
 
         // Finds the appropriate bounds for an in-path argument label (i.e., text input field). Returns the bounds,
         // and removes it from the remainingBox from the left.
-        static Rectangle<int> findInPathLabelBounds(const NonIter &argTemplate, Rectangle<int> &remainingBox,
-                                                    const Font &fontInUse);
-
-        // Creates and adds in path argument labels. ALSO AUTOMATICALLY CLEARS THE PREVIOUS VECTORS OF LABELS AND
-        // LABEL BOXES!
         // It is recommended to use a monospace font, but if this is not the case, the function assumes 'W' is the
         // longest character and uses it to determine the required string width.
+        static Rectangle<int> findProperLabelBounds(const NonIter &argTemplate, Rectangle<int> &remainingBox,
+                                                    const Font &fontInUse);
+
+        // Creates and adds in an in-path argument input box. Calls findProperLabelBounds to properly bound the
+        // new Label object.
+        // If a non-empty value is provided for the 'text' argument, a Label::Listener::labelTextChanged is broadcasted.
+        // automaticallyAddToOtherVectors is used when the input box created is 'new' and does not already have a
+        // corresponding input value, template and formatted value. E.g., this is true when a new template is selected
+        // and all labels are reset.
         void addInPathArgLabel(const NonIter &argTemplate, Rectangle<int> &remainingBox, const Font &fontInUse,
-            const String &text = String());
+            const String &text = String(), bool automaticallyAddToOtherVectors = true);
 
 
         void comboBoxChanged(ComboBox *comboBoxThatHasChanged) override;
