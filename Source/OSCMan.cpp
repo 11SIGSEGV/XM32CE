@@ -71,7 +71,8 @@ std::vector<OSCArgument> OSCDeviceSender::compileOSCArguments(
     ValueStorerArray &argVals) {
     std::vector<OSCArgument> oscArguments;
     if (args.size() != argVals.size()) {
-        throw std::invalid_argument("Size of argument template and argument value vectors must be the same");
+        jassertfalse; // Argument values and templates must be the same size.
+        return {};
     }
     for (size_t i = 0; i < args.size(); ++i) {
         if (auto *optVal = std::get_if<OptionParam>(&args[i])) {
@@ -79,13 +80,14 @@ std::vector<OSCArgument> OSCDeviceSender::compileOSCArguments(
             // Do a quick check that the stringValue is a valid option
             if (std::find(optVal->value.begin(), optVal->value.end(), argVals[i].stringValue)
                 == optVal->value.end()) {
-                // Value not found in the options
-                throw std::invalid_argument("Invalid option value");
+                jassertfalse; // Value not found in the options
+                return {};
             }
             oscArguments.emplace_back(String(argVals[i].stringValue));
         } else if (auto *enumVal = std::get_if<EnumParam>(&args[i])) {
             if (enumVal->value.size() < argVals[i].intValue) {
-                throw std::out_of_range("Enum value out of range");
+                jassertfalse; // Enum value out of range
+                return {};
             }
             // As this is not a OPTIONS, we only need the index of the ENUM as the value.
             oscArguments.emplace_back(argVals[i].intValue);
@@ -97,7 +99,8 @@ std::vector<OSCArgument> OSCDeviceSender::compileOSCArguments(
                     // Get the value from the ValueStorer and append it to the finalString, after checking constraints
                     if (nonIter->intMin > argVals[i].intValue ||
                         nonIter->intMax < argVals[i].intValue) {
-                        throw std::out_of_range("Integer value out of range");
+                        jassertfalse; // Integer value out of range
+                        return {};
                     }
                     oscArguments.emplace_back(argVals[i].intValue);
                     break;
@@ -108,7 +111,8 @@ std::vector<OSCArgument> OSCDeviceSender::compileOSCArguments(
                 case LEVEL_1024: {
                     if (nonIter->floatMin > argVals[i].floatValue ||
                         nonIter->floatMax < argVals[i].floatValue) {
-                        throw std::out_of_range("Float value out of range");
+                        jassertfalse; // Float value out of range
+                        return {};
                     }
                     oscArguments.emplace_back(argVals[i].floatValue);
                     break;
@@ -118,34 +122,33 @@ std::vector<OSCArgument> OSCDeviceSender::compileOSCArguments(
                     // Remember, intMax and intMin are the max and min length of the string
                     if (argVals[i].stringValue.length() < nonIter->intMin ||
                         argVals[i].stringValue.length() > nonIter->intMax) {
-                        throw std::out_of_range("String value out of size range");
+                        jassertfalse; // String value out of size range
                     }
                     oscArguments.emplace_back(argVals[i].stringValue);
-                    // TODO: Test if String() required to convert to juce::String instead of std::string
                     break;
                 }
                 case BITSET: {
                     // Check the size of the bitset
                     if (nonIter->intMax != argVals[i].stringValue.size()) {
-                        throw std::out_of_range("Bitset value is not expected size");
+                        jassertfalse; // Bitset value is not expected size
                     }
-
                     // Convert string to bitset, then to int
                     oscArguments.emplace_back(std::stoi(argVals[i].stringValue, nullptr, 2));
                     break;
                 }
                 default:
-                    throw std::invalid_argument("Unsupported ParamType for NonIter Parameter Template");
+                    jassertfalse; // Unsupported ParamType for NonIter Parameter Template
+                    return {};
             }
         } else {
-            throw std::invalid_argument("Unable to cast variant to valid parameter type for OSC Message arguments");
+            jassertfalse; // Unable to cast variant to valid parameter type for OSC Message arguments
         }
     }
     return oscArguments;
 }
 
 
-String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath &path, const std::vector<ValueStorer> &pthArgVal) {
+String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath &path, const ValueStorerArray &pthArgVal) {
     String finalString;
 
     // Loop through each element of path. If it's a string, directly append it to finalString. Otherwise,
@@ -158,11 +161,14 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath
         // First, check if path[i] exists, or if it's out of range
         if (argIndx >= pathArgValsSize) {
             jassertfalse; // Path argument index out of range
+            break;
         }
         if (const auto *strVal = std::get_if<std::string>(&segment)) {
             // If it's a string, append it directly
             finalString += String(*strVal);
-        } else if (const auto *optVal = std::get_if<OptionParam>(&segment)) {
+        }
+        // Enum and Option ParamTypes in ArgumentEmbeddedPaths have been deprecated.
+        /*else if (const auto *optVal = std::get_if<OptionParam>(&segment)) {
             if (argIndx < pthArgVal.size()) {
                 // If it's an OptionParam, the value from the ValueStorer will be the string.
                 // Do a quick check that the stringValue is a valid option
@@ -184,7 +190,8 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath
             // As this is not a OPTIONS, we only need the index of the ENUM as the value.
             finalString += String(pthArgVal[argIndx].intValue);
             ++argIndx;
-        } else if (const auto *nonIter = std::get_if<NonIter>(&segment)) {
+        } */
+        else if (const auto *nonIter = std::get_if<NonIter>(&segment)) {
             // Let's first determine if the value is int, float, string or bitset
             // The NonIter will indicate the type (_meta_PARAMTYPE)
             switch (nonIter->_meta_PARAMTYPE) {
@@ -193,6 +200,7 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath
                     if (nonIter->intMin > pthArgVal[argIndx].intValue ||
                         nonIter->intMax < pthArgVal[argIndx].intValue) {
                         jassertfalse; // Integer value out of range
+                        break;
                     }
                     finalString += String(pthArgVal[argIndx].intValue);
                     break;
@@ -203,10 +211,13 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath
                     if (pthArgVal[argIndx].stringValue.length() < nonIter->intMin ||
                         pthArgVal[argIndx].stringValue.length() > nonIter->intMax) {
                         jassertfalse; // String value out of size range
+                        break;
                     }
                     finalString += String(pthArgVal[argIndx].stringValue);
                     break;
                 }
+                // Bitset support for in-path arguments have been deprecated.
+                /*
                 case BITSET: {
                     // Basically, it's already formatted 💀
                     // Just append it to the finalString...
@@ -218,7 +229,7 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath
                     // Append the bitset to the finalString
                     finalString += String(pthArgVal[argIndx].stringValue);
                     break;
-                }
+                }*/
                 default:
                     jassertfalse; // Float not included in switch-case - should NEVER be used in Embedded Path Argument
                     break;
@@ -229,9 +240,9 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath
     }
 
     // Check number of arguments was the same as the number of arguments in the path
-    // No need for argIndx + 1, as it should have been incremented in the loop (i.e., incremeted after it was used, even if never used again)
+    // No need for argIndx + 1, as it should have been incremented in the loop (i.e., incremented after it was used, even if never used again)
     if (argIndx != pathArgValsSize) {
-        DBG("Number of arguments in path and number of arguments provided do not match");
+        jassertfalse; // Number of arguments in path and number of arguments provided do not match
     }
 
     return finalString;

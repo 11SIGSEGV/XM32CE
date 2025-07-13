@@ -77,6 +77,8 @@ namespace UICfg {
     const Font DEFAULT_MONOSPACE_FONT = FontOptions(DEFAULT_MONOSPACE_FONT_NAME,
                                                     static_cast<float>(DEFAULT_TEXT_HEIGHT), Font::plain);
 
+    const Colour TRANSPARENT(0.f, 0.f, 0.f, 0.f);
+
     const Colour BG_COLOUR(34, 34, 34);
     const Colour BG_SECONDARY_COLOUR(51, 51, 51);
     const Colour SELECTED_CUE_LIST_ITEM_BG_COLOUR(82, 82, 82);

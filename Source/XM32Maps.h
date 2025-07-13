@@ -378,12 +378,25 @@ struct ValueStorer {
     // When String, Bitset or Option
     std::string stringValue {};
 
-    const ParamType _meta_PARAMTYPE;
+    ParamType _meta_PARAMTYPE;
 
     ValueStorer(int intValue): intValue(intValue), _meta_PARAMTYPE(INT) {};
     ValueStorer(float floatValue): floatValue(floatValue), _meta_PARAMTYPE(_GENERIC_FLOAT) {};
     ValueStorer(const std::string &stringValue): stringValue(stringValue), _meta_PARAMTYPE(STRING) {};
     ValueStorer(): _meta_PARAMTYPE(_BLANK) {}; // Used for NonIter, acting as nullptr-equivalent for OSCMessageArguments
+
+    void changeStore(int newIntValue) {
+        intValue = newIntValue;
+        _meta_PARAMTYPE = INT;
+    }
+    void changeStore(float newFloatValue) {
+        floatValue = newFloatValue;
+        _meta_PARAMTYPE = _GENERIC_FLOAT;
+    }
+    void changeStore(const std::string &newStringValue) {
+        stringValue = newStringValue;
+        _meta_PARAMTYPE = STRING;
+    }
 };
 
 
@@ -452,6 +465,7 @@ struct NonIter {
 
     // Integer
     // A note: if you're using int, you probably want to use LINF. Realistically, an integer should be an EnumParam.
+    // The main exception for this is an in-path argument.
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const int intDefVal,
         const int intMinVal = std::numeric_limits<int>::min(), const int intMaxVal = std::numeric_limits<int>::max()):
     name(name), verboseName(verboseName), description(description), defaultIntValue(intDefVal),
@@ -485,7 +499,8 @@ struct NonIter {
 
 
 typedef std::vector<ValueStorer> ValueStorerArray;
-typedef std::vector<std::variant<std::string, OptionParam, EnumParam, NonIter>> ArgumentEmbeddedPath;
+// When using an ArgumentEmbeddedPath, the ParamTypes can ONLY be INT or STRING.
+typedef std::vector<std::variant<std::string, NonIter>> ArgumentEmbeddedPath;
 typedef std::variant<OptionParam, NonIter, EnumParam> OSCMessageArguments;
 typedef std::pair<ArgumentEmbeddedPath, OSCMessageArguments> PathToArgumentPair;
 // The below are the same as PathToArgumentPair, but for when one type of argument is used. This makes dealing with types infinitely easier.

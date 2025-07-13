@@ -16,16 +16,16 @@
 // TODO: Test if setting non-default minDeg and maxDeg works as expected... I'm scared.
 struct EncoderRotary : public Slider {
     explicit EncoderRotary(Units unit,
-                  double minDeg = -135.0, double minValue = 0.0,
-                  double maxDeg = 135.0, double maxValue = 1.0,
-                  double middlePV = 0.5,
-                  double defaultPV = 0.0,
-                  const String &minLabel = "",
-                  const String &maxLabel = "",
-                  int overrideRoundingToXDecimalPlaces = -1,
-                  ParamType paramType = ParamType::LINF,
-                  bool middleProvidedAsPercentage = true,
-                  bool defaultProvidedAsPercentage = true
+                           double minDeg = -135.0, double minValue = 0.0,
+                           double maxDeg = 135.0, double maxValue = 1.0,
+                           double middlePV = 0.5,
+                           double defaultPV = 0.0,
+                           const String &minLabel = "",
+                           const String &maxLabel = "",
+                           int overrideRoundingToXDecimalPlaces = -1,
+                           ParamType paramType = ParamType::LINF,
+                           bool middleProvidedAsPercentage = true,
+                           bool defaultProvidedAsPercentage = true
     );
 
     // We'll also allow Enum and OptionParams
@@ -34,7 +34,7 @@ struct EncoderRotary : public Slider {
                            double maxDeg = 135.0,
                            int defaultIndex = 0,
                            const String &minLabel = "",
-                            const String &maxLabel = ""
+                           const String &maxLabel = ""
     );
 
     explicit EncoderRotary(const EnumParam &enumParam,
@@ -107,8 +107,8 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
                      double minDeg = -135.0,
                      double maxDeg = 135.0,
                      int defaultIndex = 0,
-                  const String &minLabel = "",
-                  const String &maxLabel = "");
+                     const String &minLabel = "",
+                     const String &maxLabel = "");
 
     void init() {
         manualInputBox.setText(getValueAsDisplayString());
@@ -117,7 +117,6 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
         encoder.addListener(this);
         addAndMakeVisible(encoder);
         addAndMakeVisible(manualInputBox);
-
     }
 
     ~Encoder() override {
@@ -134,25 +133,23 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
 
         if (_isOptionParam) {
             return _option.value.at(static_cast<int>(value));
-        } if (_isEnumParam) {
+        }
+        if (_isEnumParam) {
             return _enumParam.value.at(static_cast<int>(value));
         }
         switch (unit) {
             case HERTZ: {
-                return value < 1000.0 ?
-                    String(value, roundTo) + " Hz" :
-                    String(value / 1000.0, roundTo) + " kHz";
+                return value < 1000.0 ? String(value, roundTo) + " Hz" : String(value / 1000.0, roundTo) + " kHz";
             }
             case DB: {
                 if (value <= -90.0) {
                     return "-inf";
                 }
-                return value <= -90.0 ? "-inf" :
-                    (
-                        (value > 0) ?
-                            "+" + String(value, roundTo) :
-                            String(value, roundTo)
-                        ) + " dB";
+                return value <= -90.0
+                           ? "-inf"
+                           : (
+                                 (value > 0) ? "+" + String(value, roundTo) : String(value, roundTo)
+                             ) + " dB";
             }
             case NONE: default:
                 return String(value, roundTo);
@@ -193,7 +190,7 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
     // void sliderDragEnded(Slider *) override {};
 
 
-    void paint(Graphics &g) override;
+    void paint(Graphics &g) override {};
 
     void resized() override;
 
@@ -228,31 +225,29 @@ private:
 };
 
 
-
 class ParentWindowListener {
 public:
     enum WindowType {
         AppComponents_OSCActionConstructor,
     };
+
     virtual ~ParentWindowListener() = default;
+
     // Please don't pass std::string uuid as reference... this is setting ourselves up for SIGSEGVs!
     virtual void closeRequested(WindowType windowType, std::string uuid) = 0;
 };
 
 
-
-class OSCActionConstructor : public DocumentWindow
-{
+class OSCActionConstructor : public DocumentWindow {
 public:
-    OSCActionConstructor (const std::string& uuid, String name = "Cue OSC Action Constructor") : DocumentWindow (name,
-                                         UICfg::BG_COLOUR,
-                                         allButtons), uuid(uuid)
-    {
-        centreWithSize (1000, 800);
+    OSCActionConstructor(const std::string &uuid, String name = "Cue OSC Action Constructor") : DocumentWindow(name,
+        UICfg::BG_COLOUR,
+        allButtons), uuid(uuid) {
+        centreWithSize(1000, 800);
         setUsingNativeTitleBar(true);
         setAlwaysOnTop(true);
-        setContentOwned (new MainComp(), true);
-        setVisible (true);
+        setContentOwned(new MainComp(), true);
+        setVisible(true);
     }
 
     void closeButtonPressed() override {
@@ -261,44 +256,121 @@ public:
         }
     }
 
-    void setParentListener(ParentWindowListener* lstnr) {
+    void setParentListener(ParentWindowListener *lstnr) {
         registeredListener = lstnr;
     }
 
     void removeParentListener() { registeredListener = nullptr; }
 
 
-    class MainComp: public Component, public ComboBox::Listener {
-        public:
-            MainComp() {
-                setSize (1000, 800);
+    class MainComp : public Component, public ComboBox::Listener, public ToggleButton::Listener,
+                     public Label::Listener {
+    public:
+        MainComp();
+
+        ~MainComp() override {
+        };
+
+        void resized() override;
+
+        void paint(Graphics &g) override;
+
+        void reconstructImage();
+
+        static bool validateTextInput(float input, const NonIter &argTemplate);
+
+        static bool validateTextInput(int input, const NonIter &argTemplate);
+
+        static bool validateTextInput(const String &input, const NonIter &argTemplate);
+
+        void changeTpltDdBasedOnTpltCategory(const TemplateCategory category) {
+            auto it = TEMPLATE_CATEGORY_MAP.find(category);
+            if (it == TEMPLATE_CATEGORY_MAP.end()) {
+                jassertfalse; // 🤦 how... how is this even possible?
             }
-            ~MainComp() override {};
+            const XM32TemplateGroup &tpltGroup = it->second;
+            tpltDd.clear();
+            int i = 0;
+            for (const auto &tplt: tpltGroup.templates) {
+                i++;
+                tpltDd.addItem(tplt.NAME, i);
+                // To access the correct template, simply use tpltGroup.templates[i-1].
+            }
+        }
 
-            void resized() override;
 
-            void paint(Graphics &g) override;
+        // Finds the appropriate bounds for an in-path argument label (i.e., text input field). Returns the bounds,
+        // and removes it from the remainingBox from the left.
+        static Rectangle<int> findInPathLabelBounds(const NonIter &argTemplate, Rectangle<int> &remainingBox,
+                                                    const Font &fontInUse);
 
-            void comboBoxChanged(ComboBox *comboBoxThatHasChanged) override {};
+        // Creates and adds in path argument labels. ALSO AUTOMATICALLY CLEARS THE PREVIOUS VECTORS OF LABELS AND
+        // LABEL BOXES!
+        // It is recommended to use a monospace font, but if this is not the case, the function assumes 'W' is the
+        // longest character and uses it to determine the required string width.
+        void addInPathArgLabel(const NonIter &argTemplate, Rectangle<int> &remainingBox, const Font &fontInUse,
+            const String &text = String());
 
+
+        void comboBoxChanged(ComboBox *comboBoxThatHasChanged) override;
+
+        void buttonStateChanged(Button *btn) override {
+            fadeCommandEnabled = btn->getToggleState();
+        }
+
+        void buttonClicked(Button *) override {
+        };
+
+        void labelTextChanged(Label *labelThatHasChanged) override;
+
+        void setPathLabelErrorState(Label *lbl, bool error);
     private:
-        ComboBox templateCategoryDropdown;
-        ComboBox templateDropdown;
+        int lastIndex = -1; // Used as dropdown tends to send unnecessary comboBoxChanged callbacks
+        std::unique_ptr<XM32Template> currentTemplateCopy;
+        TemplateCategory currentCategory;
 
-        Rectangle<int> templateSelectionBox;
+        std::unordered_map<int, TemplateCategory> dDitemIDtoCategory; // Dropdown item ID to XM32 Template Category
+
+        Image backgroundImage;
+
+        std::vector<String> pathLabelInputValues; // Use for upon reconstructImage (as
+        std::vector<NonIter> pathLabelInputTemplates;
+        std::vector<std::unique_ptr<Label>> pathLabelInputs;
+        ValueStorerArray pathLabelFormattedValues;
+
+        ComboBox tpltCategoryDd;
+        ComboBox tpltDd;
+        ToggleButton enableFadeCommandBtn;
+        bool fadeCommandEnabled = false;
+
+        Rectangle<int> tpltSelectionBox;
         Rectangle<int> pathBox;
         Rectangle<int> argumentsBox;
+        Rectangle<int> fadeCmdBox;
+        float fontSize;
+
+
         Rectangle<int> buttonsBox;
+
+        Rectangle<int> tpltCategoryTextBox;
+        Rectangle<int> tpltCategoryDropBox;
+        Rectangle<int> tpltSelectionTextBox;
+        Rectangle<int> tpltSelectionDropBox;
+
+        Rectangle<int> fadeCmdTextBox;
+        Rectangle<int> fadeCmdButtonBox;
+
+        Rectangle<int> pathTextBox;
+        Rectangle<int> pathInputBox;
+
+        FontOptions font = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::bold);
+        FontOptions monospace = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::bold);
     };
+
 private:
     const std::string uuid;
-    ParentWindowListener* registeredListener = nullptr;
+    ParentWindowListener *registeredListener = nullptr;
 
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OSCActionConstructor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OSCActionConstructor)
 };
-
-
-
-
-

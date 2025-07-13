@@ -10,6 +10,353 @@
 
 #include "AppComponents.h"
 
+
+OSCActionConstructor::MainComp::MainComp() {
+    setSize (1000, 800);
+    // Template Categories never change, so let's set it now
+    int i = 0;
+    for (auto &[tpltCategory, tpltGroup]: TEMPLATE_CATEGORY_MAP) {
+        i++;
+        tpltCategoryDd.addItem(tpltGroup.name, i);
+        dDitemIDtoCategory[i] = tpltCategory;
+    }
+
+    tpltCategoryDd.setColour(ComboBox::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
+    tpltCategoryDd.setColour(ComboBox::ColourIds::textColourId, UICfg::TEXT_ACCENTED_COLOUR);
+    addAndMakeVisible(tpltCategoryDd);
+    tpltCategoryDd.addListener(this);
+
+    tpltDd.setColour(ComboBox::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
+    tpltDd.setColour(ComboBox::ColourIds::textColourId, UICfg::TEXT_ACCENTED_COLOUR);
+    addAndMakeVisible(tpltDd);
+    tpltDd.addListener(this);
+
+    addAndMakeVisible(enableFadeCommandBtn);
+    enableFadeCommandBtn.addListener(this);
+}
+
+
+
+
+
+void OSCActionConstructor::MainComp::resized() {
+    auto bounds = getLocalBounds();
+    auto heightTenths = bounds.getHeight() * 0.1;
+    fontSize = heightTenths * 0.5 * 0.6;
+    auto widthTenths = bounds.getWidth() * 0.1;
+
+    // First, set the 'area' boxes.
+    tpltSelectionBox = bounds.removeFromTop(heightTenths);
+    fadeCmdBox = tpltSelectionBox.removeFromRight(widthTenths * 2);
+    tpltSelectionBox.removeFromRight(widthTenths * 0.2); // Padding
+    pathBox = bounds.removeFromTop(heightTenths * 1.5);
+    buttonsBox = bounds.removeFromBottom(heightTenths);
+
+
+    // Let's split up the template selection area.
+    auto selBoxCp = tpltSelectionBox;
+    selBoxCp.removeFromLeft(selBoxCp.getWidth() * 0.02); // Left Padding for text
+
+    auto selBoxTop = selBoxCp.removeFromTop(selBoxCp.getHeight() * 0.5);
+    auto selBoxBottom = selBoxCp;
+
+    tpltCategoryTextBox = selBoxTop.removeFromLeft(selBoxTop.getWidth() * 0.4);
+    selBoxTop.removeFromLeft(selBoxTop.getWidth() * 0.1); // Padding
+    tpltCategoryDropBox = selBoxTop;
+    tpltCategoryDd.setBounds(tpltCategoryDropBox);
+
+    tpltSelectionTextBox = selBoxBottom.removeFromLeft(selBoxBottom.getWidth() * 0.4);
+    selBoxBottom.removeFromLeft(selBoxBottom.getWidth() * 0.1); // Padding
+    tpltSelectionDropBox = selBoxBottom;
+    tpltDd.setBounds(tpltSelectionDropBox);
+
+
+    // Let's split up the fade command area.
+    auto fdBoxCp = fadeCmdBox;
+    fdBoxCp = fdBoxCp.reduced(fdBoxCp.getHeight() * 0.05); // Padding
+    fadeCmdTextBox = fdBoxCp.removeFromTop(fdBoxCp.getHeight() * 0.5);
+    auto _minLen = std::min(fdBoxCp.getWidth(), fdBoxCp.getHeight());
+    fadeCmdButtonBox = Rectangle(fdBoxCp.getX(), fdBoxCp.getY(), _minLen, _minLen); // Ensure square.
+    enableFadeCommandBtn.setBounds(fadeCmdButtonBox);
+
+    // Ok, time for the path box.
+    auto pthBoxCp = pathBox;
+    pthBoxCp = pthBoxCp.reduced(pthBoxCp.getHeight() * 0.05);
+    pathTextBox = pthBoxCp.removeFromTop(pthBoxCp.getHeight() * 0.3);
+    pathInputBox = pthBoxCp;
+
+    reconstructImage();
+}
+
+
+void OSCActionConstructor::MainComp::paint(Graphics &g) {
+    g.drawImage(backgroundImage, getLocalBounds().toFloat());
+
+}
+
+void OSCActionConstructor::MainComp::reconstructImage() {
+    backgroundImage = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
+    Graphics g(backgroundImage);
+
+    g.setColour(Colours::red);
+    g.drawRect(tpltSelectionBox);
+    g.drawRect(pathBox);
+    g.drawRect(buttonsBox);
+
+    g.setFont(font);
+    g.setFont(fontSize);
+    g.setColour(UICfg::TEXT_COLOUR);
+
+    g.drawText("Select a template category", tpltCategoryTextBox, Justification::centredLeft);
+    g.drawText("Select a template", tpltSelectionTextBox, Justification::centredLeft);
+
+    g.setFont(fontSize * 0.7);
+    // Must use custom bool in case no template selected yet
+    bool fadeEnabled;
+    if (currentTemplateCopy == nullptr) {
+        fadeEnabled = false;
+    } else {
+        fadeEnabled = currentTemplateCopy->FADE_ENABLED;
+    }
+    if (fadeEnabled) {
+        g.setColour(UICfg::BG_SECONDARY_COLOUR);
+        g.fillRect(fadeCmdBox);
+        g.setColour(UICfg::TEXT_COLOUR);
+    }
+    g.drawFittedText(fadeEnabled ? "Enable fade command?": "Fading Not Available",
+        fadeCmdTextBox, Justification::centredLeft, 2);
+
+    g.setFont(fontSize);
+    g.drawText("Path", pathTextBox, Justification::centredLeft);
+
+
+    // We need to reset the inputs upon a reconstruction.
+    pathLabelInputs.clear();
+    pathLabelInputValues.clear();
+    pathLabelInputTemplates.clear();
+    pathLabelFormattedValues.clear();
+
+    // No template is selected the first time the component is started, so check for nullptr.
+    if (currentTemplateCopy == nullptr) {
+        return;
+    }
+
+    // Handle in-path arguments
+    Font fCopy = monospace;
+    fCopy.setHeight(fontSize);
+    fCopy.setStyleFlags(Font::plain);
+
+    g.setFont(fCopy);
+    Rectangle<int> pathBoxRemaining = pathInputBox;
+
+
+    DBG(currentTemplateCopy.get()->NAME);
+    for (const auto& argTemplate: currentTemplateCopy->PATH) {
+        if (pathBoxRemaining.getWidth() == 0) {
+            jassertfalse; // We've literally run out of screen area... HOW LONG IS THE PATH?
+            // OR WORSE, WHAT'S THE RESOLUTION OF YOUR WINDOW?
+        }
+        if (auto *string = std::get_if<std::string>(&argTemplate)) {
+            String str {string->c_str()};
+            g.drawText(str, pathBoxRemaining, Justification::centredLeft);
+            pathBoxRemaining.removeFromLeft(GlyphArrangement::getStringWidthInt(fCopy, str));
+        }
+        else if (auto *nonIter = std::get_if<NonIter>(&argTemplate)) {
+            addInPathArgLabel(*nonIter, pathBoxRemaining, fCopy);
+        }
+    }
+}
+
+bool OSCActionConstructor::MainComp::validateTextInput(float input, const NonIter &argTemplate) {
+    if (input < argTemplate.floatMin || input > argTemplate.floatMax) {
+        return false;
+    }
+    return true;
+}
+
+bool OSCActionConstructor::MainComp::validateTextInput(int input, const NonIter &argTemplate) {
+    if (input < argTemplate.intMin || input > argTemplate.intMax) {
+        return false;
+    }
+    return true;
+}
+
+bool OSCActionConstructor::MainComp::validateTextInput(const String &input, const NonIter &argTemplate) {
+    int len = input.length();
+    if (len < argTemplate.intMin || len > argTemplate.intMax ) {
+        return false;
+    }
+    return true;
+}
+
+Rectangle<int> OSCActionConstructor::MainComp::findInPathLabelBounds(const NonIter &argTemplate,
+    Rectangle<int> &remainingBox, const Font &fontInUse) {
+
+    int boxWidth = 0;
+    float singleCharWidth = GlyphArrangement::getStringWidth(fontInUse, "W");
+    switch (argTemplate._meta_PARAMTYPE) {
+        case STRING:
+            // Remember, intMax also represents the maximum string length.
+            boxWidth = static_cast<int>(std::ceil(singleCharWidth * (argTemplate.intMax + 1)));
+            break;
+        case INT:
+            // We need to find the maximum length because of the negative sign. For example, a min val of -80 and max
+            // val of 20 would mean the maximum length accounted for is 2 characters, but that's not right. It should be
+            // 3 chars (because "-80" is 3 chars).
+            // The extra 1 character is because the text box has margin.
+            boxWidth = static_cast<int>(std::ceil(
+                    (std::max(
+                        std::to_string(argTemplate.intMax).length(),
+                        std::to_string(argTemplate.intMin).length()
+                        ) + 1) * singleCharWidth)
+                    );
+            break;
+        default:
+            jassertfalse; // Unallowed ParamType for an in-path label (text input field)
+            return Rectangle<int>();
+    }
+    if (remainingBox.getWidth() < boxWidth) {
+        jassertfalse; // We've run out of space! Help!
+    }
+    return remainingBox.removeFromLeft(boxWidth);
+}
+
+
+void OSCActionConstructor::MainComp::addInPathArgLabel(const NonIter& argTemplate, Rectangle<int>& remainingBox,
+                                                       const Font& fontInUse, const String &text) {
+    auto lblBounds = findInPathLabelBounds(argTemplate, remainingBox, fontInUse);
+    auto lbl = std::make_unique<Label>(argTemplate.name, text);
+
+    lbl->setColour(Label::ColourIds::textColourId, UICfg::TEXT_ACCENTED_COLOUR);
+    lbl->setColour(Label::ColourIds::backgroundWhenEditingColourId, UICfg::BG_SECONDARY_COLOUR);
+    lbl->setColour(Label::ColourIds::outlineColourId, UICfg::TEXT_ACCENTED_COLOUR);
+    lbl->setFont(fontInUse);
+    lbl->setEditable(true);
+    lbl->setHelpText(argTemplate.verboseName);
+    lbl->setBounds(lblBounds);
+    lbl->addListener(this);
+    addAndMakeVisible(*lbl);
+
+    pathLabelInputTemplates.push_back(argTemplate);
+    pathLabelInputValues.push_back(text);
+    pathLabelInputs.push_back(std::move(lbl));
+    pathLabelFormattedValues.push_back({});
+}
+
+void OSCActionConstructor::MainComp::comboBoxChanged(ComboBox *comboBoxThatHasChanged) {
+    if (comboBoxThatHasChanged == &tpltCategoryDd) {
+        lastIndex = -1;
+        currentCategory = dDitemIDtoCategory.at(tpltCategoryDd.getSelectedId());
+        // Update the other dropdown's elements to match the options available for this category
+        changeTpltDdBasedOnTpltCategory(currentCategory);
+        return;
+    }
+    // This means our template has changed... i.e., we need to change EVERYTHING.
+    if (comboBoxThatHasChanged == &tpltDd) {
+        // Using the current category, we'll find the appropriate template according to the ID of the
+        // tpltDd dropdown, whose ID will be equivalent to the index of the appropriate XM32Template in the
+        // XM32TemplateGroup's vector.
+        if (tpltDd.getSelectedItemIndex() == lastIndex) {
+            return;
+        }
+
+        lastIndex = tpltDd.getSelectedItemIndex();
+        const XM32TemplateGroup &tpltGroup = TEMPLATE_CATEGORY_MAP.at(currentCategory);
+        currentTemplateCopy.reset(
+            new XM32Template(tpltGroup.templates.at(lastIndex))
+        );
+
+        // Set fade command appropriately
+        enableFadeCommandBtn.setEnabled(currentTemplateCopy->FADE_ENABLED);
+
+
+        // Clear the path label input vectors to hard-reset all path labels
+        pathLabelInputs.clear();
+        pathLabelInputTemplates.clear();
+        pathLabelInputValues.clear();
+
+        reconstructImage();
+        repaint();
+        return;
+    }
+}
+
+
+void OSCActionConstructor::MainComp::labelTextChanged(Label *labelThatHasChanged) {
+    size_t pathLabelInputsSize = pathLabelInputs.size();
+
+    if (pathLabelInputsSize != pathLabelInputValues.size() ||
+        pathLabelInputsSize != pathLabelInputTemplates.size()) {
+        jassertfalse; // Uh oh... someone forgot to make sure the 3 vectors were properly updated...
+        return;
+    }
+    for (int i = 0; i < pathLabelInputs.size(); i++) {
+        // Check pointer validity
+        auto& lblUniquePtr = pathLabelInputs.at(i);
+        if (lblUniquePtr == nullptr) {
+            jassertfalse; // ... I... I.. BUT HOW???
+            continue;
+        }
+
+        // Get pointer, check if correct label, get text value, then send off to be validated.
+        auto lbl = lblUniquePtr.get();
+        if (labelThatHasChanged != lbl) {
+            continue;
+        }
+        auto txt = labelThatHasChanged->getText();
+        pathLabelInputValues.at(i) = txt;
+
+        // Let's first figure out what we need to convert the text to
+        bool labelErrorState = true;  // This is to track if any part of the label parsing process resulted in an
+        // invalid value.
+
+        const NonIter& argTemplate = pathLabelInputTemplates.at(i);
+        switch (argTemplate._meta_PARAMTYPE) {
+            case INT: {
+                if (txt.isEmpty()) {
+                    break; // Not worth continuing to process.
+                }
+                if (!txt.containsOnly("0123456789")) {
+                    // Handle error here!
+                    break;
+                }
+                int intVal = txt.getIntValue();
+                if (!validateTextInput(intVal, argTemplate)) {
+                    // Handle error here!
+                    break;
+                }
+                pathLabelFormattedValues.at(i).changeStore(intVal);
+                labelErrorState = false;
+                break;
+            }
+            case STRING: {
+                if (!validateTextInput(txt, argTemplate)) {
+                    // Handle error here!
+                    break;
+                }
+                pathLabelFormattedValues.at(i).changeStore(txt.toStdString());
+                labelErrorState = false;
+                break;
+            }
+            default:
+                jassertfalse; // Invalid ParamType for in-path argument template
+        }
+
+        setPathLabelErrorState(lbl, labelErrorState);
+    }
+}
+
+void OSCActionConstructor::MainComp::setPathLabelErrorState(Label *lbl, bool error) {
+    lbl->setColour(Label::ColourIds::outlineColourId,
+        error ? UICfg::NEGATIVE_BUTTON_COLOUR: UICfg::POSITIVE_BUTTON_COLOUR);
+    lbl->setColour(Label::ColourIds::textColourId,
+        error ? UICfg::NEGATIVE_BUTTON_COLOUR: UICfg::TEXT_ACCENTED_COLOUR);
+}
+
+
+// ==============================================================================
+
+
 void Encoder::resized() {
     // The encoder rotary can handle its own bounds
     encoder.setBounds(getLocalBounds());
@@ -25,22 +372,6 @@ void Encoder::resized() {
     manualInputBox.setBounds(inputBoxBounds);
 }
 
-void OSCActionConstructor::MainComp::resized() {
-    auto bounds = getLocalBounds();
-    auto heightTenths = bounds.getHeight() * 0.1;
-
-    templateSelectionBox = bounds.removeFromTop(heightTenths * 2);
-    pathBox = bounds.removeFromTop(heightTenths * 2);
-    buttonsBox = bounds.removeFromBottom(heightTenths);
-
-}
-
-void OSCActionConstructor::MainComp::paint(Graphics &g) {
-    g.setColour(Colours::red);
-    g.drawRect(templateSelectionBox);
-    g.drawRect(pathBox);
-    g.drawRect(buttonsBox);
-}
 
 
 Encoder::Encoder(
@@ -105,9 +436,6 @@ Encoder::Encoder(const EnumParam &enumParam, const double minDeg, const double m
 }
 
 
-void Encoder::paint(Graphics &g) {
-    // encoder.paint(g);
-}
 
 // TODO: Remove redundant isOption/EnumParam, and option and enumParam members
 EncoderRotary::EncoderRotary(

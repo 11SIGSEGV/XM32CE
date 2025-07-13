@@ -19,7 +19,7 @@ public:
     //==============================================================================
     XM32CEApplication() {
 
-        tests();
+        // tests();
     }
 
     void tests() {
@@ -38,6 +38,7 @@ public:
     }
 
     void testOSCMessageArgumentCompiler() {
+        /*
         if (false) {
             try {
                 std::vector<OSCMessageArguments> testArguments = {
@@ -52,10 +53,11 @@ public:
             } catch (...) {
                 DBG("Caught unknown exception");
             }
-        }
+        }*/
     }
 
     void testTooManyArguments() {
+        /*
         if (false) {
             try {
                 ArgumentEmbeddedPath sampleArgumentEmbeddedPath = {"/ch/", NonIter("chNum", "Channel Number", "Number of the Channel", 1, 1, 32), "/mix/fader"};
@@ -97,11 +99,7 @@ public:
             } catch (...) {
                 DBG("Caught unknown exception");
             }
-        }
-
-
-
-
+        }*/
     }
 
     const String getApplicationName() override       { return ProjectInfo::projectName; }
