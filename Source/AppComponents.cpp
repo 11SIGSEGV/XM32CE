@@ -10,6 +10,8 @@
 
 #include "AppComponents.h"
 
+#include <memory>
+
 
 OSCActionConstructor::MainComp::MainComp() {
     setSize (1000, 800);
@@ -35,7 +37,7 @@ OSCActionConstructor::MainComp::MainComp() {
     enableFadeCommandBtn.addListener(this);
 
     // Temporary code TODO: Remove after testing
-    faderArgInput.reset(new Fader());
+    faderArgInput = std::make_unique<Fader>(Channel::FADER.NONITER);
     faderArgInput->setBounds(10, 240, 150, 400);
     addAndMakeVisible(*faderArgInput);
 }

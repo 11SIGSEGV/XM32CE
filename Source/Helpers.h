@@ -112,6 +112,8 @@ namespace UICfg {
     constexpr float FADER_KNOB_WIDTH_AS_PROPORTION_TO_BOUNDS_WIDTH = 0.15f; // The percentage of the fader knob's width in proportion to the bounds width.
     constexpr float FADER_KNOB_HEIGHT_AS_PROPORTION_TO_WIDTH = 2.f; // The height of the fader knob versus its width
     constexpr float FADER_MARKER_LABEL_FONT_HEIGHT = 0.04f; // The height of the fader label text (e.g., -60, +5, etc.) in proportion to the bounds height
+    constexpr float FADER_KNOB_LINE_HEIGHT_AS_PROPORTION_TO_HEIGHT = 0.1f; // The height of the line in the middle of the fader knob proportional to the height of the fader knob
+    constexpr float FADER_VALUE_TEXT_FONT_HEIGHT = 0.07f; // The height of the fader value text proportional to the fader bounds height (not localbounds height)
 
     constexpr int ROUND_TO_WHEN_IN_DOUBT = 2; // Round to 2 decimal places when in doubt (e.g., no unit for the value)
 

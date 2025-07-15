@@ -149,8 +149,10 @@ float XM32::floatToDb(float v) {
         db = v * 160.f - 70.f;
     else if (v >= 0.0)
         db = v * 480.f - 90.f;
-    else
-        throw std::out_of_range("floatToDb: v value out of range");
+    else {
+        jassertfalse;
+        return 0.0f;
+    }
     return db;
 }
 
@@ -164,8 +166,10 @@ float XM32::dbToFloat(float db) {
         v = (db + 50.f) / 80.f;
     else if (db <= 10.f)
         v = (db + 30.f) / 40.f;
-    else
-        throw std::out_of_range("dbToFloat: db value out of range");
+    else {
+        jassertfalse;
+        return 0.0f;
+    }
     // Optional, round value to X32 known value
     v = roundf(v * 1023) / 1023;
     return v;
