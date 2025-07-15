@@ -33,16 +33,18 @@ OSCActionConstructor::MainComp::MainComp() {
 
     addAndMakeVisible(enableFadeCommandBtn);
     enableFadeCommandBtn.addListener(this);
+
+    // Temporary code TODO: Remove after testing
+    faderArgInput.reset(new Fader());
+    faderArgInput->setBounds(10, 240, 150, 400);
+    addAndMakeVisible(*faderArgInput);
 }
-
-
-
 
 
 void OSCActionConstructor::MainComp::resized() {
     auto bounds = getLocalBounds();
     auto heightTenths = bounds.getHeight() * 0.1;
-    fontSize = heightTenths * 0.5 * 0.6;
+    fontSize = heightTenths * 0.3;
     auto widthTenths = bounds.getWidth() * 0.1;
 
     // First, set the 'area' boxes.
@@ -51,21 +53,24 @@ void OSCActionConstructor::MainComp::resized() {
     tpltSelectionBox.removeFromRight(widthTenths * 0.2); // Padding
     pathBox = bounds.removeFromTop(heightTenths * 1.5);
     buttonsBox = bounds.removeFromBottom(heightTenths);
+    argBox = bounds;
+
+    auto padding = bounds.getWidth() * UICfg::STD_PADDING;
 
 
     // Let's split up the template selection area.
     auto selBoxCp = tpltSelectionBox;
-    selBoxCp.removeFromLeft(selBoxCp.getWidth() * 0.02); // Left Padding for text
+    selBoxCp.removeFromLeft(padding); // Left Padding for text
 
     auto selBoxTop = selBoxCp.removeFromTop(selBoxCp.getHeight() * 0.5);
     auto selBoxBottom = selBoxCp;
 
-    tpltCategoryTextBox = selBoxTop.removeFromLeft(selBoxTop.getWidth() * 0.4);
+    tpltCategoryTitleBox = selBoxTop.removeFromLeft(selBoxTop.getWidth() * 0.4);
     selBoxTop.removeFromLeft(selBoxTop.getWidth() * 0.1); // Padding
     tpltCategoryDropBox = selBoxTop;
     tpltCategoryDd.setBounds(tpltCategoryDropBox);
 
-    tpltSelectionTextBox = selBoxBottom.removeFromLeft(selBoxBottom.getWidth() * 0.4);
+    tpltSelectionTitleBox = selBoxBottom.removeFromLeft(selBoxBottom.getWidth() * 0.4);
     selBoxBottom.removeFromLeft(selBoxBottom.getWidth() * 0.1); // Padding
     tpltSelectionDropBox = selBoxBottom;
     tpltDd.setBounds(tpltSelectionDropBox);
@@ -73,7 +78,7 @@ void OSCActionConstructor::MainComp::resized() {
 
     // Let's split up the fade command area.
     auto fdBoxCp = fadeCmdBox;
-    fdBoxCp = fdBoxCp.reduced(fdBoxCp.getHeight() * 0.05); // Padding
+    fdBoxCp = fdBoxCp.reduced(padding / 2); // Padding
     fadeCmdTextBox = fdBoxCp.removeFromTop(fdBoxCp.getHeight() * 0.5);
     auto _minLen = std::min(fdBoxCp.getWidth(), fdBoxCp.getHeight());
     fadeCmdButtonBox = Rectangle(fdBoxCp.getX(), fdBoxCp.getY(), _minLen, _minLen); // Ensure square.
@@ -81,9 +86,17 @@ void OSCActionConstructor::MainComp::resized() {
 
     // Ok, time for the path box.
     auto pthBoxCp = pathBox;
-    pthBoxCp = pthBoxCp.reduced(pthBoxCp.getHeight() * 0.05);
-    pathTextBox = pthBoxCp.removeFromTop(pthBoxCp.getHeight() * 0.3);
+    pthBoxCp = pthBoxCp.reduced(padding); // Padding
+    pathTitleBox = pthBoxCp.removeFromTop(pthBoxCp.getHeight() * 0.3);
     pathInputBox = pthBoxCp;
+
+    // And now for the argument box.
+    auto argsBoxCp = argBox;
+    argsBoxCp.removeFromLeft(padding); // Padding
+    argsBoxCp.removeFromRight(padding); // More padding
+    argTitleBox = argsBoxCp.removeFromTop(argsBoxCp.getHeight() * 0.08);
+    argInputArea = argsBoxCp;
+
 
     reconstructImage();
 }
@@ -93,6 +106,7 @@ void OSCActionConstructor::MainComp::paint(Graphics &g) {
     g.drawImage(backgroundImage, getLocalBounds().toFloat());
 
 }
+
 
 void OSCActionConstructor::MainComp::reconstructImage() {
     backgroundImage = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
@@ -107,8 +121,8 @@ void OSCActionConstructor::MainComp::reconstructImage() {
     g.setFont(fontSize);
     g.setColour(UICfg::TEXT_COLOUR);
 
-    g.drawText("Select a template category", tpltCategoryTextBox, Justification::centredLeft);
-    g.drawText("Select a template", tpltSelectionTextBox, Justification::centredLeft);
+    g.drawText("Select a template category", tpltCategoryTitleBox, Justification::centredLeft);
+    g.drawText("Select a template", tpltSelectionTitleBox, Justification::centredLeft);
 
     g.setFont(fontSize * 0.7);
     // Must use custom bool in case no template selected yet
@@ -127,7 +141,7 @@ void OSCActionConstructor::MainComp::reconstructImage() {
         fadeCmdTextBox, Justification::centredLeft, 2);
 
     g.setFont(fontSize);
-    g.drawText("Path", pathTextBox, Justification::centredLeft);
+    g.drawText("Path", pathTitleBox, Justification::centredLeft);
 
 
     // We need to reset the inputs upon a reconstruction.
@@ -152,7 +166,7 @@ void OSCActionConstructor::MainComp::reconstructImage() {
     // so the previous text should be restored.
     size_t existingLabelValuesSize = pathLabelInputValues.size();
     int numArgs {0};
-    DBG(currentTemplateCopy.get()->NAME);
+
     for (const auto& argTemplate: currentTemplateCopy->PATH) {
         if (pathBoxRemaining.getWidth() == 0) {
             jassertfalse; // We've literally run out of screen area... HOW LONG IS THE PATH?
@@ -178,7 +192,16 @@ void OSCActionConstructor::MainComp::reconstructImage() {
             addInPathArgLabel(*nonIter, pathBoxRemaining, fCopy, lblTxt, autoAddToOtherVectors);
         }
     }
+
+    // Handle Arguments
+    g.setColour(Colours::red);
+    g.drawRect(argTitleBox);
+    g.setColour(UICfg::TEXT_COLOUR);
+    g.setFont(font);
+    g.setFont(fontSize);
+    g.drawText("Argument", argTitleBox, Justification::centredLeft);
 }
+
 
 bool OSCActionConstructor::MainComp::validateTextInput(float input, const NonIter &argTemplate) {
     if (input < argTemplate.floatMin || input > argTemplate.floatMax) {
@@ -201,6 +224,7 @@ bool OSCActionConstructor::MainComp::validateTextInput(const String &input, cons
     }
     return true;
 }
+
 
 Rectangle<int> OSCActionConstructor::MainComp::findProperLabelBounds(const NonIter &argTemplate,
     Rectangle<int> &remainingBox, const Font &fontInUse) {
@@ -297,6 +321,9 @@ void OSCActionConstructor::MainComp::comboBoxChanged(ComboBox *comboBoxThatHasCh
 
         // Set fade command appropriately
         enableFadeCommandBtn.setEnabled(currentTemplateCopy->FADE_ENABLED);
+        if (!currentTemplateCopy->FADE_ENABLED) {
+            enableFadeCommandBtn.setToggleState(false, NotificationType::dontSendNotification);
+        }
 
 
         // Clear the path label input vectors to hard-reset all path labels
@@ -375,6 +402,7 @@ void OSCActionConstructor::MainComp::labelTextChanged(Label *labelThatHasChanged
     }
 }
 
+
 void OSCActionConstructor::MainComp::setPathLabelErrorState(Label *lbl, bool error) {
     lbl->setColour(Label::ColourIds::outlineColourId,
         error ? UICfg::NEGATIVE_BUTTON_COLOUR: UICfg::POSITIVE_BUTTON_COLOUR);
@@ -447,9 +475,9 @@ Encoder::Encoder(const OptionParam &option, const double minDeg, const double ma
 }
 
 Encoder::Encoder(const EnumParam &enumParam, const double minDeg, const double maxDeg, const int defaultIndex,
-                 const String &minLabel, const String &maxLabel): unit(Units::NONE),
+                 const String &minLabel, const String &maxLabel): unit(NONE),
                                                                   roundTo(-1),
-                                                                  paramType(ParamType::LINF),
+                                                                  paramType(LINF),
                                                                   minValue(0), minPos(degreesToRadians(minDeg)),
                                                                   minLabel(minLabel),
                                                                   maxValue(enumParam.len - 1),
@@ -516,16 +544,16 @@ EncoderRotary::EncoderRotary(
                       : overrideRoundingToXDecimalPlaces;
 
     switch (paramType) {
-        case ParamType::LINF:
+        case LINF:
             setRange(minValue, maxValue, std::pow(10.0, -roundTo));
             break;
-        case ParamType::LOGF:
+        case LOGF:
             setNormalisableRange(getNormalisableRangeExp(minValue, maxValue));
                 break;
-        case ParamType::LEVEL_161:
+        case LEVEL_161:
             setNormalisableRange(LEVEL_161_NORMALISABLE_RANGE);
             break;
-        case ParamType::LEVEL_1024:
+        case LEVEL_1024:
             setNormalisableRange(LEVEL_1024_NORMALISABLE_RANGE);
             break;
         default:
@@ -538,7 +566,7 @@ EncoderRotary::EncoderRotary(const OptionParam &option, const double minDeg, con
                              const int defaultIndex,
                              const String &minLabel, const String &maxLabel): isOptionParam(true), isEnumParam(false),
                                                                               option(option),
-                                                                              paramType(ParamType::LINF),
+                                                                              paramType(LINF),
                                                                               minValue(0),
                                                                               minPos(degreesToRadians(minDeg)),
                                                                               minLabel(minLabel),
@@ -560,16 +588,15 @@ EncoderRotary::EncoderRotary(const EnumParam &enumParam, const double minDeg, co
                              const int defaultIndex, const String &minLabel, const String &maxLabel)
     : isOptionParam(false), isEnumParam(true),
       enumParam(enumParam),
-      paramType(ParamType::LINF),
+      paramType(LINF),
       minValue(0),
       minPos(degreesToRadians(minDeg)),
       minLabel(minLabel),
       maxValue(option.len - 1),
       maxPos(degreesToRadians(maxDeg)),
       maxLabel(maxLabel),
-      Slider(
-          SliderStyle::RotaryHorizontalVerticalDrag,
-          Slider::NoTextBox),
+      Slider(RotaryHorizontalVerticalDrag,
+          NoTextBox),
       option(nullOption) {
     // Let's set the default value and position
     setDoubleClickReturnValue(true, defaultIndex);

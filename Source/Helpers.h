@@ -106,11 +106,18 @@ namespace UICfg {
     const Colour ROTARY_ENABLED_COLOUR(242u, 194u, 63u);
     const Colour ROTARY_DISABLED_COLOUR(87u, 76u, 48u);
 
+    constexpr float FADER_CENTERLINE_SIDE_PADDING = 0.45f; // The amount from each side to reduce for the center line. Must be <0.5f.
+    const Colour CENTERLINE_COLOUR (82, 88, 104);
+    constexpr float LEVEL_MARKER_THICKNESS = 0.005f; // Thickness as a percentage of the bounds height
+    constexpr float FADER_KNOB_WIDTH_AS_PROPORTION_TO_BOUNDS_WIDTH = 0.15f; // The percentage of the fader knob's width in proportion to the bounds width.
+    constexpr float FADER_KNOB_HEIGHT_AS_PROPORTION_TO_WIDTH = 2.f; // The height of the fader knob versus its width
+    constexpr float FADER_MARKER_LABEL_FONT_HEIGHT = 0.04f; // The height of the fader label text (e.g., -60, +5, etc.) in proportion to the bounds height
+
     constexpr int ROUND_TO_WHEN_IN_DOUBT = 2; // Round to 2 decimal places when in doubt (e.g., no unit for the value)
 
 
     // For UI element sizes use relative sizes
-    constexpr float STD_PADDING = 1.f / 30.f;
+    constexpr float STD_PADDING = 1.f / 40.f;
 
     // Look and feel Configs
     const Colour TEXT_EDITOR_BG_COLOUR(0.f, 0.f, 0.f, 0.f);
