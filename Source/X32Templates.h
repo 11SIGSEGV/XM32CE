@@ -179,11 +179,11 @@ namespace Channel {
     const XM32Template DELAY_TIME = {
         "CDYTM", CH, {"/ch/", _channelNum, "/delay/time"},
         NonIter("chDelayTime", "Delay Time",
-                "The amount of delay to apply to the channel's input source (ms)", 0.3f, LINF, 0.3f, 500.f)
+                "The amount of delay to apply to the channel's input source (ms)", 0.3f, LINF, 0.3f, 500.f, MS)
     };
     const XM32Template TRIM = {
         "CTRIM", CH, {"/ch/", _channelNum, "/preamp/trim"},
-        NonIter("chTrim", "Trim", "The digital trim level for the channel. Only for digital sources (dB)", 0.f, LINF, -18.f, 18.f)
+        NonIter("chTrim", "Trim", "The digital trim level for the channel. Only for digital sources (dB)", 0.f, LINF, -18.f, 18.f, DB)
     };
     const XM32Template INVERT = {
         "CIVRT", CH, {"/ch/", _channelNum, "/preamp/invert"},
@@ -199,7 +199,7 @@ namespace Channel {
     };
     const XM32Template HPF_FREQ = {
         "CHFFQ", CH, {"/ch/", _channelNum, "/preamp/hpf"},
-        NonIter("chHPFFreq", "High Pass Filter Frequency", "The frequency for the channel's high pass filter (low cut) (Hz)", 20.f, LOGF, 20.f, 400.f)
+        NonIter("chHPFFreq", "High Pass Filter Frequency", "The frequency for the channel's high pass filter (low cut) (Hz)", 20.f, LOGF, 20.f, 400.f, HERTZ)
     };
 
     const XM32Template GATE_ON = {
@@ -212,24 +212,24 @@ namespace Channel {
     };
     const XM32Template GATE_THR = {
         "CGTTR", CH, {"/ch/", _channelNum, "/gate/thr"},
-        NonIter("chGateThr", "Gate Threshold", "The threshold for a channel's gate to activate (dB)", -80.f, LINF, -80.f, 0.f)
+        NonIter("chGateThr", "Gate Threshold", "The threshold for a channel's gate to activate (dB)", -80.f, LINF, -80.f, 0.f, DB)
     };
     const XM32Template GATE_RANGE = {
         "CGTRG", CH, {"/ch/", _channelNum, "/gate/range"},
-        NonIter("chGateRange", "Gate Range", "The range for a channel's gate (dB)", 60.f, LINF, 3.f, 60.f)
+        NonIter("chGateRange", "Gate Range", "The range for a channel's gate (dB)", 60.f, LINF, 3.f, 60.f, DB)
     };
     // TODO: Test if this is actually LINF or actually LOGF
     const XM32Template GATE_ATTACK = {
         "CGTAK", CH, {"/ch/", _channelNum, "/gate/attack"},
-        NonIter("chGateAttack", "Gate Attack", "The time for a channel's gate to reach maximum effect (ms)", 0.f, LINF, 0.f, 120.f)
+        NonIter("chGateAttack", "Gate Attack", "The time for a channel's gate to reach maximum effect (ms)", 0.f, LINF, 0.f, 120.f, MS)
     };
     const XM32Template GATE_HOLD = {
         "CGTHD", CH, {"/ch/", _channelNum, "/gate/hold"},
-        NonIter("chGateHold", "Gate Hold", "The time for a channel's gate to hold at maximum effect (ms)", 0.02f, LOGF, 0.02f, 2000.f)
+        NonIter("chGateHold", "Gate Hold", "The time for a channel's gate to hold at maximum effect (ms)", 0.02f, LOGF, 0.02f, 2000.f, MS)
     };
     const XM32Template GATE_RELEASE = {
         "CGTRS", CH, {"/ch/", _channelNum, "/gate/release"},
-        NonIter("chGateRelease", "Gate Release", "The time for a channel's gate to fade to no effect (ms)", 5.f, LOGF, 5.f, 4000.f)
+        NonIter("chGateRelease", "Gate Release", "The time for a channel's gate to fade to no effect (ms)", 5.f, LOGF, 5.f, 4000.f, MS)
     };
     const XM32Template GATE_KEYSRC = {
         "CGTKS", CH, {"/ch/", _channelNum, "/gate/keysrc"},
@@ -246,7 +246,7 @@ namespace Channel {
     };
     const XM32Template GATE_FILTER_FREQ = {
         "CGTFF", CH, {"/ch/", _channelNum, "/gate/filter/f"},
-        NonIter("chGateFltrFreq", "Gate Filter Frequency", "The frequency for a channel's gate filter (Hz)", 20.f, LOGF, 20000.f)
+        NonIter("chGateFltrFreq", "Gate Filter Frequency", "The frequency for a channel's gate filter (Hz)", 20.f, LOGF, 20.f, 20000.f, HERTZ)
     };
 
     const XM32Template DYN_ON = {
@@ -267,7 +267,7 @@ namespace Channel {
     };
     const XM32Template DYN_THR = {
         "CDYTR", CH, {"/ch/", _channelNum, "/dyn/thr"},
-        NonIter("chDynThr", "Dynamics Threshold", "The threshold for a channel's dynamics processor to activate (dB)", 0.f, LINF, -60.f, 0.f)
+        NonIter("chDynThr", "Dynamics Threshold", "The threshold for a channel's dynamics processor to activate (dB)", 0.f, LINF, -60.f, 0.f, DB)
     };
     const XM32Template DYN_RATIO = {
         "CDYRT", CH, {"/ch/", _channelNum, "/dyn/ratio"},
@@ -279,19 +279,19 @@ namespace Channel {
     };
     const XM32Template DYN_MGAIN = {
         "CDYMG", CH, {"/ch/", _channelNum, "/dyn/mgain"},
-        NonIter("chDynMGain", "Dynamics Makeup Gain", "The makeup gain to the signal applied post dynamic processing", 0.f, LINF, 0.f, 24.f)
+        NonIter("chDynMGain", "Dynamics Makeup Gain", "The makeup gain to the signal applied post dynamic processing (dB)", 0.f, LINF, 0.f, 24.f, DB)
     };
     const XM32Template DYN_ATTACK = {
         "CDYAK", CH, {"/ch/", _channelNum, "/dyn/attack"},
-        NonIter("chDynAttack", "Dynamics Attack", "The time for a channel's dynamics processor to reach maximum effect (ms)", 0.f, LINF, 0.f, 120.f)
+        NonIter("chDynAttack", "Dynamics Attack", "The time for a channel's dynamics processor to reach maximum effect (ms)", 0.f, LINF, 0.f, 120.f, MS)
     };
     const XM32Template DYN_HOLD = {
         "CDYHD", CH, {"/ch/", _channelNum, "/dyn/hold"},
-        NonIter("chDynHold", "Dynamics Hold", "The time for a channel's dynamics processor to hold at maximum effect (ms)", 0.02f, LOGF, 0.02f, 2000.f)
+        NonIter("chDynHold", "Dynamics Hold", "The time for a channel's dynamics processor to hold at maximum effect (ms)", 0.02f, LOGF, 0.02f, 2000.f, MS)
     };
     const XM32Template DYN_RELEASE = {
         "CDYRS", CH, {"/ch/", _channelNum, "/dyn/release"},
-        NonIter("chDynRelease", "Dynamics Release", "The time for a channel's dynamics processor to fade to no effect (ms)", 5.f, LOGF, 5.f, 4000.f)
+        NonIter("chDynRelease", "Dynamics Release", "The time for a channel's dynamics processor to fade to no effect (ms)", 5.f, LOGF, 5.f, 4000.f, MS)
     };
     const XM32Template DYN_POS = {
         "CDYPS", CH, {"/ch/", _channelNum, "/dyn/pos"},
@@ -320,7 +320,7 @@ namespace Channel {
     };
     const XM32Template DYN_FILTER_FREQ = {
         "CDYFF", CH, {"/ch/", _channelNum, "/dyn/filter/f"},
-        NonIter("chDynFltrFreq", "Dynamics Filter Frequency", "The frequency for a channel's dynamics processor filter (Hz)", 20.f, LOGF, 20000.f)
+        NonIter("chDynFltrFreq", "Dynamics Filter Frequency", "The frequency for a channel's dynamics processor filter (Hz)", 20.f, LOGF, 20.f, 20000.f, HERTZ)
     };
 
 

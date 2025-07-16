@@ -37,7 +37,7 @@ OSCActionConstructor::MainComp::MainComp() {
     enableFadeCommandBtn.addListener(this);
 
     // Temporary code TODO: Remove after testing
-    faderArgInput = std::make_unique<Fader>(Channel::FADER.NONITER);
+    faderArgInput = std::make_unique<Fader>(Channel::DELAY_TIME.NONITER);
     faderArgInput->setBounds(10, 240, 150, 400);
     addAndMakeVisible(*faderArgInput);
 }
@@ -431,6 +431,132 @@ void Encoder::resized() {
     manualInputBox.setBounds(inputBoxBounds);
 }
 
+
+void Fader::resized() {
+    auto boundsWidth = getWidth();
+    faderHeight = boundsWidth*UICfg::FADER_KNOB_WIDTH_AS_PROPORTION_TO_BOUNDS_WIDTH*UICfg::FADER_KNOB_HEIGHT_AS_PROPORTION_TO_WIDTH;
+
+    auto boundsHeight = getHeight();
+    boundsHeight -= faderHeight;
+    boundsHeightWithoutFaderOverflow = boundsHeight;
+
+
+    bgImage = Image(Image::ARGB, boundsWidth, boundsHeight, true);
+    slider->setBounds(Rectangle<int>(0, faderHeight / 2, getWidth(), getHeight() - faderHeight));
+    Graphics g(bgImage);
+
+    // Centerline
+    Rectangle<int> centerBarRect = getLocalBounds();
+    int sidePadding = static_cast<int>(std::ceil(boundsWidth * UICfg::FADER_CENTERLINE_SIDE_PADDING));
+    centerBarRect.removeFromLeft(sidePadding);
+    centerBarRect.removeFromRight(sidePadding);
+    g.setColour(UICfg::CENTERLINE_COLOUR);
+    g.fillRect(centerBarRect);
+
+
+    // Fader knob size is soley dependent on width.
+    faderKnobImage = Image(Image::ARGB, boundsWidth*UICfg::FADER_KNOB_WIDTH_AS_PROPORTION_TO_BOUNDS_WIDTH,
+                           faderHeight,true);
+    // Half of the fader knob width left of the centerline
+    faderTopLeftX = std::ceil(
+        boundsWidth / 2 - boundsWidth * UICfg::FADER_KNOB_WIDTH_AS_PROPORTION_TO_BOUNDS_WIDTH / 2);
+
+    auto faderLineHeight = faderKnobImage.getHeight() * UICfg::FADER_KNOB_LINE_HEIGHT_AS_PROPORTION_TO_HEIGHT;
+
+    Graphics gFdr(faderKnobImage);
+    gFdr.setColour(UICfg::STRONG_BORDER_COLOUR);
+    gFdr.fillRect(getLocalBounds());
+    gFdr.setColour(UICfg::BG_SECONDARY_COLOUR);
+
+    gFdr.fillRect(Rectangle<int>(0, (faderHeight - faderLineHeight) / 2, faderKnobImage.getWidth(), faderLineHeight));
+
+
+    if (paramType != LEVEL_1024 && paramType != LEVEL_161) {
+        return; // Don't need do anything more. Everything only applies to when a level argument is in use.
+    }
+
+    // Let's also set our value label font height
+    monospaceFontWithFontSize.setHeight(boundsHeight * UICfg::FADER_VALUE_TEXT_FONT_HEIGHT);
+
+    // Level markers
+    int lineThickness = std::ceil(boundsHeight * UICfg::LEVEL_MARKER_THICKNESS);
+    int lineSidePadding = std::ceil(boundsWidth * 0.35f);
+    int labelToMarkerPadding = std::ceil(lineSidePadding * UICfg::STD_PADDING); // Padding between the marker line and the text labelling the line
+
+    float textHeight = boundsHeight * UICfg::FADER_MARKER_LABEL_FONT_HEIGHT;
+    g.setFont(levelLabelFont);
+    g.setFont(textHeight);
+
+    for (const auto& [lbl, heightPerc]: LEVEL_MARKERS) {
+        if (heightPerc > 1.f  || heightPerc < 0.f) {
+            jassertfalse; // Right... and no one sees a problem with this right?
+        }
+        int centerHeight = std::ceil(heightPerc * boundsHeight);
+        int initialY;
+        // The code below ensures the initial Y-coord does not go outside the bounds.
+        if (centerHeight == 0) {
+            // At top height
+            initialY = 0;
+        } else if (centerHeight == boundsHeight) {
+            // At bottom height
+            initialY = boundsHeight - lineThickness;
+        } else {
+            initialY = centerHeight - lineThickness;
+        }
+        // We need to leave some space on left & right for label markers (e.g., -90, -60, ..., +10)
+        Rectangle<int> line = {lineSidePadding, initialY, boundsWidth - lineSidePadding * 2, lineThickness};
+        g.drawRect(line);
+
+
+        // Again, the code below ensures the initial Y-coord does not go outside the bounds.
+        if (centerHeight == 0) {
+            // At top height
+            initialY = 0;
+        } else if (centerHeight == boundsHeight) {
+            // At bottom height
+            initialY = boundsHeight - static_cast<int>(std::floor(textHeight));
+        } else {
+            initialY = static_cast<int>(std::floor(centerHeight - textHeight / 2));
+        }
+
+        // We also need the level label
+        Rectangle<int> labelTextBox = {boundsWidth - lineSidePadding + labelToMarkerPadding,
+            initialY, lineSidePadding - labelToMarkerPadding, static_cast<int>(std::floor(textHeight))
+        };
+
+        // Format text appropriately
+        g.drawText(lbl, labelTextBox, Justification::centredLeft);
+    }
+}
+
+void Fader::paint(Graphics &g) {
+    g.drawImage(bgImage, Rectangle<float>(0, faderHeight / 2, getWidth(), getHeight() - faderHeight));
+    g.drawImageAt(faderKnobImage, faderTopLeftX, (1.0 - slider->getValue()) * boundsHeightWithoutFaderOverflow);
+
+    g.setColour(UICfg::TEXT_COLOUR);
+    g.setFont(monospaceFontWithFontSize);
+
+    // Heavily inspired by https://forum.juce.com/t/draw-rotated-text/14695/11. Thanks matkatmusic!
+    GlyphArrangement ga;
+    String strVal = getFormattedStringVal();
+    ga.addLineOfText(monospaceFontWithFontSize, strVal, 0, 0);
+    Path p;
+    ga.createPath(p);
+
+    auto centerX = static_cast<int>(std::ceil(getWidth() * UICfg::FADER_CENTERLINE_SIDE_PADDING)) / 2;
+    auto centerY = getHeight()/2;
+
+    p.applyTransform(AffineTransform()
+        .translated(
+            centerX - GlyphArrangement::getStringWidth(monospaceFontWithFontSize, strVal) / 2,
+            centerY)
+        .rotated(-MathConstants<float>::halfPi,
+                 centerX,
+                 centerY
+        )
+    );
+    g.fillPath(p);
+}
 
 
 Encoder::Encoder(

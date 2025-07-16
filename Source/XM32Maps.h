@@ -7,6 +7,14 @@
 #include <bitset>
 #include <utility> // For std::move
 
+
+inline int getMaxStdStrLen() {
+    std::string s;
+    return std::min(static_cast<long long int>(s.max_size()), static_cast<long long int>(std::numeric_limits<int>::max()));
+}
+
+const int STD_STRING_SIZE_LIMIT = getMaxStdStrLen();
+
 /*
 const std::set<float> logScaleFreq_201 = {
     20.0, 20.7, 21.4, 22.2, 23.0, 23.8, 24.6, 25.5, 26.4, 27.3, 28.3, 29.2, 30.3, 31.3, 32.4, 33.6, 34.8, 36.0, 37.2,
@@ -358,6 +366,14 @@ const std::unordered_map<float, float> rtaDecayToFloat = {
 */
 
 
+enum Units {
+    HERTZ,
+    DB,
+    MS,
+    NONE
+};
+
+
 
 // Use LEVEL_1024 for levels with 1024 values, but use LEVEL_161 for levels with 161 values. They use different implementations.
 enum ParamType {
@@ -409,11 +425,13 @@ struct OptionParam {
     const std::string description;
     const std::vector<std::string> value {}; // OPTION
     const ParamType _meta_PARAMTYPE {OPTION};
+    const Units _meta_UNIT;
     const unsigned int len {}; // Number of options
 
     OptionParam(const std::string &name, const std::string &verboseName, const std::string &description,
-        const std::vector<std::string>& value):
-        name(name), verboseName(verboseName), description(description), value(value), len(value.size()) {}
+        const std::vector<std::string>& value, const Units unit = NONE):
+        name(name), verboseName(verboseName), description(description), value(value), len(value.size()),
+        _meta_UNIT(unit) {}
 };
 
 
@@ -423,11 +441,13 @@ struct EnumParam {
     const std::string description;
     const std::vector<std::string> value {}; // ENUM
     const ParamType _meta_PARAMTYPE {ENUM};
+    const Units _meta_UNIT;
     const unsigned int len {}; // Number of options
 
     EnumParam(const std::string &name, const std::string &verboseName, const std::string &description,
-        const std::vector<std::string>& value):
-        name(name), verboseName(verboseName), description(description), value(value), len(value.size()) {}
+        const std::vector<std::string>& value, const Units unit = NONE):
+        name(name), verboseName(verboseName), description(description), value(value), len(value.size()),
+    _meta_UNIT(unit) {}
 };
 
 
@@ -462,38 +482,57 @@ struct NonIter {
     // We'll use int_min and int_max for string min/max length.
 
     const ParamType _meta_PARAMTYPE;
+    const Units _meta_UNIT;
 
     // Integer
     // A note: if you're using int, you probably want to use LINF. Realistically, an integer should be an EnumParam.
     // The main exception for this is an in-path argument.
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const int intDefVal,
-        const int intMinVal = std::numeric_limits<int>::min(), const int intMaxVal = std::numeric_limits<int>::max()):
+        const int intMinVal = std::numeric_limits<int>::min(), const int intMaxVal = std::numeric_limits<int>::max(),
+        const Units unit = NONE):
     name(name), verboseName(verboseName), description(description), defaultIntValue(intDefVal),
-    _meta_PARAMTYPE(INT), intMin(intMinVal), intMax(intMaxVal) {}
+    _meta_PARAMTYPE(INT), intMin(intMinVal), intMax(intMaxVal), _meta_UNIT(unit) {}
 
-    // Bitset
+    // Bitset - Implies no unit! Not the case? Use the custom constructor.
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description,
         const std::vector<bool> &value):
     name(name), verboseName(verboseName), description(description),
-    defaultStringValue(stringFromBoolVector(value)), intMin(value.size()), intMax(value.size()), _meta_PARAMTYPE(BITSET) {}
+    defaultStringValue(stringFromBoolVector(value)), intMin(value.size()), intMax(value.size()), _meta_PARAMTYPE(BITSET),
+    _meta_UNIT(NONE) {}
 
     // LINF, LOGF, LEVEL_1024, LEVEL_161
+    // Implies _meta_UNIT = dB for LEVEL_1024 and LEVEL_161, even if another unit is explicitly passed.
+    // Also implies fltMinVal = -90.f and fltMaxVal = 10.f for LEVEL_1024 and LEVEL_161, even if other values are
+    // explicitly passed.
+    // Not the case? Use the custom constructor.
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const float fltDefVal,
-        const ParamType type, const float fltMinVal = std::numeric_limits<float>::min(), const float fltMaxVal = std::numeric_limits<float>::max()):
+        const ParamType type, const float fltMinVal = std::numeric_limits<float>::min(),
+        const float fltMaxVal = std::numeric_limits<float>::max(), const Units unit = NONE):
     name(name), verboseName(verboseName), description(description), defaultFloatValue(fltDefVal), _meta_PARAMTYPE(type),
     floatMin((type == LEVEL_161 || type == LEVEL_1024) ? -90.f : fltMinVal),
-    floatMax((type == LEVEL_161 || type == LEVEL_1024) ? 10.f : fltMaxVal) {}
+    floatMax((type == LEVEL_161 || type == LEVEL_1024) ? 10.f : fltMaxVal),
+    _meta_UNIT((type == LEVEL_161 || type == LEVEL_1024) ? DB: unit) {}
 
 
     // String
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const std::string &value,
-        const int minLen = 0, const int maxLen = -1):
+        const int minLen = 0, const int maxLen = -1, const Units unit = NONE):
     name(name), verboseName(verboseName), description(description), defaultStringValue(value),
-    _meta_PARAMTYPE(STRING), intMin(minLen), intMax(maxLen) {}
+    _meta_PARAMTYPE(STRING), intMin(minLen),
+    intMax((maxLen == -1) ? STD_STRING_SIZE_LIMIT: maxLen), _meta_UNIT(unit) {}
 
     // Blank
-    NonIter(): name(""), verboseName(""), description(""), _meta_PARAMTYPE(_BLANK) {}
+    NonIter(): name(""), verboseName(""), description(""), _meta_PARAMTYPE(_BLANK), _meta_UNIT(NONE) {}
 
+    // Custom constructor. Just saying, if you can only create a NonIter via this overload, you're probably doing
+    // something wrong.
+    NonIter(const std::string& name, const std::string& verboseName, const std::string& description,
+        const int defaultIntValue, const int intMin, const int intMax, const float defaultFloatValue,
+        const float floatMin, const float floatMax, const std::string& defaultStringValue, const ParamType _meta_PARAMTYPE,
+        const Units _meta_UNIT): name(name), verboseName(verboseName), description(description),
+        defaultIntValue(defaultIntValue), intMin(intMin), intMax(intMax), defaultFloatValue(defaultFloatValue),
+        floatMin(floatMin), floatMax(floatMax), defaultStringValue(defaultStringValue), _meta_PARAMTYPE(_meta_PARAMTYPE),
+        _meta_UNIT(_meta_UNIT) {}
 };
 
 

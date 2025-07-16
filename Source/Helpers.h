@@ -115,7 +115,7 @@ namespace UICfg {
     constexpr float FADER_KNOB_LINE_HEIGHT_AS_PROPORTION_TO_HEIGHT = 0.1f; // The height of the line in the middle of the fader knob proportional to the height of the fader knob
     constexpr float FADER_VALUE_TEXT_FONT_HEIGHT = 0.07f; // The height of the fader value text proportional to the fader bounds height (not localbounds height)
 
-    constexpr int ROUND_TO_WHEN_IN_DOUBT = 2; // Round to 2 decimal places when in doubt (e.g., no unit for the value)
+    constexpr int ROUND_TO_WHEN_IN_DOUBT = 2; // Round to 2 decimal places when in doubt (e.g., no unit for the value).
 
 
     // For UI element sizes use relative sizes
@@ -141,6 +141,17 @@ inline const std::unordered_map<int, std::string> ICON_FILE_MAP = {
     {IconID::PLAY, "play.png"},
     {IconID::OCTAGON, "octagon.png"},
 };
+
+
+const std::unordered_map<Units, int> ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT = {
+    {HERTZ, 2},
+    {NONE, 2}, // WARNING! Do not round to 2 digits for NONE. In fact, DO NOT ROUND AT ALL. This is merely here to prevent out_of_range exceptions!
+    {DB, 2},
+    {MS, 1}
+};
+
+
+String formatValueUsingUnit(const Units unit, double value);
 
 
 namespace FileInfo {
@@ -667,19 +678,6 @@ struct ActiveShowOptions {
 };
 
 
-enum Units {
-    HERTZ,
-    DB,
-    NONE
-};
-
-const std::unordered_map<Units, int> ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT = {
-    {HERTZ, 2},
-    {NONE, UICfg::ROUND_TO_WHEN_IN_DOUBT},
-    {DB, 2}
-};
-
-
 /* Structure to hold the output of the validation functions.
  * errorMessage is a blank String when isValid is true
  */
@@ -702,12 +700,12 @@ std::pair<bool, double> getDoubleValueFromTextEditor(String text);
 class XM32 {
 public:
     /* As the XM32 uses approximations for the 20*log(v2/v1) formula for dB, we will use the same.*/
-    static float dbToFloat(float db);
+    static double dbToDouble(double db);
 
-    /* The inverse of the dbToFloat function. As the XM32 uses approximations for the 20*log(v2/v1) formula for dB, we will use the same.
+    /* The inverse of the dbToDouble function. As the XM32 uses approximations for the 20*log(v2/v1) formula for dB, we will use the same.
      * The maximum dB value is +10, the minimum is -90 (i.e., the same as -inf).
      */
-    static float floatToDb(float v);
+    static double doubleToDb(double v);
 
     /* The frequency map is a logarithmic scale of frequencies from 20Hz to 20kHz.
      * The function will round the input frequency to the nearest frequency in the map.
@@ -799,11 +797,11 @@ const inline NormalisableRange<double> LEVEL_1024_NORMALISABLE_RANGE(
     -90.0, 10.0,
     [](double start, double end, double normalized) {
         normalized = std::max(0.0, std::min(1.0, normalized)); // Ensure normalized is between 0 and 1
-        return XM32::floatToDb(normalized);
+        return XM32::doubleToDb(normalized);
     },
     [](double start, double end, double value) {
         value = std::max(start, std::min(end, value)); // Ensure value is within the range
-        return XM32::dbToFloat(value); // Return the corresponding dB value
+        return XM32::dbToDouble(value); // Return the corresponding dB value
     },
     [](double start, double end, double value) {
         return std::max(start, std::min(end, value));

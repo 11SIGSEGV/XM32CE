@@ -137,23 +137,7 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
         if (_isEnumParam) {
             return _enumParam.value.at(static_cast<int>(value));
         }
-        switch (unit) {
-            case HERTZ: {
-                return value < 1000.0 ? String(value, roundTo) + " Hz" : String(value / 1000.0, roundTo) + " kHz";
-            }
-            case DB: {
-                if (value <= -90.0) {
-                    return "-inf";
-                }
-                return value <= -90.0
-                           ? "-inf"
-                           : (
-                                 (value > 0) ? "+" + String(value, roundTo) : String(value, roundTo)
-                             ) + " dB";
-            }
-            case NONE: default:
-                return String(value, roundTo);
-        }
+        return formatValueUsingUnit(unit, value);
     }
 
 
@@ -243,161 +227,38 @@ struct Fader: public Component, public Slider::Listener {
         void paint(Graphics &g) override {};
     };
     // A bound width:height of 3:8 is recommended (e.g., 150 width, 400 height).
-    Fader(const NonIter& nonIter): is1024(nonIter._meta_PARAMTYPE == LEVEL_1024) {
-        if (nonIter._meta_PARAMTYPE != LEVEL_1024 && nonIter._meta_PARAMTYPE != LEVEL_161) {
-            jassertfalse; // Unsupported ParamType
-        }
+    Fader(const NonIter& nonIter): doubleMin(nonIter.floatMin), doubleMax(nonIter.floatMax), paramType(nonIter._meta_PARAMTYPE),
+    argUnit(nonIter._meta_UNIT) {
+        // if (nonIter._meta_PARAMTYPE != LEVEL_1024 && nonIter._meta_PARAMTYPE != LEVEL_161) {
+            // jassertfalse; // Unsupported ParamType
+        // }
         slider = std::make_unique<FaderSlider>();
         slider->setDoubleClickReturnValue(true,
-            inferPercentageFromMinMaxAndValue(nonIter.floatMin, nonIter.floatMax, nonIter.defaultFloatValue, nonIter._meta_PARAMTYPE));
+            inferPercentageFromMinMaxAndValue(doubleMin, doubleMax, nonIter.defaultFloatValue, paramType));
         addAndMakeVisible(*slider);
         slider->addListener(this);
     }
 
-    void resized() override {
-        auto boundsWidth = getWidth();
-        faderHeight = boundsWidth*UICfg::FADER_KNOB_WIDTH_AS_PROPORTION_TO_BOUNDS_WIDTH*UICfg::FADER_KNOB_HEIGHT_AS_PROPORTION_TO_WIDTH;
-
-        auto boundsHeight = getHeight();
-        boundsHeight -= faderHeight;
-        boundsHeightWithoutFaderOverflow = boundsHeight;
+    void resized() override;
 
 
-        bgImage = Image(Image::ARGB, boundsWidth, boundsHeight, true);
-        slider->setBounds(Rectangle<int>(0, faderHeight / 2, getWidth(), getHeight() - faderHeight));
-        Graphics g(bgImage);
-
-        // Centerline
-        Rectangle<int> centerBarRect = getLocalBounds();
-        int sidePadding = static_cast<int>(std::ceil(boundsWidth * UICfg::FADER_CENTERLINE_SIDE_PADDING));
-        centerBarRect.removeFromLeft(sidePadding);
-        centerBarRect.removeFromRight(sidePadding);
-        g.setColour(UICfg::CENTERLINE_COLOUR);
-        g.fillRect(centerBarRect);
-
-
-        // Let's also set our value label font height
-        monospaceFontWithFontSize.setHeight(boundsHeight * UICfg::FADER_VALUE_TEXT_FONT_HEIGHT);
-
-        // Level markers
-        int lineThickness = std::ceil(boundsHeight * UICfg::LEVEL_MARKER_THICKNESS);
-        int lineSidePadding = std::ceil(boundsWidth * 0.35f);
-        int labelToMarkerPadding = std::ceil(lineSidePadding * UICfg::STD_PADDING); // Padding between the marker line and the text labelling the line
-
-        float textHeight = boundsHeight * UICfg::FADER_MARKER_LABEL_FONT_HEIGHT;
-        g.setFont(levelLabelFont);
-        g.setFont(textHeight);
-
-        for (const auto& [lbl, heightPerc]: LEVEL_MARKERS) {
-            if (heightPerc > 1.f  || heightPerc < 0.f) {
-                jassertfalse; // Right... and no one sees a problem with this right?
-            }
-            int centerHeight = std::ceil(heightPerc * boundsHeight);
-            int initialY;
-            // The code below ensures the initial Y-coord does not go outside the bounds.
-            if (centerHeight == 0) {
-                // At top height
-                initialY = 0;
-            } else if (centerHeight == boundsHeight) {
-                // At bottom height
-                initialY = boundsHeight - lineThickness;
-            } else {
-                initialY = centerHeight - lineThickness;
-            }
-            // We need to leave some space on left & right for label markers (e.g., -90, -60, ..., +10)
-            Rectangle<int> line = {lineSidePadding, initialY, boundsWidth - lineSidePadding * 2, lineThickness};
-            g.drawRect(line);
-
-
-            // Again, the code below ensures the initial Y-coord does not go outside the bounds.
-            if (centerHeight == 0) {
-                // At top height
-                initialY = 0;
-            } else if (centerHeight == boundsHeight) {
-                // At bottom height
-                initialY = boundsHeight - static_cast<int>(std::floor(textHeight));
-            } else {
-                initialY = static_cast<int>(std::floor(centerHeight - textHeight / 2));
-            }
-
-            // We also need the level label
-            Rectangle<int> labelTextBox = {boundsWidth - lineSidePadding + labelToMarkerPadding,
-                initialY, lineSidePadding - labelToMarkerPadding, static_cast<int>(std::floor(textHeight))
-            };
-
-            // Format text appropriately
-            g.drawText(lbl, labelTextBox, Justification::centredLeft);
-        }
-
-        // Fader knob size is soley dependent on width.
-        faderKnobImage = Image(Image::ARGB, boundsWidth*UICfg::FADER_KNOB_WIDTH_AS_PROPORTION_TO_BOUNDS_WIDTH,
-            faderHeight,true);
-        // Half of the fader knob width left of the centerline
-        faderTopLeftX = std::ceil(
-            boundsWidth / 2 - boundsWidth * UICfg::FADER_KNOB_WIDTH_AS_PROPORTION_TO_BOUNDS_WIDTH / 2);
-
-        auto faderLineHeight = faderKnobImage.getHeight() * UICfg::FADER_KNOB_LINE_HEIGHT_AS_PROPORTION_TO_HEIGHT;
-
-        Graphics gFdr(faderKnobImage);
-        gFdr.setColour(UICfg::STRONG_BORDER_COLOUR);
-        gFdr.fillRect(getLocalBounds());
-        gFdr.setColour(UICfg::BG_SECONDARY_COLOUR);
-
-        gFdr.fillRect(Rectangle<int>(0, (faderHeight - faderLineHeight) / 2, faderKnobImage.getWidth(), faderLineHeight));
-    }
-
-
-    void paint(Graphics &g) override {
-        g.drawImage(bgImage, Rectangle<float>(0, faderHeight / 2, getWidth(), getHeight() - faderHeight));
-        g.drawImageAt(faderKnobImage, faderTopLeftX, (1.0 - slider->getValue()) * boundsHeightWithoutFaderOverflow);
-
-        g.setColour(UICfg::TEXT_COLOUR);
-        g.setFont(monospaceFontWithFontSize);
-
-        // Heavily inspired by https://forum.juce.com/t/draw-rotated-text/14695/11. Thanks matkatmusic!
-        GlyphArrangement ga;
-        String strVal = getFormattedStringVal();
-        ga.addLineOfText(monospaceFontWithFontSize, strVal, 0, 0);
-        Path p;
-        ga.createPath(p);
-
-        auto pathBounds = p.getBounds();
-        auto centerX = static_cast<int>(std::ceil(getWidth() * UICfg::FADER_CENTERLINE_SIDE_PADDING)) / 2;
-        auto centerY = getHeight()/2;
-
-        p.applyTransform(AffineTransform()
-                         .translated(centerX - GlyphArrangement::getStringWidthInt(monospaceFontWithFontSize, strVal) / 2 , centerY)
-                         .rotated(-MathConstants<float>::halfPi,
-                             centerX,
-                             centerY
-                             )
-                         );
-        g.fillPath(p);
-
-        g.setColour(Colours::red);
-        g.drawHorizontalLine(getLocalBounds().getCentreY(), 0, getWidth());
-        g.drawRect(getLocalBounds());
-
-    }
+    void paint(Graphics &g) override;
 
     void sliderValueChanged(Slider *sldr) override {
-        DBG(String(getValue()));
         repaint();
     }
 
-    [[nodiscard]] float getValue() const {
-        if (is1024) {
-            return XM32::floatToDb(slider->getValue());
-        }
-        return XM32::roundToNearest(XM32::floatToDb(slider->getValue()), levelValues_161);
+    // getValue always returns the NON-normalised value
+    [[nodiscard]] double getValue() const {
+        return inferValueFromMinMaxAndPercentage(doubleMin, doubleMax, slider->getValue(), paramType);
     }
 
-    String getFormattedStringVal() const {
-        auto val = roundTo(getValue(), 2);
-        if (val > 0) {
-            return "+" + String(val) + "dB";
-        }
-        return String(val) + "dB";
+    [[nodiscard]] double getNormalisedValue() const {
+        return slider->getValue();
+    }
+
+    [[nodiscard]] String getFormattedStringVal() const {
+        return formatValueUsingUnit(argUnit, getValue());
     }
 private:
     std::unique_ptr<FaderSlider> slider;
@@ -407,8 +268,12 @@ private:
     int faderTopLeftX;
     Image bgImage;
     Image faderKnobImage;
-    const bool is1024; // See if 1024 or 161 level
     Font monospaceFontWithFontSize = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::plain);
+    const ParamType paramType;
+    const Units argUnit;
+    // To avoid casting from float->double for each getValue() call.
+    const double doubleMin;
+    const double doubleMax;
 
     Font levelLabelFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::plain);
 
@@ -426,6 +291,8 @@ private:
         {"+5", 0.125f},
         {"+10", 0.f},
     };
+
+    const std::unordered_set<ParamType> ALLOWED_PARAMTYPES = {LEVEL_161, LEVEL_1024, LINF, LOGF};
 };
 
 

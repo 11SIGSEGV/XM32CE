@@ -13,6 +13,36 @@
 
 void ShowCommandListener::cueCommandOccurred(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex) {}
 
+
+String formatValueUsingUnit(const Units unit, double value) {
+    switch (unit) {
+        case DB: {
+            if (value <= -90.0) {
+                return "-inf";
+            }
+            auto val = roundTo(value, ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT.at(DB));
+            if (val > 0) {
+                return "+" + String(val) + "dB";
+            }
+            return String(val) + "dB";
+        }
+        case HERTZ: {
+            bool useKhz = value >= 1000.0;
+            double val = roundTo((useKhz ? value / 1000.0: value), ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT.at(HERTZ));
+            return String(val) + (useKhz ? "kHz": "Hz");
+        }
+        case MS: {
+            auto val = roundTo(value, ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT.at(MS));
+            return String(val) + "ms";
+        }
+        case NONE: {
+            return String(value);
+        }
+    }
+    jassertfalse; // How... how did you end.. bu.. but... ?????
+    return "";
+}
+
 Image getIconImageFile(int iconID) {
     if (ICON_FILE_MAP.find(iconID) != ICON_FILE_MAP.end()) {
         auto file = FileInfo::ICONS_DIRECTORY.getChildFile(ICON_FILE_MAP.at(iconID));
@@ -139,39 +169,39 @@ std::pair<bool, double> getDoubleValueFromTextEditor(String text) {
 }
 
 
-float XM32::floatToDb(float v) {
-    float db;
+double XM32::doubleToDb(double v) {
+    double db;
     if (v >= 0.5)
-        db = v * 40.f - 30.f;
+        db = v * 40.0 - 30.0;
     else if (v >= 0.25)
-        db = v * 80.f - 50.f;
+        db = v * 80.0 - 50.0;
     else if (v >= 0.0625)
-        db = v * 160.f - 70.f;
+        db = v * 160.0 - 70.0;
     else if (v >= 0.0)
-        db = v * 480.f - 90.f;
+        db = v * 480.0 - 90.0;
     else {
         jassertfalse;
-        return 0.0f;
+        return 0.0;
     }
     return db;
 }
 
-float XM32::dbToFloat(float db) {
-    float v;
-    if (db < -60.f)
-        v = (db + 90.f) / 480.f;
-    else if (db < -30.f)
-        v = (db + 70.f) / 160.f;
-    else if (db < -10.f)
-        v = (db + 50.f) / 80.f;
-    else if (db <= 10.f)
-        v = (db + 30.f) / 40.f;
+double XM32::dbToDouble(double db) {
+    double v;
+    if (db < -60.0)
+        v = (db + 90.0) / 480.0;
+    else if (db < -30.0)
+        v = (db + 70.0) / 160.0;
+    else if (db < -10.0)
+        v = (db + 50.0) / 80.0;
+    else if (db <= 10.0)
+        v = (db + 30.0) / 40.0;
     else {
         jassertfalse;
-        return 0.0f;
+        return 0.0;
     }
     // Optional, round value to X32 known value
-    v = roundf(v * 1023) / 1023;
+    v = std::round(v * 1023) / 1023;
     return v;
 }
 
@@ -213,7 +243,7 @@ double inferValueFromMinMaxAndPercentage(double minVal, double maxVal, double pe
                 if (maxVal != 10.0) {
                     jassertfalse; // Level 1024 is only defined for -90 to 10 dB
                 }
-                return XM32::floatToDb(percentage);
+                return XM32::doubleToDb(percentage);
             }
             default:
                 jassertfalse;
@@ -266,9 +296,9 @@ double inferPercentageFromMinMaxAndValue(const double minVal, const double maxVa
                 if (value < -90.0 || value > 10.0) {
                     jassertfalse; // Value is out of range for level 1024
                     return 0.0;
-                    // Fallback to 0.0 if value is out of range. We don't want to reach XM32::dbToFloat with an out of range value, as it will throw an exception
+                    // Fallback to 0.0 if value is out of range. We don't want to reach XM32::dbToDouble with an out of range value, as it will throw an exception
                 }
-                return XM32::dbToFloat(value);
+                return XM32::dbToDouble(value);
             }
             default:
                 jassertfalse;
