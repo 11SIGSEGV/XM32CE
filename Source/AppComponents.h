@@ -14,6 +14,8 @@
 
 
 // TODO: Test if setting non-default minDeg and maxDeg works as expected... I'm scared.
+// TODO: Test if NonIter overload functions
+// Acts as a wrapper for Slider. Overwrites painting and resizing.
 struct EncoderRotary : public Slider {
     explicit EncoderRotary(Units unit,
                            double minDeg = -135.0, double minValue = 0.0,
@@ -23,12 +25,12 @@ struct EncoderRotary : public Slider {
                            const String &minLabel = "",
                            const String &maxLabel = "",
                            int overrideRoundingToXDecimalPlaces = -1,
-                           ParamType paramType = ParamType::LINF,
+                           ParamType paramType = LINF,
                            bool middleProvidedAsPercentage = true,
                            bool defaultProvidedAsPercentage = true
     );
 
-    // We'll also allow Enum and OptionParams
+    // We'll also allow NonIter, Enum and OptionParams
     explicit EncoderRotary(const OptionParam &option,
                            double minDeg = -135.0,
                            double maxDeg = 135.0,
@@ -44,6 +46,9 @@ struct EncoderRotary : public Slider {
                            const String &minLabel = "",
                            const String &maxLabel = ""
     );
+
+    // explicit EncoderRotary(const NonIter &nonIter, double minDeg = -135.0,
+    // double maxDeg = 135.0, const String &minLabel = "", const String &maxLabel = "");
 
     void resized() override;
 
@@ -78,6 +83,27 @@ private:
 
 
 struct Encoder : public Component, public Slider::Listener, public TextEditor::Listener {
+    // Virtually identical to Slider::Listener, but returns the Encoder object changes instead of the internal slider
+    // used by the Encoder.
+    class Listener {
+    public:
+        //==============================================================================
+        /** Destructor. */
+        virtual ~Listener() = default;
+
+        //==============================================================================
+        // Called when the encoder's value is changed.
+        virtual void encoderValueChanged (Encoder*) = 0;
+
+        //==============================================================================
+        // Called when the encoder is about to be dragged.
+        virtual void encoderDragStarted (Encoder*) {}
+
+        // Called after a drag operation has finished.
+        virtual void encoderDragEnded (Encoder*) {}
+    };
+
+
     /* Initalise UIRotary.
      * When middle/defaultProvidedAsPercentage is true, the middle and default values are
      * automatically interpolated based on the middlePV/defaultPV percentage and the minValue and maxValue.
@@ -95,6 +121,13 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
                      bool middleProvidedAsPercentage = true,
                      bool defaultProvidedAsPercentage = true
     );
+
+    explicit Encoder(const NonIter& nonIter,
+        double minDeg = -135.0,
+        double maxDeg = 135.0,
+        const String &minLabel = "",
+        const String &maxLabel = ""
+        );
 
     explicit Encoder(const OptionParam &option,
                      double minDeg = -135.0,
@@ -123,8 +156,10 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
         encoder.removeListener(this);
         manualInputBox.removeListener(this);
         setLookAndFeel(nullptr);
-        deleteAllChildren();
     }
+
+    double getValue() { return encoder.getValue(); }
+
 
 
     String getValueAsDisplayString() const {
@@ -144,13 +179,18 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
     void sliderValueChanged(Slider *) override {
         // When value changed, we'll update the manual input box
         manualInputBox.setText(getValueAsDisplayString());
+        // Pass onto listeners
+        for (auto lstr: encoderListeners) {
+            if (lstr != nullptr) {
+                lstr->encoderValueChanged(this);
+            }
+        }
     }
 
     void textEditorReturnKeyPressed(TextEditor &editor) override {
         // Do checks to see if the value is valid
         auto [valid, value] = getDoubleValueFromTextEditor(editor.getText());
         if (valid) {
-            std::cout << value << std::endl;
             // If valid, set the value to the encoder
             // Check if the value is within the range of the encoder
             if (value < minValue || value > maxValue) {
@@ -161,7 +201,7 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
                 return;
             }
             // Set the rounded value.
-            encoder.setValue(std::round(value * _roundingMultiplier) / _roundingMultiplier);
+            encoder.setValue(roundTo(value, roundToNDigits));
         } else {
             // If not valid, show an error message
             AlertWindow::showMessageBoxAsync(AlertWindow::WarningIcon,
@@ -174,13 +214,45 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
     // void sliderDragEnded(Slider *) override {};
 
 
-    void paint(Graphics &g) override {
-    };
+    void paint(Graphics &g) override {}
 
     void resized() override;
 
+    void sliderDragStarted(Slider *) override {
+        // We don't need it internally, but pass onto listeners
+        for (auto lstr: encoderListeners) {
+            if (lstr != nullptr) {
+                lstr->encoderDragStarted(this);
+            }
+        }
+    }
+
+
+    void sliderDragEnded(Slider *) override {
+        // We don't need it internally, but pass onto listeners
+        for (auto lstr: encoderListeners) {
+            if (lstr != nullptr) {
+                lstr->encoderDragEnded(this);
+            }
+        }
+    }
+
+
+    void addListener(Listener* lstr) {
+        if (lstr != nullptr) {
+            encoderListeners.push_back(lstr);
+        } else {
+            jassertfalse; // Listener is null, this should never happen
+        }
+    }
+
+    void removeListener(Listener* lstr) {
+        encoderListeners.erase(std::remove(encoderListeners.begin(), encoderListeners.end(), lstr), encoderListeners.end());
+    }
 private:
     EncoderRotary encoder;
+
+    std::vector<Listener*> encoderListeners;
 
     TextEditor manualInputBox{"manualInputBox"};
 
@@ -204,13 +276,35 @@ private:
     double defaultValue;
 
     const Units unit;
-    const int roundTo;
-    const double _roundingMultiplier;
+    const int roundToNDigits;
     const ParamType paramType;
+
+    const std::set<ParamType> ALLOWED_PARAMTYPES = {LINF, LOGF, INT, LEVEL_161, LEVEL_1024};
 };
 
 
 struct Fader : public Component, public Slider::Listener {
+    // Virtually identical to Slider::Listener, but returns the Fader object changes instead of the internal slider used
+    // by the Fader.
+    class Listener {
+    public:
+        //==============================================================================
+        /** Destructor. */
+        virtual ~Listener() = default;
+
+        //==============================================================================
+        // Called when the fader's value is changed.
+        virtual void faderValueChanged (Fader*) = 0;
+
+        //==============================================================================
+        // Called when the fader is about to be dragged.
+        virtual void faderDragStarted (Fader*) {}
+
+        // Called after a drag operation has finished.
+        virtual void faderDragEnded (Fader*) {}
+    };
+
+
     struct FaderSlider : public Slider {
         FaderSlider(): Slider(LinearBarVertical, NoTextBox) {
             setRange(0.0, 1.0);
@@ -249,9 +343,16 @@ struct Fader : public Component, public Slider::Listener {
 
     void paint(Graphics &g) override;
 
+
     void sliderValueChanged(Slider *sldr) override {
         repaint();
+        for (auto lstr: faderListeners) {
+            if (lstr != nullptr) {
+                lstr->faderValueChanged(this);
+            }
+        }
     }
+
 
     // getValue always returns the NON-normalised value
     [[nodiscard]] double getValue() const {
@@ -266,9 +367,39 @@ struct Fader : public Component, public Slider::Listener {
         return formatValueUsingUnit(argUnit, getValue());
     }
 
+
+    void sliderDragStarted(Slider *sldr) override {
+        // Simply broadcast to listeners. We don't need it in our internal struct.
+        for (auto lstr: faderListeners) {
+            if (lstr != nullptr) {
+                lstr->faderDragStarted(this);
+            }
+        }
+    }
+
+    void sliderDragEnded(Slider *sldr) override {
+        // Simply broadcast to listeners. We don't need it in our internal struct.
+        for (auto lstr: faderListeners) {
+            if (lstr != nullptr) {
+                lstr->faderDragEnded(this);
+            }
+        }
+    }
+
+    void addListener(Listener* lstr) {
+        if (lstr != nullptr) {
+            faderListeners.push_back(lstr);
+        } else {
+            jassertfalse; // Listener is null, this should never happen
+        }
+    }
+
+    void removeListener(Listener* lstr) {
+        faderListeners.erase(std::remove(faderListeners.begin(), faderListeners.end(), lstr), faderListeners.end());
+    }
 private:
     std::unique_ptr<FaderSlider> slider;
-
+    std::vector<Listener*> faderListeners;
     float faderHeight;
     float boundsHeightWithoutFaderOverflow;
     int faderTopLeftX;
@@ -300,6 +431,43 @@ private:
 
     const std::unordered_set<ParamType> ALLOWED_PARAMTYPES = {LEVEL_161, LEVEL_1024, LINF, LOGF};
 };
+
+
+// Literally just a wrapper to create a temporary ComboBox using a EnumParam or Option.
+// A gentle reminder that the ID of each ComboBox element is simply the index + 1.
+// This is literally just here to make initalising the ComboBox easier. You still have to handle everything else.
+struct DropdownWrapper: public ComboBox {
+    DropdownWrapper(const EnumParam& enumParam) {
+        int i { 0 };
+        for (auto str: enumParam.value) {
+            i++;
+            addItem(str,  i);
+        }
+    }
+
+    DropdownWrapper(const OptionParam& optionParam) {
+        int i { 0 };
+        for (auto str: optionParam.value) {
+            i++;
+            addItem(str,  i);
+        }
+    }
+};
+
+
+struct TextEditorWrapper: public TextEditor {
+    TextEditorWrapper(const NonIter& nonIter) {
+        setTextToShowWhenEmpty(nonIter.verboseName, UICfg::TEXT_COLOUR_DARK);
+        setText(nonIter.defaultStringValue);
+    }
+};
+
+
+
+struct ButtonArray: public Component {
+};
+
+
 
 
 class ParentWindowListener {
@@ -342,23 +510,27 @@ public:
 
 
     class MainComp : public Component, public ComboBox::Listener, public ToggleButton::Listener,
-                     public Label::Listener {
+                     public Label::Listener, public Fader::Listener, public Encoder::Listener,
+                    public TextEditor::Listener {
     public:
         enum InputMethod {
             FADER,
             ENCODER,
             DROPDOWN,
             TEXTBOX,
-            BUTTON_ARRAY
+            BUTTON_ARRAY,
+            NONE // Only used when second input is not required
         };
 
-        MainComp (
-        );
+        MainComp();
 
-        ~MainComp() override {
-        };
+        ~MainComp() override {}
 
         void resized() override;
+
+        // Resizes the components used for inputs (i.e., faderInputs, encoderInputs, ddInputs, textInputs and
+        // btnArrInputs).
+        void resizeArgs();
 
         void paint(Graphics &g) override;
 
@@ -370,6 +542,7 @@ public:
 
         static bool validateTextInput(const String &input, const NonIter &argTemplate);
 
+        // Change template dropdown based on new template category
         void changeTpltDdBasedOnTpltCategory(const TemplateCategory category) {
             auto it = TEMPLATE_CATEGORY_MAP.find(category);
             if (it == TEMPLATE_CATEGORY_MAP.end()) {
@@ -384,7 +557,6 @@ public:
                 // To access the correct template, simply use tpltGroup.templates[i-1].
             }
         }
-
 
 
         // Finds the appropriate bounds for an in-path argument label (i.e., text input field). Returns the bounds,
@@ -403,38 +575,84 @@ public:
         void addInPathArgLabel(const NonIter &argTemplate, Rectangle<int> &remainingBox, const Font &fontInUse,
                                const String &text = String(), bool automaticallyAddToOtherVectors = true);
 
-
+        // TODO: allow listener to catch dropdown for argument
         void comboBoxChanged(ComboBox *comboBoxThatHasChanged) override;
+
+        // Called to update the component when a new template is selected. Expects ONLY currentTemplateCopy to be set.
+        void uponNewTemplateSelected();
+
+        // Called to update the component when a new input method is selected. Expects existing values to be set.
+        void uponNewInputMethodSelected();
+
+
+        // Called to update the component when fading becomes enabled. Expects most items to be set. Usually called upon
+        // the fade button being ticked and with uponNewTemplateSelected()
+        void uponFadeCommandEnabledOrDisabled();
+
 
         void buttonStateChanged(Button *btn) override {
             fadeCommandEnabled = btn->getToggleState();
         }
 
-        void buttonClicked(Button *) override {
-        };
+        void faderValueChanged(Fader *) override;
+
+        void encoderValueChanged(Encoder *) override;
+
+        void buttonClicked(Button *) override;
+
+        void textEditorTextChanged(TextEditor &) override;
 
         void labelTextChanged(Label *labelThatHasChanged) override;
 
         static void setPathLabelErrorState(Label *lbl, bool error);
 
+        template <typename T>
+        static void clearInputPair(std::pair<std::unique_ptr<T>, std::unique_ptr<T>>& pair) {
+            if (pair.first != nullptr) {
+                pair.first.reset();
+            }
+            if (pair.second != nullptr) {
+                pair.second.reset();
+            }
+        }
+
     private:
-        int lastIndex = -1; // Used as dropdown tends to send unnecessary comboBoxChanged callbacks
+        int indexOfLastTemplateSelected = -1; // Used as dropdown tends to send unnecessary comboBoxChanged callbacks
         std::unique_ptr<XM32Template> currentTemplateCopy;
+        ParamType currentParamType {_BLANK};
         TemplateCategory currentCategory;
 
         std::unordered_map<int, TemplateCategory> dDitemIDtoCategory; // Dropdown item ID to XM32 Template Category
 
         Image backgroundImage;
 
-        std::vector<String> pathLabelInputValues; // Use for upon reconstructImage (as
+        std::vector<String> pathLabelInputValues; // Use for upon reconstructImage (raw values)
         std::vector<NonIter> pathLabelInputTemplates;
-        std::vector<std::unique_ptr<Label> > pathLabelInputs;
-        ValueStorerArray pathLabelFormattedValues;
+        std::vector<std::unique_ptr<Label>> pathLabelInputs;
+        ValueStorerArray pathLabelFormattedValues; // But this... is only used for when the final CueOSCAction object has to be returned by this component
 
-        std::unique_ptr<Fader> faderArgInput;
+
+        // In the case of a fadeCommand, the first element will be the start value, vice versa
+        // Otherwise, the first element is always implied to be used.
+        InputMethod firstInputMethod { NONE };
+        InputMethod secondInputMethod { NONE };
+        std::pair<std::unique_ptr<Fader>, std::unique_ptr<Fader>> faderInputs;
+        std::pair<std::unique_ptr<Encoder>, std::unique_ptr<Encoder>> encoderInputs;
+        std::pair<std::unique_ptr<DropdownWrapper>, std::unique_ptr<DropdownWrapper>> ddInputs;
+        std::pair<std::unique_ptr<TextEditorWrapper>, std::unique_ptr<TextEditorWrapper>> textInputs;
+        std::pair<std::unique_ptr<ButtonArray>, std::unique_ptr<ButtonArray>> btnArrInputs;
+
+
+        std::pair<ValueStorer, ValueStorer> inputValues;
+
 
         ComboBox tpltCategoryDd;
         ComboBox tpltDd;
+
+        // Used to select the input method. Use firstInputMethodDd when only one input is required.
+        ComboBox firstInputMethodDd;
+        ComboBox secondInputMethodDd; // Set this component to disabled when not in use.
+
         ToggleButton enableFadeCommandBtn;
         bool fadeCommandEnabled = false;
 
@@ -459,8 +677,11 @@ public:
         Rectangle<int> pathTitleBox;
         Rectangle<int> pathInputBox;
 
-        Rectangle<int> argTitleBox;
-        Rectangle<int> argInputArea;
+        Rectangle<int> argTitleBoxLeft;
+        Rectangle<int> argInputAreaLeft;
+        Rectangle<int> argTitleBoxRight;
+        Rectangle<int> argInputAreaRight;
+
 
         FontOptions font = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::bold);
         FontOptions descFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::plain);
@@ -477,7 +698,16 @@ public:
             {ENUM, {ENCODER, DROPDOWN}},
             {OPTION, {DROPDOWN}},
             {BITSET, {BUTTON_ARRAY}},
+            {STRING, {TEXTBOX}},
             {_BLANK, {}}
+        };
+        const std::unordered_map<InputMethod, String> INPUT_METHOD_NAME = {
+            {FADER, "Fader"},
+            {ENCODER, "Encoder"},
+            {TEXTBOX, "Textbox"},
+            {DROPDOWN, "Dropdown"},
+            {BUTTON_ARRAY, "Button Array"},
+            {NONE, "None"}
         };
     };
 

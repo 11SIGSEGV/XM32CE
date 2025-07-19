@@ -413,6 +413,15 @@ struct ValueStorer {
         stringValue = newStringValue;
         _meta_PARAMTYPE = STRING;
     }
+
+    // Clears the store to the value corresponding to if a blank constructor was used. BUT THIS ALSO MEANS THE PARAMTYPE
+    // WILL CHANGE TO BLANK!
+    void clearStore() {
+        intValue = 0;
+        floatValue = 0.f;
+        stringValue = "";
+        _meta_PARAMTYPE = _BLANK;
+    }
 };
 
 
@@ -426,12 +435,16 @@ struct OptionParam {
     const std::vector<std::string> value {}; // OPTION
     const ParamType _meta_PARAMTYPE {OPTION};
     const Units _meta_UNIT;
-    const unsigned int len {}; // Number of options
+    const size_t len {}; // Number of options
 
     OptionParam(const std::string &name, const std::string &verboseName, const std::string &description,
-        const std::vector<std::string>& value, const Units unit = NONE):
+        const std::vector<std::string>& value, const Units unit = NONE, bool _supressLen0Assert = false):
         name(name), verboseName(verboseName), description(description), value(value), len(value.size()),
-        _meta_UNIT(unit) {}
+        _meta_UNIT(unit) {
+        if (len == 0 && !_supressLen0Assert) {
+            jassertfalse; // Cannot create OptionParam with no options
+        }
+    }
 };
 
 
@@ -442,22 +455,47 @@ struct EnumParam {
     const std::vector<std::string> value {}; // ENUM
     const ParamType _meta_PARAMTYPE {ENUM};
     const Units _meta_UNIT;
-    const unsigned int len {}; // Number of options
+    const size_t len {}; // Number of enumerators
 
     EnumParam(const std::string &name, const std::string &verboseName, const std::string &description,
-        const std::vector<std::string>& value, const Units unit = NONE):
+        const std::vector<std::string>& value, const Units unit = NONE, bool _supressLen0Assert = false):
         name(name), verboseName(verboseName), description(description), value(value), len(value.size()),
-    _meta_UNIT(unit) {}
+    _meta_UNIT(unit) {
+        if (len == 0 && !_supressLen0Assert) {
+            jassertfalse; // Cannot create EnumParam with no enumerators
+        }
+    }
 };
 
 
 
-static std::string stringFromBoolVector(const std::vector<bool> &boolVector ) {
-    std::stringstream ss;
-    for (const auto& b : boolVector) {
-        ss << (b ? '1' : '0');
+// static std::string stringFromBoolVector(const std::vector<bool> &boolVector ) {
+//     std::stringstream ss;
+//     for (const auto& b : boolVector) {
+//         ss << (b ? '1' : '0');
+//     }
+//     return ss.str();
+// }
+
+static unsigned int boolVectorToInt(const std::vector<bool>& boolVector) {
+    // While this function uses unsigned int, it is likely the caller is not (rather they are likely using a signed int)
+    // To advise of overflows, we'll advise if we go over 31 elements.
+    // From my personal observations, intValue will never overflow from the maximum value, even when iVal is added to it
+    // when intValue is already at the max value.
+    // But when this is returned and cast to a signed int, it will overflow to become -1.
+    // This is still undefined behaviour and may vary based on systems.
+    if (boolVector.size() > 31) {
+        jassertfalse;
     }
-    return ss.str();
+    unsigned int intValue {};
+    unsigned iVal { 1 };
+    for (auto it = boolVector.rbegin(); it != boolVector.rend(); ++it) {
+        if (*it) {
+            intValue += iVal;
+        }
+        iVal *= 2;
+    }
+    return intValue;
 }
 
 // Includes std::string, float and int
@@ -465,6 +503,7 @@ struct NonIter {
     const std::string name;
     const std::string verboseName;
     const std::string description;
+    // Also used for bitset.
     const int defaultIntValue {};
     // For intMin and intMax:
     // When int, range.
@@ -477,7 +516,7 @@ struct NonIter {
     const float floatMin {};
     const float floatMax {};
 
-    // Also used for bitset
+
     const std::string defaultStringValue {};
     // We'll use int_min and int_max for string min/max length.
 
@@ -497,7 +536,7 @@ struct NonIter {
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description,
         const std::vector<bool> &value):
     name(name), verboseName(verboseName), description(description),
-    defaultStringValue(stringFromBoolVector(value)), intMin(value.size()), intMax(value.size()), _meta_PARAMTYPE(BITSET),
+    defaultIntValue(boolVectorToInt(value)), intMin(value.size()), intMax(value.size()), _meta_PARAMTYPE(BITSET),
     _meta_UNIT(NONE) {}
 
     // LINF, LOGF, LEVEL_1024, LEVEL_161
@@ -533,6 +572,43 @@ struct NonIter {
         defaultIntValue(defaultIntValue), intMin(intMin), intMax(intMax), defaultFloatValue(defaultFloatValue),
         floatMin(floatMin), floatMax(floatMax), defaultStringValue(defaultStringValue), _meta_PARAMTYPE(_meta_PARAMTYPE),
         _meta_UNIT(_meta_UNIT) {}
+
+    // Check if a float is valid. If the ParamType doesn't support float, returns false.
+    bool valueIsValid(float val) const {
+        if (!(_meta_PARAMTYPE == LINF || _meta_PARAMTYPE == LOGF || _meta_PARAMTYPE == LEVEL_161 ||
+            _meta_PARAMTYPE == LEVEL_1024)) {
+            return false;
+        }
+        return val >= floatMin && val <= floatMax;
+    }
+
+    // Check if a int is valid. If the ParamType doesn't support int or bitset, returns false.
+    // If the paramtype is bitset and the value is appropriate for the binary to integer representation of the bitset,
+    // it will also return true.
+    bool valueIsValid(int val) const {
+        if (_meta_PARAMTYPE == INT) {
+            return val >= intMin && val <= intMax;
+        } if (_meta_PARAMTYPE == BITSET) {
+            return val >= 0 && val < std::pow(2, intMin); // Remember, intMin == intMax when ParamType is BITSET.
+        }
+        return false;
+    }
+
+    // Check if a string is valid. If the ParamType doesn't support string, returns false.
+    bool valueIsValid(std::string val) const {
+        if (_meta_PARAMTYPE != STRING) {
+            return false;
+        }
+        return val.length() >= intMin && val.length() <= intMax;
+    }
+
+    // Checks if a bitset is valid. If the ParamType doesn't support bitset, returns false.
+    bool valueIsValid(const std::vector<bool>& val) const {
+        if (_meta_PARAMTYPE != BITSET) {
+            return false;
+        }
+        return val.size() != intMin; // Remember, intMin == intMax when ParamType is BITSET.
+    }
 };
 
 
@@ -553,8 +629,8 @@ typedef std::pair<ArgumentEmbeddedPath, OptionParam> OptionParam_PathToArgumentP
 //     NonIter("channel", 1, 1, 32), "/mix/fader"};
 
 
-inline const OptionParam nullOption = {"", "", "", {}};
-inline const EnumParam nullEnum = {"", "", "", {}};
+inline const OptionParam nullOption = {"", "", "", {}, NONE, true};
+inline const EnumParam nullEnum = {"", "", "", {}, NONE, true};
 inline const NonIter nullNonIter = {};
 
 
