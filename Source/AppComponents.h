@@ -174,7 +174,8 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
     // void sliderDragEnded(Slider *) override {};
 
 
-    void paint(Graphics &g) override {};
+    void paint(Graphics &g) override {
+    };
 
     void resized() override;
 
@@ -209,9 +210,8 @@ private:
 };
 
 
-struct Fader: public Component, public Slider::Listener {
-
-    struct FaderSlider: public Slider {
+struct Fader : public Component, public Slider::Listener {
+    struct FaderSlider : public Slider {
         FaderSlider(): Slider(LinearBarVertical, NoTextBox) {
             setRange(0.0, 1.0);
             setColour(backgroundColourId, UICfg::TRANSPARENT);
@@ -222,19 +222,24 @@ struct Fader: public Component, public Slider::Listener {
             setColour(textBoxTextColourId, UICfg::TRANSPARENT);
             setColour(textBoxBackgroundColourId, UICfg::TRANSPARENT);
             setColour(textBoxHighlightColourId, UICfg::TRANSPARENT);
-            setColour(textBoxOutlineColourId , UICfg::TRANSPARENT);
+            setColour(textBoxOutlineColourId, UICfg::TRANSPARENT);
         }
-        void paint(Graphics &g) override {};
+
+        void paint(Graphics &g) override {
+        };
     };
+
     // A bound width:height of 3:8 is recommended (e.g., 150 width, 400 height).
-    Fader(const NonIter& nonIter): doubleMin(nonIter.floatMin), doubleMax(nonIter.floatMax), paramType(nonIter._meta_PARAMTYPE),
-    argUnit(nonIter._meta_UNIT) {
+    Fader(const NonIter &nonIter): doubleMin(nonIter.floatMin), doubleMax(nonIter.floatMax),
+                                   paramType(nonIter._meta_PARAMTYPE),
+                                   argUnit(nonIter._meta_UNIT) {
         // if (nonIter._meta_PARAMTYPE != LEVEL_1024 && nonIter._meta_PARAMTYPE != LEVEL_161) {
-            // jassertfalse; // Unsupported ParamType
+        // jassertfalse; // Unsupported ParamType
         // }
         slider = std::make_unique<FaderSlider>();
         slider->setDoubleClickReturnValue(true,
-            inferPercentageFromMinMaxAndValue(doubleMin, doubleMax, nonIter.defaultFloatValue, paramType));
+                                          inferPercentageFromMinMaxAndValue(
+                                              doubleMin, doubleMax, nonIter.defaultFloatValue, paramType));
         addAndMakeVisible(*slider);
         slider->addListener(this);
     }
@@ -260,6 +265,7 @@ struct Fader: public Component, public Slider::Listener {
     [[nodiscard]] String getFormattedStringVal() const {
         return formatValueUsingUnit(argUnit, getValue());
     }
+
 private:
     std::unique_ptr<FaderSlider> slider;
 
@@ -321,8 +327,7 @@ public:
         setVisible(true);
     }
 
-    void closeButtonPressed() override
-    {
+    void closeButtonPressed() override {
         JUCEApplication::getInstance()->systemRequestedQuit(); // Temporarily here
         if (registeredListener != nullptr) {
             registeredListener->closeRequested(ParentWindowListener::AppComponents_OSCActionConstructor, uuid);
@@ -339,7 +344,16 @@ public:
     class MainComp : public Component, public ComboBox::Listener, public ToggleButton::Listener,
                      public Label::Listener {
     public:
-        MainComp();
+        enum InputMethod {
+            FADER,
+            ENCODER,
+            DROPDOWN,
+            TEXTBOX,
+            BUTTON_ARRAY
+        };
+
+        MainComp (
+        );
 
         ~MainComp() override {
         };
@@ -372,6 +386,7 @@ public:
         }
 
 
+
         // Finds the appropriate bounds for an in-path argument label (i.e., text input field). Returns the bounds,
         // and removes it from the remainingBox from the left.
         // It is recommended to use a monospace font, but if this is not the case, the function assumes 'W' is the
@@ -386,7 +401,7 @@ public:
         // corresponding input value, template and formatted value. E.g., this is true when a new template is selected
         // and all labels are reset.
         void addInPathArgLabel(const NonIter &argTemplate, Rectangle<int> &remainingBox, const Font &fontInUse,
-            const String &text = String(), bool automaticallyAddToOtherVectors = true);
+                               const String &text = String(), bool automaticallyAddToOtherVectors = true);
 
 
         void comboBoxChanged(ComboBox *comboBoxThatHasChanged) override;
@@ -400,7 +415,8 @@ public:
 
         void labelTextChanged(Label *labelThatHasChanged) override;
 
-        void setPathLabelErrorState(Label *lbl, bool error);
+        static void setPathLabelErrorState(Label *lbl, bool error);
+
     private:
         int lastIndex = -1; // Used as dropdown tends to send unnecessary comboBoxChanged callbacks
         std::unique_ptr<XM32Template> currentTemplateCopy;
@@ -412,7 +428,7 @@ public:
 
         std::vector<String> pathLabelInputValues; // Use for upon reconstructImage (as
         std::vector<NonIter> pathLabelInputTemplates;
-        std::vector<std::unique_ptr<Label>> pathLabelInputs;
+        std::vector<std::unique_ptr<Label> > pathLabelInputs;
         ValueStorerArray pathLabelFormattedValues;
 
         std::unique_ptr<Fader> faderArgInput;
@@ -426,6 +442,7 @@ public:
         Rectangle<int> pathBox;
         Rectangle<int> argBox;
         Rectangle<int> fadeCmdBox;
+        Rectangle<int> descBox;
         float fontSize;
 
 
@@ -446,7 +463,22 @@ public:
         Rectangle<int> argInputArea;
 
         FontOptions font = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::bold);
+        FontOptions descFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::plain);
         FontOptions monospace = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::bold);
+
+        // Allowed input methods for each paramtype. The first index in the vector is ALWAYS the preferred/default method.
+        const std::unordered_map<ParamType, std::vector<InputMethod>> ALLOWED_INPUT_METHODS_FOR_TYPE = {
+            {LEVEL_161, {FADER, ENCODER, TEXTBOX}},
+            {LEVEL_1024, {FADER, ENCODER, TEXTBOX}},
+            {LINF, {TEXTBOX, ENCODER, FADER}},
+            {LOGF, {TEXTBOX, ENCODER, FADER}},
+            {INT, {TEXTBOX}},
+            {_GENERIC_FLOAT, {TEXTBOX, ENCODER, FADER}},
+            {ENUM, {ENCODER, DROPDOWN}},
+            {OPTION, {DROPDOWN}},
+            {BITSET, {BUTTON_ARRAY}},
+            {_BLANK, {}}
+        };
     };
 
 private:

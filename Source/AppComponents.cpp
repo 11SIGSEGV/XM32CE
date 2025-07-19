@@ -35,11 +35,6 @@ OSCActionConstructor::MainComp::MainComp() {
 
     addAndMakeVisible(enableFadeCommandBtn);
     enableFadeCommandBtn.addListener(this);
-
-    // Temporary code TODO: Remove after testing
-    faderArgInput = std::make_unique<Fader>(Channel::DELAY_TIME.NONITER);
-    faderArgInput->setBounds(10, 240, 150, 400);
-    addAndMakeVisible(*faderArgInput);
 }
 
 
@@ -51,22 +46,37 @@ void OSCActionConstructor::MainComp::resized() {
 
     // First, set the 'area' boxes.
     tpltSelectionBox = bounds.removeFromTop(heightTenths);
+    descBox = bounds.removeFromTop(heightTenths);
     fadeCmdBox = tpltSelectionBox.removeFromRight(widthTenths * 2);
     tpltSelectionBox.removeFromRight(widthTenths * 0.2); // Padding
     pathBox = bounds.removeFromTop(heightTenths * 1.5);
-    buttonsBox = bounds.removeFromBottom(heightTenths);
+    buttonsBox = bounds.removeFromBottom(heightTenths * 0.7);
     argBox = bounds;
 
-    auto padding = bounds.getWidth() * UICfg::STD_PADDING;
+    // We don't want to screw up the padding. We expect a 5:4 width:height ratio, so if the width is below this
+    // ratio, then we'll need to use the height for padding instead.
+    float padding;
+    if (bounds.getWidth() / 5 > bounds.getHeight() / 4)
+        padding = bounds.getHeight() * UICfg::STD_PADDING;
+    else
+        padding = bounds.getWidth() * UICfg::STD_PADDING;
+
+
+    // Description box padding - the path box below already pads the bottom for descBox
+    descBox.removeFromLeft(padding);
+    descBox.removeFromTop(padding);
+    descBox.removeFromRight(padding);
 
 
     // Let's split up the template selection area.
     auto selBoxCp = tpltSelectionBox;
     selBoxCp.removeFromLeft(padding); // Left Padding for text
 
+    // Top is for Template Cat., Bottom is for actual Template
     auto selBoxTop = selBoxCp.removeFromTop(selBoxCp.getHeight() * 0.5);
     auto selBoxBottom = selBoxCp;
 
+    // Title box refers to the text "Template Category" or smth to the left of the dropdown
     tpltCategoryTitleBox = selBoxTop.removeFromLeft(selBoxTop.getWidth() * 0.4);
     selBoxTop.removeFromLeft(selBoxTop.getWidth() * 0.1); // Padding
     tpltCategoryDropBox = selBoxTop;
@@ -126,25 +136,41 @@ void OSCActionConstructor::MainComp::reconstructImage() {
     g.drawText("Select a template category", tpltCategoryTitleBox, Justification::centredLeft);
     g.drawText("Select a template", tpltSelectionTitleBox, Justification::centredLeft);
 
-    g.setFont(fontSize * 0.7);
-    // Must use custom bool in case no template selected yet
+
+    // Must pre-initalise bool and String in case no template selected yet
     bool fadeEnabled;
+    String tpltDescription;
     if (currentTemplateCopy == nullptr) {
         fadeEnabled = false;
     } else {
         fadeEnabled = currentTemplateCopy->FADE_ENABLED;
+        if (currentTemplateCopy->_META_UsesNonIter)
+            tpltDescription = currentTemplateCopy->NONITER.description;
+        else
+            tpltDescription = currentTemplateCopy->ENUMPARAM.description;
     }
+
+    // Let's figure out the fade
     if (fadeEnabled) {
         g.setColour(UICfg::BG_SECONDARY_COLOUR);
         g.fillRect(fadeCmdBox);
         g.setColour(UICfg::TEXT_COLOUR);
     }
+    g.setFont(fontSize * 0.7);
     g.drawFittedText(fadeEnabled ? "Enable fade command?": "Fading Not Available",
         fadeCmdTextBox, Justification::centredLeft, 2);
 
+    // Now for description
+    g.setFont(descFont);
+    g.setFont(fontSize);
+    g.drawFittedText(tpltDescription, descBox, Justification::topLeft,
+        static_cast<int>(std::floor(descBox.getHeight() / fontSize)));
+
+
+    // Let's handle path!
+    g.setFont(font);
     g.setFont(fontSize);
     g.drawText("Path", pathTitleBox, Justification::centredLeft);
-
 
     // We need to reset the inputs upon a reconstruction.
     // HOWEVER, everything else stays.
@@ -537,6 +563,7 @@ void Fader::paint(Graphics &g) {
     g.setFont(monospaceFontWithFontSize);
 
     // Heavily inspired by https://forum.juce.com/t/draw-rotated-text/14695/11. Thanks matkatmusic!
+    // Unsure why the formatted string value doesn't draw when the value isn't a dB unit?
     GlyphArrangement ga;
     String strVal = getFormattedStringVal();
     ga.addLineOfText(monospaceFontWithFontSize, strVal, 0, 0);
@@ -627,13 +654,9 @@ EncoderRotary::EncoderRotary(
     Units unit,
     const double minDeg, const double minValue,
     const double maxDeg, const double maxValue,
-    const double middlePV,
-    const double defaultPV,
-    const String &minLabel,
-    const String &maxLabel,
-    const int overrideRoundingToXDecimalPlaces,
-    const ParamType paramType,
-    const bool middleProvidedAsPercentage,
+    const double middlePV, const double defaultPV,
+    const String &minLabel, const String &maxLabel,
+    const int overrideRoundingToXDecimalPlaces, const ParamType paramType, const bool middleProvidedAsPercentage,
     const bool defaultProvidedAsPercentage): paramType(paramType),
                                              minValue(minValue), minPos(degreesToRadians(minDeg)), minLabel(minLabel),
                                              maxValue(maxValue), maxPos(degreesToRadians(maxDeg)), maxLabel(maxLabel),

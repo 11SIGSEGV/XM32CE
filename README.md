@@ -65,3 +65,21 @@ hallucinating, its suggestions weren't of much help anyway. I planned to use Cop
 documentation every 2 seconds, but seeing that the only consistent thing about Copilot was how consistently it suggested
 code that raised blatant compiler errors, I gave up trusting at some stage and realised that for once, an AI model was
 more clueless than I was.
+
+
+# Licensing
+
+Copyright © 2025 Luke Liu
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
