@@ -144,12 +144,16 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
                      const String &maxLabel = "");
 
     void init() {
-        manualInputBox.setText(getValueAsDisplayString());
+        manualInputBox.setFont(inputBoxFont.withHeight(getHeight() * 0.125f * 0.7f));
         manualInputBox.addListener(this);
         manualInputBox.setJustification(Justification::centred);
+        manualInputBox.setColour(TextEditor::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
+        manualInputBox.setColour(TextEditor::ColourIds::outlineColourId, UICfg::TRANSPARENT);
+        manualInputBox.setColour(TextEditor::ColourIds::textColourId, UICfg::ROTARY_TEXT_COLOUR);
         encoder.addListener(this);
         addAndMakeVisible(encoder);
         addAndMakeVisible(manualInputBox);
+        manualInputBox.setText(getValueAsDisplayString());
     }
 
     ~Encoder() override {
@@ -255,6 +259,7 @@ private:
     std::vector<Listener*> encoderListeners;
 
     TextEditor manualInputBox{"manualInputBox"};
+    Font inputBoxFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::plain);
 
     Rectangle<int> Bounds;
     const bool _isOptionParam;
@@ -436,30 +441,158 @@ private:
 // Literally just a wrapper to create a temporary ComboBox using a EnumParam or Option.
 // A gentle reminder that the ID of each ComboBox element is simply the index + 1.
 // This is literally just here to make initalising the ComboBox easier. You still have to handle everything else.
-struct DropdownWrapper: public ComboBox {
-    DropdownWrapper(const EnumParam& enumParam) {
+struct DropdownWrapper: public ComboBox, public ComboBox::Listener {
+    // Virtually identical to ComboBox::Listener.
+    class Listener
+    {
+    public:
+        /** Destructor. */
+        virtual ~Listener() = default;
+
+        /** Called when a Dropdown has its selected item changed. */
+        virtual void dropDownChanged (DropdownWrapper* dropDownThatHasChanged) = 0;
+    };
+    void init() {
+        setColour(backgroundColourId, UICfg::TRANSPARENT);
+        setColour(textColourId, UICfg::TEXT_COLOUR);
+        setColour(outlineColourId, UICfg::BG_SECONDARY_COLOUR);
+        setColour(focusedOutlineColourId, UICfg::TEXT_COLOUR);
+        ComboBox::addListener(this);
+    }
+    explicit DropdownWrapper(const EnumParam& enumParam) {
+        init();
         int i { 0 };
-        for (auto str: enumParam.value) {
+        for (const auto& str: enumParam.value) {
             i++;
             addItem(str,  i);
         }
     }
 
-    DropdownWrapper(const OptionParam& optionParam) {
+    explicit DropdownWrapper(const OptionParam& optionParam) {
+        init();
         int i { 0 };
-        for (auto str: optionParam.value) {
+        for (const auto& str: optionParam.value) {
             i++;
             addItem(str,  i);
         }
     }
+
+    void comboBoxChanged(ComboBox *) override {
+        for (auto lstr: ddListeners) {
+            if (lstr != nullptr) {
+                lstr->dropDownChanged(this);
+            }
+        }
+    };
+
+    void addListener(Listener* lstr) {
+        if (lstr != nullptr) {
+            ddListeners.push_back(lstr);
+        } else {
+            jassertfalse; // Listener is null, this should never happen
+        }
+    }
+
+    void removeListener(Listener* lstr) {
+        ddListeners.erase(std::remove(ddListeners.begin(), ddListeners.end(), lstr), ddListeners.end());
+    }
+
+private:
+    std::vector<Listener*> ddListeners;
 };
 
 
-struct TextEditorWrapper: public TextEditor {
-    TextEditorWrapper(const NonIter& nonIter) {
-        setTextToShowWhenEmpty(nonIter.verboseName, UICfg::TEXT_COLOUR_DARK);
+struct TextEditorWrapper: public TextEditor, public TextEditor::Listener {
+    // Virtually identical to TextEditor::Listener.
+    class Listener
+    {
+    public:
+        /** Destructor. */
+        virtual ~Listener() = default;
+
+        /** Called when the user changes the text in some way. */
+        virtual void wrappedTextEditorTextChanged (TextEditorWrapper*) {}
+
+        /** Called when the user presses the return key. */
+        virtual void wrappedTextEditorReturnKeyPressed (TextEditorWrapper*) {}
+
+        /** Called when the user presses the escape key. */
+        virtual void wrappedTextEditorEscapeKeyPressed (TextEditorWrapper*) {}
+
+        /** Called when the text editor loses focus. */
+        virtual void wrappedTextEditorFocusLost (TextEditorWrapper*) {}
+    };
+
+    explicit TextEditorWrapper(const NonIter& nonIter) {
+        String showWhenEmpty;
+        switch (nonIter._meta_PARAMTYPE) {
+            case LINF:
+            case LOGF:
+            case LEVEL_1024:
+            case LEVEL_161:
+                showWhenEmpty = String(nonIter.floatMin) + " <-> " + String(nonIter.floatMax);
+                break;
+            case STRING:
+                showWhenEmpty = String(nonIter.intMin) + " <-> " + String(nonIter.intMax) + " characters";
+                break;
+            case INT:
+                showWhenEmpty = String(nonIter.intMin) + " <-> " + String(nonIter.intMax);
+                break;
+            default:
+                jassertfalse; // Unsupported ParamType for TextEditorWrapper
+                break;
+        }
+        setTextToShowWhenEmpty(showWhenEmpty, UICfg::TEXT_COLOUR_DARK);
         setText(nonIter.defaultStringValue);
+        setColour(backgroundColourId, UICfg::TRANSPARENT);
+        setColour(outlineColourId, UICfg::BG_SECONDARY_COLOUR);
+        setColour(textColourId, UICfg::TEXT_COLOUR);
+        setColour(focusedOutlineColourId, UICfg::TEXT_COLOUR);
+        TextEditor::addListener(this);
     }
+
+    void addListener(Listener* lstr) {
+        if (lstr != nullptr) {
+            textEditorListeners.push_back(lstr);
+        } else {
+            jassertfalse; // Listener is null, this should never happen
+        }
+    }
+
+    void removeListener(Listener* lstr) {
+        textEditorListeners.erase(std::remove(textEditorListeners.begin(), textEditorListeners.end(), lstr), textEditorListeners.end());
+    }
+
+    void textEditorEscapeKeyPressed(TextEditor &) override {
+        for (auto lstr: textEditorListeners) {
+            if (lstr != nullptr) {
+                lstr->wrappedTextEditorEscapeKeyPressed(this);
+            }
+        }
+    }
+    void textEditorFocusLost(TextEditor &) override {
+        for (auto lstr: textEditorListeners) {
+            if (lstr != nullptr) {
+                lstr->wrappedTextEditorFocusLost(this);
+            }
+        }
+    }
+    void textEditorReturnKeyPressed(TextEditor &) override {
+        for (auto lstr: textEditorListeners) {
+            if (lstr != nullptr) {
+                lstr->wrappedTextEditorReturnKeyPressed(this);
+            }
+        }
+    }
+    void textEditorTextChanged(TextEditor &) override {
+        for (auto lstr: textEditorListeners) {
+            if (lstr != nullptr) {
+                lstr->wrappedTextEditorTextChanged(this);
+            }
+        }
+    }
+private:
+    std::vector<Listener*> textEditorListeners;
 };
 
 
@@ -511,7 +644,7 @@ public:
 
     class MainComp : public Component, public ComboBox::Listener, public ToggleButton::Listener,
                      public Label::Listener, public Fader::Listener, public Encoder::Listener,
-                    public TextEditor::Listener {
+                    public TextEditorWrapper::Listener, public DropdownWrapper::Listener {
     public:
         enum InputMethod {
             FADER,
@@ -530,7 +663,7 @@ public:
 
         // Resizes the components used for inputs (i.e., faderInputs, encoderInputs, ddInputs, textInputs and
         // btnArrInputs).
-        void resizeArgs();
+        void resizeArgs(bool updateFirst = true, bool updateSecond = true);
 
         void paint(Graphics &g) override;
 
@@ -582,17 +715,14 @@ public:
         void uponNewTemplateSelected();
 
         // Called to update the component when a new input method is selected. Expects existing values to be set.
-        void uponNewInputMethodSelected();
-
+        void uponNewInputMethodSelected(bool updateFirst = true, bool updateSecond = true);
 
         // Called to update the component when fading becomes enabled. Expects most items to be set. Usually called upon
         // the fade button being ticked and with uponNewTemplateSelected()
         void uponFadeCommandEnabledOrDisabled();
 
-
-        void buttonStateChanged(Button *btn) override {
-            fadeCommandEnabled = btn->getToggleState();
-        }
+        // In our case, basically interchangeable with buttonClicked.
+        void buttonStateChanged(Button *btn) override {}
 
         void faderValueChanged(Fader *) override;
 
@@ -600,7 +730,11 @@ public:
 
         void buttonClicked(Button *) override;
 
-        void textEditorTextChanged(TextEditor &) override;
+        void wrappedTextEditorTextChanged(TextEditorWrapper* textEditor) override;
+
+        void dropDownChanged(DropdownWrapper *dropDownThatHasChanged) override;
+
+        static void setTextEditorErrorState(TextEditorWrapper *textEditor, bool error);
 
         void labelTextChanged(Label *labelThatHasChanged) override;
 
@@ -686,6 +820,7 @@ public:
         FontOptions font = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::bold);
         FontOptions descFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::plain);
         FontOptions monospace = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::bold);
+        FontOptions monospacePlain = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::plain);
 
         // Allowed input methods for each paramtype. The first index in the vector is ALWAYS the preferred/default method.
         const std::unordered_map<ParamType, std::vector<InputMethod>> ALLOWED_INPUT_METHODS_FOR_TYPE = {
@@ -695,7 +830,7 @@ public:
             {LOGF, {TEXTBOX, ENCODER, FADER}},
             {INT, {TEXTBOX}},
             {_GENERIC_FLOAT, {TEXTBOX, ENCODER, FADER}},
-            {ENUM, {ENCODER, DROPDOWN}},
+            {ENUM, {DROPDOWN, ENCODER}},
             {OPTION, {DROPDOWN}},
             {BITSET, {BUTTON_ARRAY}},
             {STRING, {TEXTBOX}},

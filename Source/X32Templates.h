@@ -156,7 +156,7 @@ namespace Channel {
     };
     const XM32Template ICON = {
         "CICON", CH, {"/ch/", _channelNum, "/config/icon"},
-        NonIter("chIcon", "Icon", "The index for the channel's icon", 1, INT, 1, 74)
+        NonIter("chIcon", "Icon", "The index for the channel's icon", 1, 1, 74)
     };
     const XM32Template COLOUR = {
         "CCOLR", CH, {"/ch/", _channelNum, "/config/color"},

@@ -103,8 +103,9 @@ namespace UICfg {
     const Colour ROTARY_POINTER_COLOUR(28U, 21u, 11u); // Darker variant of the background colour
     constexpr float ROTARY_TEXT_PADDING = 1.4f; // X% of half bounding width (i.e., x% of the radius). Should be >1.f.
     constexpr float ROTARY_TEXT_HEIGHT = 0.25f; // X% of half bounding width (i.e., x% of the radius)
-    const Colour ROTARY_ENABLED_COLOUR(242u, 194u, 63u);
-    const Colour ROTARY_DISABLED_COLOUR(87u, 76u, 48u);
+    const Colour ROTARY_ENABLED_COLOUR(85u, 117u, 171u);
+    const Colour ROTARY_TEXT_COLOUR = TEXT_COLOUR;
+    const Colour ROTARY_DISABLED_COLOUR(40u, 50u, 65u);
 
     constexpr float FADER_CENTERLINE_SIDE_PADDING = 0.45f; // The amount from each side to reduce for the center line. Must be <0.5f.
     const Colour CENTERLINE_COLOUR (82, 88, 104);

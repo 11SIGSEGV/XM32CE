@@ -7,6 +7,8 @@
 #include <bitset>
 #include <utility> // For std::move
 
+#include "modules.h"
+
 
 inline int getMaxStdStrLen() {
     std::string s;
@@ -527,7 +529,7 @@ struct NonIter {
     // A note: if you're using int, you probably want to use LINF. Realistically, an integer should be an EnumParam.
     // The main exception for this is an in-path argument.
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const int intDefVal,
-        const int intMinVal = std::numeric_limits<int>::min(), const int intMaxVal = std::numeric_limits<int>::max(),
+        const int intMinVal = NumericLimits::INTMIN, const int intMaxVal = NumericLimits::INTMAX,
         const Units unit = NONE):
     name(name), verboseName(verboseName), description(description), defaultIntValue(intDefVal),
     _meta_PARAMTYPE(INT), intMin(intMinVal), intMax(intMaxVal), _meta_UNIT(unit) {}
@@ -545,8 +547,8 @@ struct NonIter {
     // explicitly passed.
     // Not the case? Use the custom constructor.
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const float fltDefVal,
-        const ParamType type, const float fltMinVal = std::numeric_limits<float>::min(),
-        const float fltMaxVal = std::numeric_limits<float>::max(), const Units unit = NONE):
+        const ParamType type, const float fltMinVal = NumericLimits::FLOATMIN,
+        const float fltMaxVal = NumericLimits::FLOATMAX, const Units unit = NONE):
     name(name), verboseName(verboseName), description(description), defaultFloatValue(fltDefVal), _meta_PARAMTYPE(type),
     floatMin((type == LEVEL_161 || type == LEVEL_1024) ? -90.f : fltMinVal),
     floatMax((type == LEVEL_161 || type == LEVEL_1024) ? 10.f : fltMaxVal),

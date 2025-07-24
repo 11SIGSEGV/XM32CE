@@ -542,3 +542,17 @@ protected:
     DraggableListBoxItemData& modelData;
 };
 #endif
+
+
+
+#ifndef Constants
+#define Constants
+#pragma once
+
+namespace NumericLimits {
+    constexpr int INTMAX = std::numeric_limits<int>::max();
+    constexpr int INTMIN = std::numeric_limits<int>::min();
+    constexpr float FLOATMAX = std::numeric_limits<float>::max();
+    constexpr float FLOATMIN = std::numeric_limits<float>::min();
+}
+#endif
