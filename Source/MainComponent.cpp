@@ -6,12 +6,16 @@
 MainComponent::MainComponent(): cueListModel(cueListBox, cueListData) {
     DBG("OSC Device Connected on " + oscDeviceSender.getIPAddress());
 
-    dispatcher.startThread();
+    dispatcher.startRealtimeThread(Thread::RealtimeOptions().withPriority(8));
     dispatcher.registerListener(this);
     activeShowOptions.loadCueValuesFromCCIVector(cciVector);
     headerBar.registerListener(this);
     cciVector.addListener(this);
     cueListData.addListener(this);
+    // addKeyListener(this);
+    getTopLevelComponent()->addKeyListener(this);
+    setWantsKeyboardFocus(true);
+
 
     cueListBox.setModel(&cueListModel);
 
@@ -21,9 +25,9 @@ MainComponent::MainComponent(): cueListModel(cueListBox, cueListData) {
         addAndMakeVisible(*comp);
     }
 
-    auto uuid = uuidGen.generate();
-    actionConstructorWindows[uuid].reset(new OSCActionConstructor(uuid));
-    actionConstructorWindows[uuid].get()->setParentListener(this);
+    // auto uuid = uuidGen.generate();
+    // actionConstructorWindows[uuid].reset(new OSCActionConstructor(uuid));
+    // actionConstructorWindows[uuid].get()->setParentListener(this);
 }
 
 

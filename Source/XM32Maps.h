@@ -517,6 +517,7 @@ struct NonIter {
     const float defaultFloatValue {};
     const float floatMin {};
     const float floatMax {};
+    const bool normalisedInverted {false}; // When the normalised value is inverted from 1-0 not 0-1. For example, quality is 10-0.3, not 0.3-10
 
 
     const std::string defaultStringValue {};
@@ -548,11 +549,12 @@ struct NonIter {
     // Not the case? Use the custom constructor.
     NonIter(const std::string &name, const std::string &verboseName, const std::string &description, const float fltDefVal,
         const ParamType type, const float fltMinVal = NumericLimits::FLOATMIN,
-        const float fltMaxVal = NumericLimits::FLOATMAX, const Units unit = NONE):
+        const float fltMaxVal = NumericLimits::FLOATMAX, const Units unit = NONE, bool invertNormalisedValue = false):
     name(name), verboseName(verboseName), description(description), defaultFloatValue(fltDefVal), _meta_PARAMTYPE(type),
     floatMin((type == LEVEL_161 || type == LEVEL_1024) ? -90.f : fltMinVal),
     floatMax((type == LEVEL_161 || type == LEVEL_1024) ? 10.f : fltMaxVal),
-    _meta_UNIT((type == LEVEL_161 || type == LEVEL_1024) ? DB: unit) {}
+    _meta_UNIT((type == LEVEL_161 || type == LEVEL_1024) ? DB: unit),
+    normalisedInverted(invertNormalisedValue) {}
 
 
     // String
@@ -570,10 +572,10 @@ struct NonIter {
     NonIter(const std::string& name, const std::string& verboseName, const std::string& description,
         const int defaultIntValue, const int intMin, const int intMax, const float defaultFloatValue,
         const float floatMin, const float floatMax, const std::string& defaultStringValue, const ParamType _meta_PARAMTYPE,
-        const Units _meta_UNIT): name(name), verboseName(verboseName), description(description),
+        const Units _meta_UNIT, const bool normalisedFloatInverted): name(name), verboseName(verboseName), description(description),
         defaultIntValue(defaultIntValue), intMin(intMin), intMax(intMax), defaultFloatValue(defaultFloatValue),
         floatMin(floatMin), floatMax(floatMax), defaultStringValue(defaultStringValue), _meta_PARAMTYPE(_meta_PARAMTYPE),
-        _meta_UNIT(_meta_UNIT) {}
+        _meta_UNIT(_meta_UNIT), normalisedInverted(normalisedFloatInverted) {}
 
     // Check if a float is valid. If the ParamType doesn't support float, returns false.
     bool valueIsValid(float val) const {

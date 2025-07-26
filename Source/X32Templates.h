@@ -149,6 +149,8 @@ namespace Channel {
     const NonIter _channelNum = {
         "chNum", "Channel Number", "The number of the channel to send OSC commands to", 1, 1, 32
     };
+    const NonIter _eqBand = {"chEqBand", "EQ Band", "The band of EQ to apply change to", 1, 1, 4};
+
 
     const XM32Template NAME = {
         "CNAME", CH, {"/ch/", _channelNum, "/config/name"},
@@ -328,10 +330,35 @@ namespace Channel {
 
 
     // TODO: Some more to add!
+    const XM32Template EQ_BAND_TYPE = {
+        "CEQBT", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "type"},
+        EnumParam("chEqBandType", "EQ Band Type", "The type for the EQ Band", {"LCut", "LShv", "PEQ", "VEQ", "HShv", "HCut"})
+    };
+    const XM32Template EQ_BAND_FREQ = {
+        "CEQBF", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "f"},
+        NonIter("chEqBandFreq", "EQ Band Frequency", "The frequency for the EQ Band", 20.f, LOGF, 20.f, 20000.f, HERTZ)
+    };
+    const XM32Template EQ_BAND_GAIN = {
+        "CEQBG", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "g"},
+        NonIter("chEqBandGain", "EQ Band Gain", "The gain for the EQ Band", 0.f, LINF, -15.f, 15.f, DB)
+    };
+    const XM32Template EQ_BAND_QLTY = {
+        "CEQBQ", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "q"},
+        NonIter("chEqBandQlty", "EQ Band Quality", "The quality for the EQ Band", 2.f, LOGF, 0.3f, 10.f, NONE, true)
+    };
+
+
+
+
+    const XM32Template ON = {
+        "CH_ON", CH, {"/ch/", _channelNum, "/mix/on"},
+        EnumParam("chOn", "On", "Turns the channel on or off (unmute or mute)", OFF_ON)
+    };
     const XM32Template FADER = {
         "CFADR", CH, {"/ch/", _channelNum, "/mix/fader"},
         NonIter("chFader", "Fader", "The fader value for the channel", -90.f, LEVEL_1024, -90.f, 10.f)
     };
+
 
     const std::vector<XM32Template> ALL_TEMPLATES = {
         NAME, ICON, COLOUR, SOURCE, DELAY_ON, DELAY_TIME, TRIM, INVERT, HPF_ON, HPF_SLOPE, HPF_FREQ,
@@ -339,7 +366,7 @@ namespace Channel {
         GATE_FILTER_ON, GATE_FILTER_TYPE, GATE_FILTER_FREQ,
         DYN_ON, DYN_MODE, DYN_DET, DYN_ENV, DYN_THR, DYN_RATIO, DYN_KNEE, DYN_MGAIN, DYN_ATTACK,
         DYN_HOLD, DYN_RELEASE, DYN_POS, DYN_KEYSRC, DYN_MIX, DYN_AUTO, DYN_FILTER_ON, DYN_FILTER_TYPE, DYN_FILTER_FREQ,
-        FADER
+        ON, FADER
     };
 
 }

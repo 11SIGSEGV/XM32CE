@@ -273,8 +273,11 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
                 case LEVEL_161:
                 case LEVEL_1024: {
                     // Adjust to normalised range (0.f-1.f)
-                    msg.addFloat32(
-                        inferPercentageFromMinMaxAndValue(nonIter->floatMin, nonIter->floatMax, cueAction.argument.floatValue, nonIter->_meta_PARAMTYPE));
+                    if (nonIter->normalisedInverted) {
+                        msg.addFloat32(1 - inferPercentageFromMinMaxAndValue(nonIter->floatMin, nonIter->floatMax, cueAction.argument.floatValue, nonIter->_meta_PARAMTYPE));
+                    } else {
+                        msg.addFloat32(inferPercentageFromMinMaxAndValue(nonIter->floatMin, nonIter->floatMax, cueAction.argument.floatValue, nonIter->_meta_PARAMTYPE));
+                    }
                     break;
                 }
                 case STRING: {
@@ -328,6 +331,10 @@ ThreadPoolJob::JobStatus OSCSingleActionDispatcher::runJob() {
             normalisedEndPercentage = inferPercentageFromMinMaxAndValue(
                 cueAction.oscArgumentTemplate.floatMin, cueAction.oscArgumentTemplate.floatMax,
                 cueAction.endValue.floatValue, cueAction.oscArgumentTemplate._meta_PARAMTYPE);
+            if (cueAction.oscArgumentTemplate.normalisedInverted) {
+                normalisedPercentage = 1 - normalisedPercentage;
+                normalisedEndPercentage = 1 - normalisedEndPercentage;
+            }
         } else {
             jassertfalse; // Unsupported ParamType for NonIter Parameter Template in OAT_FADE
             return JobStatus::jobHasFinished; // Exit the job if the ParamType is unsupported
