@@ -122,12 +122,13 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
                      bool defaultProvidedAsPercentage = true
     );
 
-    explicit Encoder(const NonIter& nonIter,
-        double minDeg = -135.0,
-        double maxDeg = 135.0,
-        const String &minLabel = "",
-        const String &maxLabel = ""
-        );
+    // explicit Encoder(const NonIter& nonIter,
+    //     double minDeg = -135.0,
+    //     double maxDeg = 135.0,
+    //     const String &minLabel = "",
+    //     const String &maxLabel = ""
+    //     );
+
 
     explicit Encoder(const OptionParam &option,
                      double minDeg = -135.0,
@@ -466,6 +467,8 @@ struct DropdownWrapper: public ComboBox, public ComboBox::Listener {
             i++;
             addItem(str,  i);
         }
+        if (i != 0)
+            setSelectedItemIndex(0, dontSendNotification);
     }
 
     explicit DropdownWrapper(const OptionParam& optionParam) {
@@ -475,6 +478,8 @@ struct DropdownWrapper: public ComboBox, public ComboBox::Listener {
             i++;
             addItem(str,  i);
         }
+        if (i != 0)
+            setSelectedItemIndex(0, dontSendNotification);
     }
 
     void comboBoxChanged(ComboBox *) override {
@@ -624,12 +629,17 @@ public:
         centreWithSize(1000, 800);
         setUsingNativeTitleBar(true);
         setAlwaysOnTop(true);
-        setContentOwned(new MainComp(), true);
+        mainComponent = std::make_unique<MainComp>();
+        setContentOwned(mainComponent.get(), true);
         setVisible(true);
     }
 
     void closeButtonPressed() override {
-        JUCEApplication::getInstance()->systemRequestedQuit(); // Temporarily here
+        if (mainComponent == nullptr) {
+            return;
+        }
+        goodCueOSCAction = mainComponent->exitWasGraceful();
+
         if (registeredListener != nullptr) {
             registeredListener->closeRequested(ParentWindowListener::AppComponents_OSCActionConstructor, uuid);
         }
@@ -641,8 +651,16 @@ public:
 
     void removeParentListener() { registeredListener = nullptr; }
 
+    // Returns the proper CueOSCAction from the user input. If invalid, returns an EXIT_THREAD CueOSCAction.
+    CueOSCAction getCompiledCurrentCueAction() const {
+        if (!goodCueOSCAction) {
+            return CueOSCAction(false);
+        }
+        return mainComponent->getCueOSCAction();
+    }
 
-    class MainComp : public Component, public ComboBox::Listener, public ToggleButton::Listener,
+    class MainComp : public Component, public ComboBox::Listener, public Button::Listener,
+                    // public TextButton::Listener,
                      public Label::Listener, public Fader::Listener, public Encoder::Listener,
                     public TextEditorWrapper::Listener, public DropdownWrapper::Listener {
     public:
@@ -657,7 +675,7 @@ public:
 
         MainComp();
 
-        ~MainComp() override {}
+        ~MainComp() override { removeAllChildren(); }
 
         void resized() override;
 
@@ -668,12 +686,6 @@ public:
         void paint(Graphics &g) override;
 
         void reconstructImage();
-
-        static bool validateTextInput(float input, const NonIter &argTemplate);
-
-        static bool validateTextInput(int input, const NonIter &argTemplate);
-
-        static bool validateTextInput(const String &input, const NonIter &argTemplate);
 
         // Change template dropdown based on new template category
         void changeTpltDdBasedOnTpltCategory(const TemplateCategory category) {
@@ -708,7 +720,7 @@ public:
         void addInPathArgLabel(const NonIter &argTemplate, Rectangle<int> &remainingBox, const Font &fontInUse,
                                const String &text = String(), bool automaticallyAddToOtherVectors = true);
 
-        // TODO: allow listener to catch dropdown for argument
+        // Used for non-argument inputs (i.e., static elements)
         void comboBoxChanged(ComboBox *comboBoxThatHasChanged) override;
 
         // Called to update the component when a new template is selected. Expects ONLY currentTemplateCopy to be set.
@@ -732,6 +744,8 @@ public:
 
         void wrappedTextEditorTextChanged(TextEditorWrapper* textEditor) override;
 
+        // Use to listen for changes to a Dropdown input for values. NOT used for non-argument dropdowns (e.g.,
+        // current template, current category, input method selector)
         void dropDownChanged(DropdownWrapper *dropDownThatHasChanged) override;
 
         static void setTextEditorErrorState(TextEditorWrapper *textEditor, bool error);
@@ -750,7 +764,21 @@ public:
             }
         }
 
+        // Uses firstInputMethod/secondInputMethod to reset child components used as input methods.
+        // Must be called BEFORE setting a new ParamType to first/secondInputMethod
+        void clearCurrentInputMethod(bool first = true, bool second = true);
+
+        // Checks if the value and template is suitable for creating a valid CueOSCAction
+        bool currentActionIsValid() const;
+
+        // Returns a CueOSCAction. Expects currentActionIsValid to be true. Returns an EXIT_THREAD CueOSCAction if invalid
+        CueOSCAction getCueOSCAction() const;
+
+        bool exitWasGraceful() { return gracefulExit; }
     private:
+        bool gracefulExit { false }; // Used to determine if an exit was made via pressing OK. If this is false, an
+        // invalid CueOSCAction is returned regardless if the current the action is valid.
+
         int indexOfLastTemplateSelected = -1; // Used as dropdown tends to send unnecessary comboBoxChanged callbacks
         std::unique_ptr<XM32Template> currentTemplateCopy;
         ParamType currentParamType {_BLANK};
@@ -788,7 +816,12 @@ public:
         ComboBox secondInputMethodDd; // Set this component to disabled when not in use.
 
         ToggleButton enableFadeCommandBtn;
+        Label fadeTimeInput;
+        float lastValidFadeTime { 0.f };
         bool fadeCommandEnabled = false;
+
+        TextButton okBtn;
+        TextButton cancelBtn;
 
         Rectangle<int> tpltSelectionBox;
         Rectangle<int> pathBox;
@@ -807,6 +840,7 @@ public:
 
         Rectangle<int> fadeCmdTextBox;
         Rectangle<int> fadeCmdButtonBox;
+        Rectangle<int> fadeTimeInputTitleBox;
 
         Rectangle<int> pathTitleBox;
         Rectangle<int> pathInputBox;
@@ -821,6 +855,7 @@ public:
         FontOptions descFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::plain);
         FontOptions monospace = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::bold);
         FontOptions monospacePlain = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::plain);
+
 
         // Allowed input methods for each paramtype. The first index in the vector is ALWAYS the preferred/default method.
         const std::unordered_map<ParamType, std::vector<InputMethod>> ALLOWED_INPUT_METHODS_FOR_TYPE = {
@@ -846,9 +881,12 @@ public:
         };
     };
 
+
 private:
     const std::string uuid;
     ParentWindowListener *registeredListener = nullptr;
+    std::unique_ptr<MainComp> mainComponent;
+    bool goodCueOSCAction { false };
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OSCActionConstructor)

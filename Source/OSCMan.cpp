@@ -158,11 +158,6 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath
     int argIndx{0};
     const int pathArgValsSize = pthArgVal.size();
     for (auto &segment : path) {
-        // First, check if path[i] exists, or if it's out of range
-        if (argIndx >= pathArgValsSize) {
-            jassertfalse; // Path argument index out of range
-            break;
-        }
         if (const auto *strVal = std::get_if<std::string>(&segment)) {
             // If it's a string, append it directly
             finalString += String(*strVal);
@@ -192,6 +187,12 @@ String OSCDeviceSender::fillInArgumentsOfEmbeddedPath(const ArgumentEmbeddedPath
             ++argIndx;
         } */
         else if (const auto *nonIter = std::get_if<NonIter>(&segment)) {
+            // First, check if path[i] exists, or if it's out of range
+            if (argIndx >= pathArgValsSize) {
+                jassertfalse; // Path argument index out of range
+                continue;
+            }
+
             // Let's first determine if the value is int, float, string or bitset
             // The NonIter will indicate the type (_meta_PARAMTYPE)
             switch (nonIter->_meta_PARAMTYPE) {

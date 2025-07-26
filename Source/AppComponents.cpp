@@ -12,6 +12,8 @@
 
 #include <memory>
 
+#include "OSCMan.h"
+
 
 OSCActionConstructor::MainComp::MainComp() {
     setSize(1000, 800);
@@ -35,6 +37,40 @@ OSCActionConstructor::MainComp::MainComp() {
 
     addAndMakeVisible(enableFadeCommandBtn);
     enableFadeCommandBtn.addListener(this);
+
+    addAndMakeVisible(firstInputMethodDd);
+    addChildComponent(secondInputMethodDd);
+    firstInputMethodDd.addListener(this);
+    secondInputMethodDd.addListener(this);
+
+    okBtn.setButtonText("Ok");
+    okBtn.setColour(TextButton::ColourIds::buttonColourId, UICfg::POSITIVE_BUTTON_COLOUR);
+    okBtn.setColour(TextButton::ColourIds::buttonOnColourId, UICfg::POSITIVE_DOWN_BUTTON_COLOUR);
+    okBtn.setColour(TextButton::ColourIds::textColourOnId, UICfg::TEXT_COLOUR);
+    cancelBtn.setButtonText("Cancel");
+    cancelBtn.setColour(TextButton::ColourIds::buttonColourId, UICfg::NEGATIVE_BUTTON_COLOUR);
+    cancelBtn.setColour(TextButton::ColourIds::buttonOnColourId, UICfg::NEGATIVE_DOWN_BUTTON_COLOUR);
+    cancelBtn.setColour(TextButton::ColourIds::textColourOnId, UICfg::TEXT_COLOUR);
+    addAndMakeVisible(okBtn);
+    addAndMakeVisible(cancelBtn);
+    okBtn.addListener(this);
+    cancelBtn.addListener(this);
+
+    addChildComponent(fadeTimeInput);
+    fadeTimeInput.setColour(Label::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
+    fadeTimeInput.setColour(Label::ColourIds::outlineColourId, UICfg::TEXT_COLOUR);
+    fadeTimeInput.setColour(Label::ColourIds::outlineWhenEditingColourId, UICfg::TEXT_ACCENTED_COLOUR);
+    fadeTimeInput.setEditable(true);
+    fadeTimeInput.addListener(this);
+
+    firstInputMethodDd.setColour(DropdownWrapper::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
+    secondInputMethodDd.setColour(DropdownWrapper::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
+    firstInputMethodDd.setColour(DropdownWrapper::ColourIds::outlineColourId, UICfg::TEXT_COLOUR);
+    secondInputMethodDd.setColour(DropdownWrapper::ColourIds::outlineColourId, UICfg::TEXT_COLOUR);
+    firstInputMethodDd.setColour(DropdownWrapper::ColourIds::focusedOutlineColourId, UICfg::TEXT_COLOUR);
+    secondInputMethodDd.setColour(DropdownWrapper::ColourIds::focusedOutlineColourId, UICfg::TEXT_COLOUR);
+    firstInputMethodDd.setColour(DropdownWrapper::ColourIds::textColourId, UICfg::TEXT_COLOUR);
+    secondInputMethodDd.setColour(DropdownWrapper::ColourIds::textColourId, UICfg::TEXT_COLOUR);
 }
 
 
@@ -109,14 +145,32 @@ void OSCActionConstructor::MainComp::resized() {
     auto argTitleBox = argsBoxCp.removeFromTop(argsBoxCp.getHeight() * 0.08);
     argTitleBoxLeft = argTitleBox.removeFromLeft(argTitleBox.getWidth() * 0.5);
     argTitleBoxLeft.removeFromLeft(padding); // Padding
+    // First Input Method Box
+    auto fimBox = argTitleBoxLeft.removeFromRight(argTitleBoxLeft.getWidth() * 0.2);
     argTitleBoxRight = argTitleBox;
     argTitleBoxRight.removeFromRight(padding);
     argTitleBoxRight.removeFromLeft(padding);
+    // Second Input Method Box
+    auto simBox = argTitleBoxRight.removeFromRight(argTitleBoxRight.getWidth() * 0.2);
+    // Next to both title boxes, we need the dropdown bounds
+    firstInputMethodDd.setBounds(fimBox);
+    secondInputMethodDd.setBounds(simBox);
 
     argInputAreaLeft = argsBoxCp.removeFromLeft(argsBoxCp.getWidth() * 0.5);
     argInputAreaLeft.reduce(padding, padding);
     argInputAreaRight = argsBoxCp;
     argInputAreaRight.reduce(padding, padding);
+
+    // Buttons Box
+    auto btnBoxCp = buttonsBox;
+    okBtn.setBounds(btnBoxCp.removeFromRight(widthTenths));
+    btnBoxCp.removeFromRight(widthTenths * 0.2); // Padding
+    cancelBtn.setBounds(btnBoxCp.removeFromRight(widthTenths));
+
+    btnBoxCp.removeFromLeft(padding);
+    fadeTimeInputTitleBox = btnBoxCp.removeFromLeft(btnBoxCp.getWidth() * 0.3);
+    fadeTimeInput.setBounds(btnBoxCp.removeFromLeft(btnBoxCp.getWidth() * 0.2));
+    fadeTimeInput.setFont(monospacePlain.withHeight(fontSize));
 
     reconstructImage();
 
@@ -343,6 +397,9 @@ void OSCActionConstructor::MainComp::reconstructImage() {
         g.setColour(UICfg::BG_SECONDARY_COLOUR);
         g.fillRect(fadeCmdBox);
         g.setColour(UICfg::TEXT_COLOUR);
+        g.setFont(font);
+        g.setFont(fontSize);
+        g.drawText("Fade Time (s)", fadeTimeInputTitleBox, Justification::centredLeft);
     }
     g.setFont(fontSize * 0.7);
     g.drawFittedText(fadeEnabled ? "Enable fade command?" : "Fading Not Available",
@@ -361,8 +418,7 @@ void OSCActionConstructor::MainComp::reconstructImage() {
     Rectangle<int> seperator2 {0, pathBox.getBottom(), getWidth(), static_cast<int>(std::ceil(getHeight() * 0.001))};
     g.drawRect(seperator2);
 
-
-    // Let's handle path!
+    // Let's handle the path/inputs!
     g.setFont(font);
     g.setFont(fontSize);
     g.drawText("Path", pathTitleBox, Justification::centredLeft);
@@ -416,29 +472,6 @@ void OSCActionConstructor::MainComp::reconstructImage() {
             addInPathArgLabel(*nonIter, pathBoxRemaining, fCopy, lblTxt, autoAddToOtherVectors);
         }
     }
-}
-
-
-bool OSCActionConstructor::MainComp::validateTextInput(float input, const NonIter &argTemplate) {
-    if (input < argTemplate.floatMin || input > argTemplate.floatMax) {
-        return false;
-    }
-    return true;
-}
-
-bool OSCActionConstructor::MainComp::validateTextInput(int input, const NonIter &argTemplate) {
-    if (input < argTemplate.intMin || input > argTemplate.intMax) {
-        return false;
-    }
-    return true;
-}
-
-bool OSCActionConstructor::MainComp::validateTextInput(const String &input, const NonIter &argTemplate) {
-    int len = input.length();
-    if (len < argTemplate.intMin || len > argTemplate.intMax) {
-        return false;
-    }
-    return true;
 }
 
 
@@ -539,6 +572,25 @@ void OSCActionConstructor::MainComp::comboBoxChanged(ComboBox *comboBoxThatHasCh
         uponNewTemplateSelected();
         return;
     }
+
+    if (currentParamType == _BLANK) {
+        jassertfalse; // Cannot select new input method for blank ParamType
+        return;
+    }
+
+    if (comboBoxThatHasChanged == &firstInputMethodDd) {
+        clearCurrentInputMethod(true, false);
+        firstInputMethod = ALLOWED_INPUT_METHODS_FOR_TYPE.at(currentParamType).at(firstInputMethodDd.getSelectedItemIndex());
+        uponNewInputMethodSelected(true, false);
+    } else if (comboBoxThatHasChanged == &secondInputMethodDd) {
+        clearCurrentInputMethod(false, true);
+        int currentMethodIndex = secondInputMethodDd.getSelectedItemIndex();
+        if (currentMethodIndex == -1 || currentMethodIndex >= ALLOWED_INPUT_METHODS_FOR_TYPE.at(currentParamType).size()) {
+            return;
+        }
+        secondInputMethod = ALLOWED_INPUT_METHODS_FOR_TYPE.at(currentParamType).at(secondInputMethodDd.getSelectedItemIndex());
+        uponNewInputMethodSelected(false, true);
+    }
 }
 
 void OSCActionConstructor::MainComp::uponNewTemplateSelected() {
@@ -555,13 +607,15 @@ void OSCActionConstructor::MainComp::uponNewTemplateSelected() {
     enableFadeCommandBtn.setEnabled(currentTemplateCopy->FADE_ENABLED);
     fadeCommandEnabled = currentTemplateCopy->FADE_ENABLED;
     enableFadeCommandBtn.setToggleState(false, dontSendNotification);
-
+    fadeTimeInput.setVisible(currentTemplateCopy->FADE_ENABLED);
+    fadeTimeInput.setEnabled(false);
 
 
     // Clear the path label input vectors to hard-reset all path labels
     pathLabelInputs.clear();
     pathLabelInputTemplates.clear();
     pathLabelInputValues.clear();
+    pathLabelFormattedValues.clear();
 
     // Also clear all inputs child components
     clearInputPair(faderInputs);
@@ -580,9 +634,8 @@ void OSCActionConstructor::MainComp::uponNewTemplateSelected() {
         return;
     }
 
-    firstInputMethodDd.clear();
-    secondInputMethodDd.clear();
-    secondInputMethodDd.setEnabled(false);
+    firstInputMethodDd.clear(dontSendNotification);
+    secondInputMethodDd.clear(dontSendNotification);
 
     // Add input method
     auto allowedInpMethods = ALLOWED_INPUT_METHODS_FOR_TYPE.at(currentParamType);
@@ -590,12 +643,16 @@ void OSCActionConstructor::MainComp::uponNewTemplateSelected() {
     for (const auto method: allowedInpMethods) {
         i++; // A reminder that the first item ID cannot be 0.
         firstInputMethodDd.addItem(INPUT_METHOD_NAME.at(method), i);
+        secondInputMethodDd.addItem(INPUT_METHOD_NAME.at(method), i);
     }
     // First item is always default.
-    firstInputMethodDd.setSelectedId(1);
+    firstInputMethodDd.setSelectedItemIndex(0, dontSendNotification);
 
     firstInputMethod = allowedInpMethods.at(0);
     secondInputMethod = NONE;
+
+    secondInputMethodDd.setVisible(false);
+    secondInputMethodDd.setEnabled(false);
 
     // Let's set the inputValues to the default value, or for EnumParam, just the first value
     // Only need to set the first value as fade is always disabled by default.
@@ -641,6 +698,7 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
         jassertfalse; // A valid ParamType is needed to reconstruct the component's inputs
         return;
     }
+
     // UNI stands for Using NonIter
     const bool UNI = currentTemplateCopy->_META_UsesNonIter;
 
@@ -650,29 +708,41 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
         // Create new components based on the input method.
         switch (firstInputMethod) {
             case FADER: {
-                faderInputs.first = std::make_unique<Fader>(currentTemplateCopy->NONITER);
+                faderInputs.first.reset(new Fader(currentTemplateCopy->NONITER));
                 faderInputs.first->addListener(this);
                 addAndMakeVisible(faderInputs.first.get());
                 break;
             }
             case ENCODER: {
-                if (UNI)
-                    encoderInputs.first = std::make_unique<Encoder>(currentTemplateCopy->NONITER);
+                if (UNI) {
+                    const NonIter& ni = currentTemplateCopy->NONITER;
+                    if (currentParamType == INT) {
+                        encoderInputs.first.reset(new Encoder(ni._meta_UNIT, -135.0, ni.intMin,
+                            135.0, ni.intMax, 0.5, ni.defaultIntValue,
+                            formatValueUsingUnit(ni._meta_UNIT, ni.intMin), formatValueUsingUnit(ni._meta_UNIT, ni.intMax),
+                            -1, ni._meta_PARAMTYPE, true, false));
+                    } else {
+                        encoderInputs.first.reset(new Encoder(ni._meta_UNIT, -135.0, ni.floatMin,
+                            135.0, ni.floatMax, 0.5, ni.defaultFloatValue,
+                            formatValueUsingUnit(ni._meta_UNIT, ni.floatMin), formatValueUsingUnit(ni._meta_UNIT, ni.floatMax),
+                            -1, ni._meta_PARAMTYPE, true, false));
+                    }
+                }
                 else
-                    encoderInputs.first = std::make_unique<Encoder>(currentTemplateCopy->ENUMPARAM);
+                    encoderInputs.first.reset(new Encoder(currentTemplateCopy->ENUMPARAM));
 
                 encoderInputs.first->addListener(this);
                 addAndMakeVisible(encoderInputs.first.get());
                 break;
             }
             case DROPDOWN: {
-                ddInputs.first = std::make_unique<DropdownWrapper>(currentTemplateCopy->ENUMPARAM);
+                ddInputs.first.reset(new DropdownWrapper(currentTemplateCopy->ENUMPARAM));
                 ddInputs.first->addListener(this);
                 addAndMakeVisible(ddInputs.first.get());
                 break;
             }
             case TEXTBOX: {
-                textInputs.first = std::make_unique<TextEditorWrapper>(currentTemplateCopy->NONITER);
+                textInputs.first.reset(new TextEditorWrapper(currentTemplateCopy->NONITER));
                 textInputs.first->addListener(this);
                 addAndMakeVisible(textInputs.first.get());
                 break;
@@ -692,29 +762,42 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
         // Create new components based on the input method.
         switch (secondInputMethod) {
             case FADER: {
-                faderInputs.second = std::make_unique<Fader>(currentTemplateCopy->NONITER);
+                faderInputs.second.reset(new Fader(currentTemplateCopy->NONITER));
                 faderInputs.second->addListener(this);
                 addAndMakeVisible(faderInputs.second.get());
                 break;
             }
             case ENCODER: {
-                if (UNI)
-                    encoderInputs.second = std::make_unique<Encoder>(currentTemplateCopy->NONITER);
+                if (UNI) {
+                    const NonIter& ni = currentTemplateCopy->NONITER;
+                    if (currentParamType == INT) {
+                        encoderInputs.second.reset(new Encoder(ni._meta_UNIT, -135.0, ni.intMin,
+                            135.0, ni.intMax, 0.5, ni.defaultIntValue,
+                            formatValueUsingUnit(ni._meta_UNIT, ni.intMin), formatValueUsingUnit(ni._meta_UNIT, ni.intMax),
+                            -1, ni._meta_PARAMTYPE, true, false));
+                    } else {
+                        encoderInputs.second.reset(new Encoder(ni._meta_UNIT, -135.0, ni.floatMin,
+                            135.0, ni.floatMax, 0.5, ni.defaultFloatValue,
+                            formatValueUsingUnit(ni._meta_UNIT, ni.floatMin), formatValueUsingUnit(ni._meta_UNIT, ni.floatMax),
+                            -1, ni._meta_PARAMTYPE, true, false));
+                    }
+
+                }
                 else
-                    encoderInputs.second = std::make_unique<Encoder>(currentTemplateCopy->ENUMPARAM);
+                    encoderInputs.second.reset(new Encoder(currentTemplateCopy->ENUMPARAM));
 
                 encoderInputs.second->addListener(this);
                 addAndMakeVisible(encoderInputs.second.get());
                 break;
             }
             case DROPDOWN: {
-                ddInputs.second = std::make_unique<DropdownWrapper>(currentTemplateCopy->ENUMPARAM);
+                ddInputs.second.reset(new DropdownWrapper(currentTemplateCopy->ENUMPARAM));
                 ddInputs.second->addListener(this);
                 addAndMakeVisible(ddInputs.second.get());
                 break;
             }
             case TEXTBOX: {
-                textInputs.second = std::make_unique<TextEditorWrapper>(currentTemplateCopy->NONITER);
+                textInputs.second.reset(new TextEditorWrapper(currentTemplateCopy->NONITER));
                 textInputs.second->addListener(this);
                 addAndMakeVisible(textInputs.second.get());
                 break;
@@ -732,9 +815,11 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
 
 void OSCActionConstructor::MainComp::uponFadeCommandEnabledOrDisabled() {
     if (enableFadeCommandBtn.getToggleState()) {
+        fadeTimeInput.setEnabled(true);
         // By default, we'll assume the second input method will be the same as the first.
         secondInputMethod = firstInputMethod;
         secondInputMethodDd.setEnabled(true);
+        secondInputMethodDd.setVisible(true);
         // Get the index of input method
         auto tempInpMtdForPT = ALLOWED_INPUT_METHODS_FOR_TYPE.at(currentParamType);
         auto it = std::find(tempInpMtdForPT.begin(), tempInpMtdForPT.end(), secondInputMethod);
@@ -753,6 +838,8 @@ void OSCActionConstructor::MainComp::uponFadeCommandEnabledOrDisabled() {
         repaint();
         return;
     }
+
+    // Otherwise:
     // We'll need to reset the second input method.
     switch (secondInputMethod) {
         case FADER:
@@ -775,6 +862,8 @@ void OSCActionConstructor::MainComp::uponFadeCommandEnabledOrDisabled() {
     }
     secondInputMethod = NONE;
     secondInputMethodDd.setEnabled(false);
+    secondInputMethodDd.setVisible(false);
+    fadeTimeInput.setEnabled(false);
     repaint();
 }
 
@@ -851,7 +940,25 @@ void OSCActionConstructor::MainComp::buttonClicked(Button *btn) {
             return;
         }
         uponFadeCommandEnabledOrDisabled();
+        return;
     }
+    if (btn == &okBtn) {
+        if (!currentActionIsValid()) {
+            AlertWindow::showMessageBoxAsync(AlertWindow::WarningIcon, "Invalid Inputs",
+                "Cannot construct action as some values are still invalid.", "Ok", this);
+            return;
+        }
+        gracefulExit = true;
+        exitModalState();
+        getParentComponent()->userTriedToCloseWindow();
+        return;
+    }
+    if (btn == &cancelBtn) {
+        exitModalState();
+        getParentComponent()->userTriedToCloseWindow();
+        return;
+    }
+    jassertfalse; // Invalid button
 }
 
 void OSCActionConstructor::MainComp::wrappedTextEditorTextChanged(TextEditorWrapper* textEditor) {
@@ -969,14 +1076,29 @@ void OSCActionConstructor::MainComp::setTextEditorErrorState(TextEditorWrapper *
 
 
 void OSCActionConstructor::MainComp::labelTextChanged(Label *labelThatHasChanged) {
+    if (labelThatHasChanged == &fadeTimeInput) {
+        String txt = fadeTimeInput.getText();
+        if (txt.isEmpty() ||
+            !txt.containsOnly("01235689.") ||
+            txt.indexOf(".") != txt.lastIndexOf(".") ||
+            txt.getDoubleValue() == 0.0) { // More than one dot
+            setPathLabelErrorState(&fadeTimeInput, true);
+            return;
+        }
+        lastValidFadeTime = txt.getDoubleValue();
+        setPathLabelErrorState(&fadeTimeInput, false);
+        return;
+    }
+
     size_t pathLabelInputsSize = pathLabelInputs.size();
 
     if (pathLabelInputsSize != pathLabelInputValues.size() ||
-        pathLabelInputsSize != pathLabelInputTemplates.size()) {
+        pathLabelInputsSize != pathLabelInputTemplates.size() ||
+        pathLabelInputsSize != pathLabelFormattedValues.size()) {
         jassertfalse; // Uh oh... someone forgot to make sure the 3 vectors were properly updated...
         return;
     }
-    for (size_t i = 0; i < pathLabelInputs.size(); i++) {
+    for (size_t i = 0; i < pathLabelInputsSize; i++) {
         // Check pointer validity
         auto &lblUniquePtr = pathLabelInputs.at(i);
         if (lblUniquePtr == nullptr) {
@@ -1007,8 +1129,7 @@ void OSCActionConstructor::MainComp::labelTextChanged(Label *labelThatHasChanged
                     break;
                 }
                 int intVal = txt.getIntValue();
-                if (!validateTextInput(intVal, argTemplate)) {
-                    // Handle error here!
+                if (!argTemplate.valueIsValid(intVal)) {
                     break;
                 }
                 pathLabelFormattedValues.at(i).changeStore(intVal);
@@ -1016,8 +1137,7 @@ void OSCActionConstructor::MainComp::labelTextChanged(Label *labelThatHasChanged
                 break;
             }
             case STRING: {
-                if (!validateTextInput(txt, argTemplate)) {
-                    // Handle error here!
+                if (!argTemplate.valueIsValid(txt.toStdString())) {
                     break;
                 }
                 pathLabelFormattedValues.at(i).changeStore(txt.toStdString());
@@ -1038,6 +1158,180 @@ void OSCActionConstructor::MainComp::setPathLabelErrorState(Label *lbl, bool err
                    error ? UICfg::NEGATIVE_BUTTON_COLOUR : UICfg::POSITIVE_BUTTON_COLOUR);
     lbl->setColour(Label::ColourIds::textColourId,
                    error ? UICfg::NEGATIVE_BUTTON_COLOUR : UICfg::TEXT_ACCENTED_COLOUR);
+}
+
+
+void OSCActionConstructor::MainComp::clearCurrentInputMethod(bool first, bool second) {
+    if (first) {
+        switch (firstInputMethod) {
+            case FADER:
+                faderInputs.first.reset();
+                break;
+            case ENCODER:
+                encoderInputs.first.reset();
+                break;
+            case DROPDOWN:
+                ddInputs.first.reset();
+                break;
+            case TEXTBOX:
+                textInputs.first.reset();
+                break;
+            case BUTTON_ARRAY:
+                btnArrInputs.first.reset();
+                break;
+            case NONE:
+                jassertfalse; // Cannot reset a NONE input method
+                break;
+        }
+    }
+    if (second) {
+        switch (secondInputMethod) {
+            case FADER:
+                faderInputs.second.reset();
+                break;
+            case ENCODER:
+                encoderInputs.second.reset();
+                break;
+            case DROPDOWN:
+                ddInputs.second.reset();
+                break;
+            case TEXTBOX:
+                textInputs.second.reset();
+                break;
+            case BUTTON_ARRAY:
+                btnArrInputs.second.reset();
+                break;
+            case NONE:
+                jassertfalse; // Cannot reset a NONE input method
+                break;
+        }
+    }
+}
+
+bool OSCActionConstructor::MainComp::currentActionIsValid() const {
+    if (currentTemplateCopy == nullptr ||
+        inputValues.first._meta_PARAMTYPE == _BLANK) {
+        return false;
+    }
+    // First check fade time
+    if (fadeCommandEnabled && enableFadeCommandBtn.getToggleState() && lastValidFadeTime <= 0.f)
+        return false;
+
+
+    // Then check path.
+    size_t pathLabelInputsSize = pathLabelInputs.size();
+
+    if (pathLabelInputsSize != pathLabelInputValues.size() ||
+        pathLabelInputsSize != pathLabelInputTemplates.size() ||
+        pathLabelInputsSize != pathLabelFormattedValues.size()) {
+        jassertfalse; // Uh oh... someone forgot to make sure the 3 vectors were properly updated...
+        return false;
+    }
+    for (size_t i = 0; i < pathLabelInputsSize; i++) {
+        // Only need to check ValueStorers.
+        const NonIter& argTemplate = pathLabelInputTemplates.at(i);
+        switch (argTemplate._meta_PARAMTYPE) {
+            case INT: {
+                if (!argTemplate.valueIsValid(pathLabelFormattedValues.at(i).intValue))
+                    return false;
+                break;
+            }
+            case STRING: {
+                if (!argTemplate.valueIsValid(pathLabelFormattedValues.at(i).stringValue))
+                    return false;
+                break;
+            }
+            default:
+                jassertfalse; // Invalid option for in-path argument
+                return false;
+        }
+    }
+
+    // Now, check values.
+    // Check inputValues.first
+    if (!currentTemplateCopy->_META_UsesNonIter) {
+        if (inputValues.first._meta_PARAMTYPE != INT)
+            return false;
+        if (currentTemplateCopy->ENUMPARAM.len == 0 || inputValues.first.intValue < 0 ||
+            inputValues.first.intValue >= currentTemplateCopy->ENUMPARAM.len)
+            return false;
+    } else {
+        const NonIter& ni = currentTemplateCopy->NONITER;
+        switch (ni._meta_PARAMTYPE) {
+            case INT: case BITSET: {
+                if (inputValues.first._meta_PARAMTYPE != INT || !ni.valueIsValid(inputValues.first.intValue))
+                    return false;
+                break;
+            }
+            case LINF: case LOGF: case LEVEL_1024: case LEVEL_161: {
+                if (inputValues.first._meta_PARAMTYPE != _GENERIC_FLOAT || !ni.valueIsValid(inputValues.first.floatValue))
+                    return false;
+                break;
+            }
+            case STRING:
+                if (inputValues.first._meta_PARAMTYPE != STRING || !ni.valueIsValid(inputValues.first.stringValue))
+                    return false;
+                break;
+            default:
+                jassertfalse; // Unsupported ParamType for Templated NonIter
+                return false;
+        }
+    }
+
+    // Now check second - if applicable
+    if (enableFadeCommandBtn.getToggleState()) {
+        if (!fadeCommandEnabled) {
+            jassertfalse; // Cannot fade command a template that doesn't support fading
+            return false;
+        }
+        if (!currentTemplateCopy->_META_UsesNonIter) {
+            if (inputValues.second._meta_PARAMTYPE != INT)
+                return false;
+            if (currentTemplateCopy->ENUMPARAM.len == 0 || inputValues.second.intValue < 0 ||
+                inputValues.second.intValue >= currentTemplateCopy->ENUMPARAM.len)
+                return false;
+        } else {
+            const NonIter& ni = currentTemplateCopy->NONITER;
+            switch (ni._meta_PARAMTYPE) {
+                case INT: case BITSET: {
+                    if (inputValues.second._meta_PARAMTYPE != INT || !ni.valueIsValid(inputValues.second.intValue))
+                        return false;
+                    break;
+                }
+                case LINF: case LOGF: case LEVEL_1024: case LEVEL_161: {
+                    if (inputValues.second._meta_PARAMTYPE != _GENERIC_FLOAT || !ni.valueIsValid(inputValues.second.floatValue))
+                        return false;
+                    break;
+                }
+                case STRING:
+                    if (inputValues.second._meta_PARAMTYPE != STRING || !ni.valueIsValid(inputValues.second.stringValue))
+                        return false;
+                    break;
+                default:
+                    jassertfalse; // Unsupported ParamType for Templated NonIter
+                    return false;
+            }
+        }
+    }
+
+    // OK... we should be fine. Let's return true.
+    return true;
+}
+
+CueOSCAction OSCActionConstructor::MainComp::getCueOSCAction() const {
+    if (currentTemplateCopy == nullptr) {
+        jassertfalse; // Bad copy
+        return CueOSCAction(false);
+    }
+    String path = OSCDeviceSender::fillInArgumentsOfEmbeddedPath(currentTemplateCopy->PATH,  pathLabelFormattedValues);
+    if (enableFadeCommandBtn.getToggleState()) {
+        return CueOSCAction(path, lastValidFadeTime, currentTemplateCopy->NONITER, inputValues.first, inputValues.second);
+    }
+    // Non-fading
+    if (currentTemplateCopy->_META_UsesNonIter) {
+        return CueOSCAction(path, {currentTemplateCopy->NONITER}, {inputValues.first});
+    }
+    return CueOSCAction(path, {currentTemplateCopy->ENUMPARAM}, {inputValues.first});
 }
 
 
@@ -1217,31 +1511,32 @@ Encoder::Encoder(
     init();
 }
 
-// EncoderRotary doesn't have an initaliser for NonIter objects, so we'll manually pass the values along.
-Encoder::Encoder(const NonIter &nonIter, double minDeg, double maxDeg, const String &minLabel,
-                 const String &maxLabel): unit(nonIter._meta_UNIT),
-                                          roundToNDigits(ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT.at(unit)),
-                                          paramType(nonIter._meta_PARAMTYPE),
-                                          minValue(nonIter._meta_PARAMTYPE == INT ? nonIter.intMin : nonIter.floatMin),
-                                          minPos(degreesToRadians(minDeg)),
-                                          minLabel(minLabel),
-                                          maxValue(nonIter._meta_PARAMTYPE == INT ? nonIter.intMax : nonIter.floatMax),
-                                          maxPos(degreesToRadians(maxDeg)),
-                                          maxLabel(maxLabel),
-                                          encoder(unit, minDeg, minValue, maxDeg, maxValue,
-                                                  0.5, (nonIter._meta_PARAMTYPE == INT
-                                                            ? nonIter.defaultIntValue
-                                                            : nonIter.defaultFloatValue), minLabel, maxLabel,
-                                                  -1, paramType,
-                                                  true, false),
-                                          _isOptionParam(false),
-                                          _isEnumParam(false),
-                                          _option(nullOption), _enumParam(nullEnum) {
-    if (!ALLOWED_PARAMTYPES.count(nonIter._meta_PARAMTYPE)) {
-        jassertfalse; // Unallowed ParamType for Encoder. Expect undefined behaviour.
-    }
-    init();
-}
+// // EncoderRotary doesn't have an initaliser for NonIter objects, so we'll manually pass the values along.
+// Encoder::Encoder(const NonIter &nonIter, double minDeg, double maxDeg, const String &minLabel,
+//                  const String &maxLabel): unit(nonIter._meta_UNIT),
+//                                           roundToNDigits(ROUND_TO_NUM_DECIMAL_PLACES_FOR_UNIT.at(unit)),
+//                                           paramType(nonIter._meta_PARAMTYPE),
+//                                           minValue(nonIter._meta_PARAMTYPE == INT ? nonIter.intMin : nonIter.floatMin),
+//                                           minPos(degreesToRadians(minDeg)),
+//                                           minLabel(minLabel),
+//                                           maxValue(nonIter._meta_PARAMTYPE == INT ? nonIter.intMax : nonIter.floatMax),
+//                                           maxPos(degreesToRadians(maxDeg)),
+//                                           maxLabel(maxLabel),
+//                                           encoder(unit, minDeg, minValue, maxDeg, maxValue,
+//                                                   0.5, (nonIter._meta_PARAMTYPE == INT
+//                                                             ? nonIter.defaultIntValue
+//                                                             : nonIter.defaultFloatValue), minLabel, maxLabel,
+//                                                   -1, paramType,
+//                                                   true, false),
+//                                           _isOptionParam(false),
+//                                           _isEnumParam(false),
+//                                           _option(nullOption), _enumParam(nullEnum) {
+//     if (!ALLOWED_PARAMTYPES.count(nonIter._meta_PARAMTYPE)) {
+//         jassertfalse; // Unallowed ParamType for Encoder. Expect undefined behaviour.
+//     }
+//     init();
+// }
+
 
 Encoder::Encoder(const OptionParam &option, const double minDeg, const double maxDeg, const int defaultIndex,
                  const String &minLabel, const String &maxLabel): unit(NONE),
@@ -1411,6 +1706,7 @@ void EncoderRotary::resized() {
     g.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
     auto labelHeights = textHeight * 0.7f;
     g.setFont(labelHeights);
+    g.setColour(UICfg::TEXT_COLOUR);
 
     // This is the Minimum Label
     Rectangle<float> textBound;

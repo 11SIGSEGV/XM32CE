@@ -584,7 +584,7 @@ struct NonIter {
         return val >= floatMin && val <= floatMax;
     }
 
-    // Check if a int is valid. If the ParamType doesn't support int or bitset, returns false.
+    // Check if an int is valid. If the ParamType doesn't support int or bitset, returns false.
     // If the paramtype is bitset and the value is appropriate for the binary to integer representation of the bitset,
     // it will also return true.
     bool valueIsValid(int val) const {
