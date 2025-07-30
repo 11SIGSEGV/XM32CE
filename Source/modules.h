@@ -556,3 +556,33 @@ namespace NumericLimits {
     constexpr float FLOATMIN = std::numeric_limits<float>::min();
 }
 #endif
+
+#ifndef miscellanouesutils
+#define miscellaneousutils
+template <typename KeyType, typename ValueType>
+std::optional<KeyType> findKeyByValue(const std::map<KeyType, ValueType>& myMap, const ValueType& targetValue) {
+    auto it = std::find_if(myMap.begin(), myMap.end(),
+                           [&](const std::pair<const KeyType, ValueType>& pair) {
+                               return pair.second == targetValue;
+                           });
+
+    if (it != myMap.end()) {
+        return it->first;
+    }
+    return std::nullopt; // Value not found
+}
+
+template <typename KeyType, typename ValueType>
+std::optional<KeyType> findKeyByValue(const std::unordered_map<KeyType, ValueType>& myMap, const ValueType& targetValue) {
+    auto it = std::find_if(myMap.begin(), myMap.end(),
+                           [&](const std::pair<const KeyType, ValueType>& pair) {
+                               return pair.second == targetValue;
+                           });
+
+    if (it != myMap.end()) {
+        return it->first;
+    }
+    return std::nullopt; // Value not found
+}
+
+#endif

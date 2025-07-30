@@ -81,16 +81,19 @@ namespace UICfg {
 
     const Colour BG_COLOUR(34, 34, 34);
     const Colour BG_SECONDARY_COLOUR(51, 51, 51);
-    const Colour SELECTED_CUE_LIST_ITEM_BG_COLOUR(82, 82, 82);
     const Colour LIGHT_BG_COLOUR(100, 100, 100);
     const Colour TEXT_COLOUR(238, 238, 238);
     const Colour TEXT_ACCENTED_COLOUR(212, 235, 255);
     const Colour TEXT_COLOUR_DARK(100, 100, 100);
     const Colour STRONG_BORDER_COLOUR(212, 212, 212);
-    const Colour HEADER_BG_COLOUR(25, 23, 43);
-    const Colour HEADER_BTN_DISABLED_BG_COLOUR(15, 14, 27);
-    const Colour CUE_LIST_ITEM_OUTLINE_COLOUR(73, 66, 134);
-    const Colour CUE_LIST_ITEM_INSIDE_OUTLINES_COLOUR(35, 29, 86);
+    const Colour HEADER_BG_COLOUR = BG_SECONDARY_COLOUR;
+    const Colour HEADER_BTN_DISABLED_BG_COLOUR = BG_COLOUR;
+
+    constexpr float COMPONENT_OUTLINE_THICKNESS_PROPORTIONAL_TO_PARENT_HEIGHT = 0.001;
+
+    const Colour SELECTED_CUE_LIST_ITEM_BG_COLOUR(60, 60, 60);
+    const Colour CUE_LIST_ITEM_OUTLINE_COLOUR(30, 30, 30);
+    const Colour CUE_LIST_ITEM_INSIDE_OUTLINES_COLOUR(40, 40, 40);
 
     const Colour POSITIVE_BUTTON_COLOUR(89, 177, 128);
     const Colour POSITIVE_OVER_BUTTON_COLOUR(102, 208, 149);
@@ -185,16 +188,18 @@ struct CueOSCAction {
     }
 
     // For OAT_COMMAND, the arguments are used to fill in the OSC Message.
-    CueOSCAction(OSCAddressPattern oscAddress, OSCMessageArguments argumentTemplate, ValueStorer argument): oat(OAT_COMMAND),
-        oatCommandOSCArgumentTemplate(argumentTemplate), argument(std::move(argument)), oscAddress(oscAddress), ID(uuidGen.generate()) {
+    CueOSCAction(OSCAddressPattern oscAddress, OSCMessageArguments argumentTemplate, ValueStorer argument, std::string argumentTemplateID = ""): oat(OAT_COMMAND),
+        oatCommandOSCArgumentTemplate(argumentTemplate), argument(std::move(argument)), oscAddress(oscAddress), ID(uuidGen.generate()),
+    argumentTemplateID(argumentTemplateID) {
     }
 
 
     // For OAT_FADE, the fadeTime is used to determine the fade time in seconds.
     CueOSCAction(OSCAddressPattern oscAddress, float fadeTime, NonIter oscArgumentTemplate, ValueStorer startValue,
-                 ValueStorer endValue): oscAddress(oscAddress), oat(OAT_FADE), fadeTime(fadeTime),
+                 ValueStorer endValue, std::string argumentTemplateID = ""): oscAddress(oscAddress), oat(OAT_FADE), fadeTime(fadeTime),
                                         oscArgumentTemplate(oscArgumentTemplate),
-                                        startValue(startValue), endValue(endValue), ID(uuidGen.generate()) {
+                                        startValue(startValue), endValue(endValue), ID(uuidGen.generate()),
+    argumentTemplateID(argumentTemplateID) {
         _checks();
     }
 
@@ -235,6 +240,9 @@ struct CueOSCAction {
     NonIter oscArgumentTemplate = nullNonIter; // Used to find algorithm and type for parameter
     ValueStorer startValue;
     ValueStorer endValue;
+
+    // Can be empty. Will be when unknown or template not used.
+    std::string argumentTemplateID {}; // Correlates to XM32Template object used.
 };
 
 

@@ -15,7 +15,7 @@
 #include "OSCMan.h"
 
 
-OSCActionConstructor::MainComp::MainComp() {
+OSCActionConstructor::MainComp::MainComp(const CueOSCAction& editThisAction) {
     setSize(1000, 800);
     // Template Categories never change, so let's set it now
     int i = 0;
@@ -25,6 +25,43 @@ OSCActionConstructor::MainComp::MainComp() {
         dDitemIDtoCategory[i] = tpltCategory;
     }
 
+    uiInit();
+    findEditThisActionsTemplate(editThisAction);
+
+    // If we found a suitable template
+    if (currentTemplateCopy != nullptr && currentTemplateCopy->CATEGORY != NUL) {
+        // We need to update the dropdown
+        auto tpltCategoryDdID = findKeyByValue(dDitemIDtoCategory, currentTemplateCopy->CATEGORY);
+
+        // Check the category is available in the dropdown
+        if (!tpltCategoryDdID.has_value()) {
+            return;
+        }
+
+
+        indexOfLastTemplateSelected = -1;
+        tpltCategoryDd.setSelectedId(tpltCategoryDdID.value(), dontSendNotification);
+        currentCategory = currentTemplateCopy->CATEGORY;
+        changeTpltDdBasedOnTpltCategory(currentTemplateCopy->CATEGORY, currentTemplateCopy->ID);
+        indexOfLastTemplateSelected = tpltDd.getSelectedItemIndex();
+        uponNewTemplateSelected();
+
+        if (editThisAction.oat == OAT_FADE) {
+            // Second input changeStore not reflected.
+            lastValidFadeTime = std::max(0.f, editThisAction.fadeTime);
+            fadeTimeInput.setText(String(lastValidFadeTime), dontSendNotification);
+            enableFadeCommandBtn.setToggleState(true, sendNotification);
+            inputValues.first.changeStore(editThisAction.startValue);
+            inputValues.second.changeStore(editThisAction.endValue);
+        } else {
+            inputValues.first.changeStore(editThisAction.argument);
+        }
+        uponValueStorerExternallyChanged(true, (editThisAction.oat == OAT_FADE));
+    }
+}
+
+
+void OSCActionConstructor::MainComp::uiInit() {
     tpltCategoryDd.setColour(ComboBox::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
     tpltCategoryDd.setColour(ComboBox::ColourIds::textColourId, UICfg::TEXT_ACCENTED_COLOUR);
     addAndMakeVisible(tpltCategoryDd);
@@ -73,6 +110,45 @@ OSCActionConstructor::MainComp::MainComp() {
     secondInputMethodDd.setColour(DropdownWrapper::ColourIds::textColourId, UICfg::TEXT_COLOUR);
 }
 
+
+
+void OSCActionConstructor::MainComp::findEditThisActionsTemplate(const CueOSCAction& editThisAction) {
+    if (editThisAction.oat == EXIT_THREAD || editThisAction.argumentTemplateID.empty()) {
+        return; // Can't find
+    }
+    // Try find template from ID.
+    auto it = ID_TO_TEMPLATE_MAP.find(editThisAction.argumentTemplateID);
+    // We couldn't find it...
+    if (it == ID_TO_TEMPLATE_MAP.end()) {
+        return;
+    }
+
+    // Verify details
+    // If template is COMMAND
+    if (editThisAction.oat == OAT_COMMAND) {
+        if (auto *optVal = std::get_if<OptionParam>(&editThisAction.oatCommandOSCArgumentTemplate)) {
+            // Not supported!
+            return;
+        } else if (auto *enumParam = std::get_if<EnumParam>(&editThisAction.oatCommandOSCArgumentTemplate)) {
+            if (enumParam->isSimilar(it->second.ENUMPARAM)) {
+                // We've found it!
+                currentTemplateCopy = std::make_unique<XM32Template>(it->second);
+            }
+            return;
+        } else if (auto *nonIter = std::get_if<NonIter>(&editThisAction.oatCommandOSCArgumentTemplate)) {
+            if (nonIter->isSimilar(it->second.NONITER)) {
+                // Found it!
+                currentTemplateCopy = std::make_unique<XM32Template>(it->second);
+            }
+            return;
+        }
+        // Otherwise, we expect a FADE_COMMAND
+    } else if (editThisAction.oscArgumentTemplate.isSimilar(it->second.NONITER)) {
+        // We've found the action!
+        currentTemplateCopy = std::make_unique<XM32Template>(it->second);
+        return;
+    }
+}
 
 void OSCActionConstructor::MainComp::resized() {
     auto bounds = getLocalBounds();
@@ -594,6 +670,7 @@ void OSCActionConstructor::MainComp::comboBoxChanged(ComboBox *comboBoxThatHasCh
 }
 
 void OSCActionConstructor::MainComp::uponNewTemplateSelected() {
+    DBG("New template");
     if (currentTemplateCopy == nullptr) {
         jassertfalse; // You need the current template to be set for this function to work!
         return;
@@ -709,6 +786,25 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
         switch (firstInputMethod) {
             case FADER: {
                 faderInputs.first.reset(new Fader(currentTemplateCopy->NONITER));
+                if (inputValues.first._meta_PARAMTYPE != _BLANK) {
+                    // Check if the value is valid
+                    switch (inputValues.first._meta_PARAMTYPE) {
+                        case _GENERIC_FLOAT: {
+                            if (currentTemplateCopy->NONITER.valueIsValid(inputValues.first.floatValue)) {
+                                faderInputs.first->setValue(inputValues.first.floatValue);
+                            }
+                            break;
+                        }
+                        case INT: {
+                            if (currentTemplateCopy->NONITER.valueIsValid(inputValues.first.intValue)) {
+                                faderInputs.first->setValue(inputValues.first.intValue);
+                            }
+                            break;
+                        }
+                        default:
+                            jassertfalse; // Not supported
+                    }
+                }
                 faderInputs.first->addListener(this);
                 addAndMakeVisible(faderInputs.first.get());
                 break;
@@ -721,15 +817,27 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
                             135.0, ni.intMax, 0.5, ni.defaultIntValue,
                             formatValueUsingUnit(ni._meta_UNIT, ni.intMin), formatValueUsingUnit(ni._meta_UNIT, ni.intMax),
                             -1, ni._meta_PARAMTYPE, true, false));
+                        if (inputValues.first._meta_PARAMTYPE == INT && currentTemplateCopy->NONITER.valueIsValid(inputValues.first.intValue)) {
+                            encoderInputs.first->setValue(inputValues.first.intValue);
+                        }
                     } else {
                         encoderInputs.first.reset(new Encoder(ni._meta_UNIT, -135.0, ni.floatMin,
                             135.0, ni.floatMax, 0.5, ni.defaultFloatValue,
                             formatValueUsingUnit(ni._meta_UNIT, ni.floatMin), formatValueUsingUnit(ni._meta_UNIT, ni.floatMax),
                             -1, ni._meta_PARAMTYPE, true, false));
+                        if (inputValues.first._meta_PARAMTYPE == _GENERIC_FLOAT && currentTemplateCopy->NONITER.valueIsValid(inputValues.first.floatValue)) {
+                            encoderInputs.first->setValue(inputValues.first.floatValue);
+                        }
+
                     }
                 }
-                else
+                else {
                     encoderInputs.first.reset(new Encoder(currentTemplateCopy->ENUMPARAM));
+                    if (inputValues.first._meta_PARAMTYPE == INT &&
+                        currentTemplateCopy->ENUMPARAM.validIndex(inputValues.first.intValue)) {
+                        encoderInputs.first->setValue(inputValues.first.intValue);
+                    }
+                }
 
                 encoderInputs.first->addListener(this);
                 addAndMakeVisible(encoderInputs.first.get());
@@ -737,12 +845,40 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
             }
             case DROPDOWN: {
                 ddInputs.first.reset(new DropdownWrapper(currentTemplateCopy->ENUMPARAM));
+                if (inputValues.first._meta_PARAMTYPE == INT &&
+                    currentTemplateCopy->ENUMPARAM.validIndex(inputValues.first.intValue)) {
+                    ddInputs.first->setSelectedItemIndex(inputValues.first.intValue);
+                }
+
                 ddInputs.first->addListener(this);
                 addAndMakeVisible(ddInputs.first.get());
                 break;
             }
             case TEXTBOX: {
                 textInputs.first.reset(new TextEditorWrapper(currentTemplateCopy->NONITER));
+                if (inputValues.first._meta_PARAMTYPE != _BLANK) {
+                    switch (inputValues.first._meta_PARAMTYPE) {
+                        case _GENERIC_FLOAT: {
+                            if (currentTemplateCopy->NONITER.valueIsValid(inputValues.first.floatValue)) {
+                                textInputs.first->setText(String(inputValues.first.floatValue));
+                            }
+                            break;
+                        }
+                        case INT: {
+                            if (currentTemplateCopy->NONITER.valueIsValid(inputValues.first.intValue)) {
+                                textInputs.first->setText(String(inputValues.first.intValue));
+                            }
+                            break;
+                        }
+                        case STRING: {
+                            if (currentTemplateCopy->NONITER.valueIsValid(inputValues.first.stringValue)) {
+                                textInputs.first->setText(String(inputValues.first.stringValue));
+                            }
+                        }
+                        default:
+                            jassertfalse; // Not supported
+                    }
+                }
                 textInputs.first->addListener(this);
                 addAndMakeVisible(textInputs.first.get());
                 break;
@@ -759,10 +895,28 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
     // ==================================================================================
 
     if (updateSecond) {
-        // Create new components based on the input method.
+        // Create new components based on the input method.// Create new components based on the input method.
         switch (secondInputMethod) {
             case FADER: {
                 faderInputs.second.reset(new Fader(currentTemplateCopy->NONITER));
+                if (inputValues.second._meta_PARAMTYPE != _BLANK) {
+                    switch (inputValues.second._meta_PARAMTYPE) {
+                        case _GENERIC_FLOAT: {
+                            if (currentTemplateCopy->NONITER.valueIsValid(inputValues.second.floatValue)) {
+                                faderInputs.second->setValue(inputValues.second.floatValue);
+                            }
+                            break;
+                        }
+                        case INT: {
+                            if (currentTemplateCopy->NONITER.valueIsValid(inputValues.second.intValue)) {
+                                faderInputs.second->setValue(inputValues.second.intValue);
+                            }
+                            break;
+                        }
+                        default:
+                            jassertfalse; // Not supported
+                    }
+                }
                 faderInputs.second->addListener(this);
                 addAndMakeVisible(faderInputs.second.get());
                 break;
@@ -775,29 +929,66 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
                             135.0, ni.intMax, 0.5, ni.defaultIntValue,
                             formatValueUsingUnit(ni._meta_UNIT, ni.intMin), formatValueUsingUnit(ni._meta_UNIT, ni.intMax),
                             -1, ni._meta_PARAMTYPE, true, false));
+                        if (inputValues.second._meta_PARAMTYPE == INT && currentTemplateCopy->NONITER.valueIsValid(inputValues.second.intValue)) {
+                            encoderInputs.second->setValue(inputValues.second.intValue);
+                        }
                     } else {
                         encoderInputs.second.reset(new Encoder(ni._meta_UNIT, -135.0, ni.floatMin,
                             135.0, ni.floatMax, 0.5, ni.defaultFloatValue,
                             formatValueUsingUnit(ni._meta_UNIT, ni.floatMin), formatValueUsingUnit(ni._meta_UNIT, ni.floatMax),
                             -1, ni._meta_PARAMTYPE, true, false));
+                        if (inputValues.second._meta_PARAMTYPE == _GENERIC_FLOAT && currentTemplateCopy->NONITER.valueIsValid(inputValues.second.floatValue)) {
+                            encoderInputs.second->setValue(inputValues.second.floatValue);
+                        }
                     }
-
                 }
-                else
+                else {
                     encoderInputs.second.reset(new Encoder(currentTemplateCopy->ENUMPARAM));
-
+                    if (inputValues.second._meta_PARAMTYPE == INT &&
+                        currentTemplateCopy->ENUMPARAM.validIndex(inputValues.second.intValue)) {
+                        encoderInputs.second->setValue(inputValues.second.intValue);
+                    }
+                }
                 encoderInputs.second->addListener(this);
                 addAndMakeVisible(encoderInputs.second.get());
                 break;
             }
             case DROPDOWN: {
                 ddInputs.second.reset(new DropdownWrapper(currentTemplateCopy->ENUMPARAM));
+                if (inputValues.second._meta_PARAMTYPE == INT &&
+                    currentTemplateCopy->ENUMPARAM.validIndex(inputValues.second.intValue)) {
+                    ddInputs.second->setSelectedItemIndex(inputValues.second.intValue);
+                }
                 ddInputs.second->addListener(this);
                 addAndMakeVisible(ddInputs.second.get());
                 break;
             }
             case TEXTBOX: {
                 textInputs.second.reset(new TextEditorWrapper(currentTemplateCopy->NONITER));
+                if (inputValues.second._meta_PARAMTYPE != _BLANK) {
+                    switch (inputValues.second._meta_PARAMTYPE) {
+                        case _GENERIC_FLOAT: {
+                            if (currentTemplateCopy->NONITER.valueIsValid(inputValues.second.floatValue)) {
+                                textInputs.second->setText(String(inputValues.second.floatValue));
+                            }
+                            break;
+                        }
+                        case INT: {
+                            if (currentTemplateCopy->NONITER.valueIsValid(inputValues.second.intValue)) {
+                                textInputs.second->setText(String(inputValues.second.intValue));
+                            }
+                            break;
+                        }
+                        case STRING: {
+                            if (currentTemplateCopy->NONITER.valueIsValid(inputValues.second.stringValue)) {
+                                textInputs.second->setText(String(inputValues.second.stringValue));
+                            }
+                            break;
+                        }
+                        default:
+                            jassertfalse; // Not supported
+                    }
+                }
                 textInputs.second->addListener(this);
                 addAndMakeVisible(textInputs.second.get());
                 break;
@@ -811,6 +1002,119 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
     }
 
     resizeArgs(updateFirst, updateSecond);
+}
+
+void OSCActionConstructor::MainComp::uponValueStorerExternallyChanged(bool updateFirst, bool updateSecond) {
+    if (updateFirst) {
+        switch (firstInputMethod) {
+            case FADER: {
+                if (faderInputs.first == nullptr) {
+                    jassertfalse; // No fader initalised
+                    break;
+                }
+                if (inputValues.first._meta_PARAMTYPE == INT) {
+                    faderInputs.first->setValue(inputValues.first.intValue);
+                } else
+                    faderInputs.first->setValue(inputValues.first.floatValue);
+                break;
+            }
+            case ENCODER: {
+                if (encoderInputs.first == nullptr) {
+                    jassertfalse; // No encoder initalised
+                    break;
+                }
+                if (inputValues.first._meta_PARAMTYPE == INT) {
+                    encoderInputs.first->setValue(inputValues.first.intValue);
+                } else
+                    encoderInputs.first->setValue(inputValues.first.floatValue);
+                break;
+            }
+            case DROPDOWN: {
+                if (ddInputs.first == nullptr) {
+                    jassertfalse; // No dropdown initalised
+                    break;
+                }
+                if (inputValues.first._meta_PARAMTYPE != INT) {
+                    jassertfalse; // Only int supported for dropdown
+                } else
+                    ddInputs.first->setSelectedItemIndex(inputValues.first.intValue);
+                break;
+            }
+            case TEXTBOX: {
+                if (textInputs.first == nullptr) {
+                    jassertfalse; // No textbox initalised
+                    break;
+                }
+                if (inputValues.first._meta_PARAMTYPE == INT) {
+                    textInputs.first->setText(String(inputValues.first.intValue));
+                } else if (inputValues.first._meta_PARAMTYPE == _GENERIC_FLOAT) {
+                    textInputs.first->setText(String(inputValues.first.floatValue));
+                } else
+                    textInputs.first->setText(String(inputValues.first.stringValue));
+                break;
+            }
+            case BUTTON_ARRAY:
+                jassertfalse; // Not implemented
+                break;
+            case NONE:
+                break;
+        }
+    }
+    if (updateSecond) {
+        switch (secondInputMethod) {
+            case FADER: {
+                if (faderInputs.second == nullptr) {
+                    jassertfalse; // No fader initialised
+                    break;
+                }
+                if (inputValues.second._meta_PARAMTYPE == INT) {
+                    faderInputs.second->setValue(inputValues.second.intValue);
+                } else
+                    faderInputs.second->setValue(inputValues.second.floatValue);
+                break;
+            }
+            case ENCODER: {
+                if (encoderInputs.second == nullptr) {
+                    jassertfalse; // No encoder initialised
+                    break;
+                }
+                if (inputValues.second._meta_PARAMTYPE == INT) {
+                    encoderInputs.second->setValue(inputValues.second.intValue);
+                } else
+                    encoderInputs.second->setValue(inputValues.second.floatValue);
+                break;
+            }
+            case DROPDOWN: {
+                if (ddInputs.second == nullptr) {
+                    jassertfalse; // No dropdown initialised
+                    break;
+                }
+                if (inputValues.second._meta_PARAMTYPE != INT) {
+                    jassertfalse; // Only int supported for dropdown
+                } else
+                    ddInputs.second->setSelectedItemIndex(inputValues.second.intValue);
+                break;
+            }
+            case TEXTBOX: {
+                if (textInputs.second == nullptr) {
+                    jassertfalse; // No textbox initialised
+                    break;
+                }
+                if (inputValues.second._meta_PARAMTYPE == INT) {
+                    textInputs.second->setText(String(inputValues.second.intValue));
+                } else if (inputValues.second._meta_PARAMTYPE == _GENERIC_FLOAT) {
+                    textInputs.second->setText(String(inputValues.second.floatValue));
+                } else
+                    textInputs.second->setText(String(inputValues.second.stringValue));
+                break;
+            }
+            case BUTTON_ARRAY:
+                jassertfalse; // Not implemented
+                break;
+            case NONE:
+                break;
+        }
+    }
 }
 
 void OSCActionConstructor::MainComp::uponFadeCommandEnabledOrDisabled() {
@@ -1079,7 +1383,7 @@ void OSCActionConstructor::MainComp::labelTextChanged(Label *labelThatHasChanged
     if (labelThatHasChanged == &fadeTimeInput) {
         String txt = fadeTimeInput.getText();
         if (txt.isEmpty() ||
-            !txt.containsOnly("01235689.") ||
+            !txt.containsOnly("0123456789.") ||
             txt.indexOf(".") != txt.lastIndexOf(".") ||
             txt.getDoubleValue() == 0.0) { // More than one dot
             setPathLabelErrorState(&fadeTimeInput, true);
@@ -1325,13 +1629,14 @@ CueOSCAction OSCActionConstructor::MainComp::getCueOSCAction() const {
     }
     String path = OSCDeviceSender::fillInArgumentsOfEmbeddedPath(currentTemplateCopy->PATH,  pathLabelFormattedValues);
     if (enableFadeCommandBtn.getToggleState()) {
-        return CueOSCAction(path, lastValidFadeTime, currentTemplateCopy->NONITER, inputValues.first, inputValues.second);
+        return CueOSCAction(
+            path, lastValidFadeTime, currentTemplateCopy->NONITER, inputValues.first, inputValues.second, currentTemplateCopy->ID);
     }
     // Non-fading
     if (currentTemplateCopy->_META_UsesNonIter) {
-        return CueOSCAction(path, {currentTemplateCopy->NONITER}, {inputValues.first});
+        return CueOSCAction(path, {currentTemplateCopy->NONITER}, {inputValues.first}, currentTemplateCopy->ID);
     }
-    return CueOSCAction(path, {currentTemplateCopy->ENUMPARAM}, {inputValues.first});
+    return CueOSCAction(path, {currentTemplateCopy->ENUMPARAM}, {inputValues.first}, currentTemplateCopy->ID);
 }
 
 

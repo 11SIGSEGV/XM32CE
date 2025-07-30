@@ -218,13 +218,13 @@ double inferValueFromMinMaxAndPercentage(double minVal, double maxVal, double pe
     }
     if (percentage > 0.0 && percentage < 1.0) {
         switch (algorithm) {
-            case ParamType::LINF:
+            case LINF:
                 // Linear interpolation
                 return jmap(percentage, minVal, maxVal);
-            case ParamType::LOGF:
+            case LOGF:
                 // Logarithmic interpolation
                 return mapToLog10(percentage, minVal, maxVal);
-            case ParamType::LEVEL_161: {
+            case LEVEL_161: {
                 // Level 161 interpolation - for XM32
                 // First, find the level equivalent of the percentage
                 if (minVal != -90.0 || maxVal != 10.0) {
@@ -234,7 +234,7 @@ double inferValueFromMinMaxAndPercentage(double minVal, double maxVal, double pe
                 // Then, find the closest level 161 value.
                 return XM32::roundToNearest(targetLevel, levelValues_161);
             }
-            case ParamType::LEVEL_1024: {
+            case LEVEL_1024: {
                 // Level 1024 interpolation - for XM32. Much simpler! This uses Music Tribe's approximation for float to dB log scale
                 // NOTE: Here, if minVal and maxVal are not -90 and 10, respectively, it does not matter. It will still assume -90 and 10.
                 if (minVal != -90.0) {
@@ -244,6 +244,10 @@ double inferValueFromMinMaxAndPercentage(double minVal, double maxVal, double pe
                     jassertfalse; // Level 1024 is only defined for -90 to 10 dB
                 }
                 return XM32::doubleToDb(percentage);
+            }
+            case INT: {
+                // Round to nearest.
+                return std::round(jmap(percentage, minVal, maxVal));
             }
             default:
                 jassertfalse;
@@ -269,6 +273,9 @@ double inferPercentageFromMinMaxAndValue(const double minVal, const double maxVa
             case LINF:
                 // Linear interpolation
                 return (value - minVal) / (maxVal - minVal);
+            case INT:
+                // Same, but round
+                return std::round((value - minVal) / (maxVal - minVal));
             case LOGF:
                 // Logarithmic interpolation
                 return mapFromLog10(value, minVal, maxVal);

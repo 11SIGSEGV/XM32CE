@@ -416,6 +416,13 @@ struct ValueStorer {
         _meta_PARAMTYPE = STRING;
     }
 
+    void changeStore(const ValueStorer& other) {
+        intValue = other.intValue;
+        floatValue = other.floatValue;
+        stringValue = other.stringValue;
+        _meta_PARAMTYPE = other._meta_PARAMTYPE;
+    }
+
     // Clears the store to the value corresponding to if a blank constructor was used. BUT THIS ALSO MEANS THE PARAMTYPE
     // WILL CHANGE TO BLANK!
     void clearStore() {
@@ -466,6 +473,18 @@ struct EnumParam {
         if (len == 0 && !_supressLen0Assert) {
             jassertfalse; // Cannot create EnumParam with no enumerators
         }
+    }
+
+    bool isSimilar(const EnumParam& other) const {
+        if (name == other.name && verboseName == other.verboseName && description == other.description &&
+            value == other.value && _meta_UNIT == other._meta_UNIT) {
+            return true;
+        }
+        return false;
+    }
+
+    bool validIndex(int index) const {
+        return index >= 0 && index < len;
     }
 };
 
@@ -612,6 +631,20 @@ struct NonIter {
             return false;
         }
         return val.size() != intMin; // Remember, intMin == intMax when ParamType is BITSET.
+    }
+
+    // Checks all values are the same. VERY SLOW. USE ONLY WHEN REQUIRED.
+    bool isSimilar(const NonIter& other) const {
+        if (name == other.name && verboseName == other.verboseName &&
+            description == other.description && defaultIntValue == other.defaultIntValue &&
+            intMin == other.intMin && intMax == other.intMax &&
+            defaultFloatValue == other.defaultFloatValue && floatMin == other.floatMin &&
+            floatMax == other.floatMax && normalisedInverted == other.normalisedInverted &&
+            defaultStringValue == other.defaultStringValue &&
+            _meta_PARAMTYPE == other._meta_PARAMTYPE && _meta_UNIT == other._meta_UNIT) {
+            return true;
+        }
+        return false;
     }
 };
 

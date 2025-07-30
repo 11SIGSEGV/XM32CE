@@ -542,7 +542,7 @@ private:
 
     // NOTE: When switching from numberOfCueItems==0 to any other value, a FULL_SHOW_RESET command must be sent.
     // A reminder that currentCueIndex is 0-indexed... but numberOfCueItems is NOT.
-    ActiveShowOptions activeShowOptions{"Terrence is Fat", "Test Description"};
+    ActiveShowOptions activeShowOptions{"Demo Show", "Demo Show Description"};
 
 
     CurrentCueInfoVector cciVector = CurrentCueInfoVector(
@@ -554,21 +554,14 @@ private:
                     CueOSCAction("/ch/01/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
                     CueOSCAction("/ch/02/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
                     CueOSCAction("/ch/03/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
-                    CueOSCAction("/ch/04/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
                     CueOSCAction("/ch/05/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
-                    CueOSCAction("/ch/06/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
                     CueOSCAction("/ch/07/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
                     CueOSCAction("/ch/08/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
                     CueOSCAction("/ch/09/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
                     CueOSCAction("/ch/10/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
                     CueOSCAction("/ch/11/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
-                    CueOSCAction("/ch/12/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
                     CueOSCAction("/ch/13/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
-                    CueOSCAction("/ch/14/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
-                    CueOSCAction("/ch/15/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
-                    CueOSCAction("/ch/16/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
                     CueOSCAction("/ch/05/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
-                    CueOSCAction("/ch/06/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
                     CueOSCAction("/ch/08/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
                     CueOSCAction("/ch/09/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
                     CueOSCAction("/ch/10/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
@@ -578,46 +571,57 @@ private:
                 "S2", "BG Fade",
                 "Fades Non-Vocals.",
                 {
-                    CueOSCAction("/ch/05/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-5.f)),
-                    CueOSCAction("/ch/06/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-5.f)),
-                    CueOSCAction("/ch/08/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-5.f)),
-                    CueOSCAction("/ch/09/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-5.f)),
-                    CueOSCAction("/ch/10/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-5.f)),
+                    CueOSCAction("/ch/05/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-2.f)),
+                    CueOSCAction("/ch/06/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-2.f)),
+                    CueOSCAction("/ch/08/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-2.f)),
+                    CueOSCAction("/ch/09/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-2.f)),
+                    CueOSCAction("/ch/10/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-2.f)),
                 },
             },
             {
                 "S3", "Organ", "Brings up Organ",
                 {
-                    CueOSCAction("/ch/13/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(-5.f)),
-                    CueOSCAction("/ch/14/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(-5.f)),
+                    CueOSCAction("/ch/11/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f),
+                                 ValueStorer(-5.f)),
                 },
             },
-        {
-            "S4", "Backings", "Brings up Backing for Recp.",
             {
-                CueOSCAction("/ch/15/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(-5.f)),
-                CueOSCAction("/ch/16/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(-5.f)),
-                CueOSCAction("/ch/01/mix/fader", 4.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-90.f)),
-                CueOSCAction("/ch/02/mix/fader", 4.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-90.f)),
-                CueOSCAction("/ch/03/mix/fader", 1.5f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
-                CueOSCAction("/ch/04/mix/fader", 1.5f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
+                "S4", "Backings", "Brings up Backing for Recp.",
+                {
+                    CueOSCAction("/ch/13/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f),
+                                 ValueStorer(-2.f)),
+                    CueOSCAction("/ch/03/mix/fader", 1.5f, Channel::FADER.NONITER, ValueStorer(-90.f),
+                                 ValueStorer(5.f)),
+                },
             },
-            },
-        {
-            "D1", "Demo", "Demo EQ 1",
             {
-                CueOSCAction("/ch/01/eq/1/type", Channel::EQ_BAND_TYPE.getRawMessageArgument(), ValueStorer(1)),
-                CueOSCAction("/ch/01/eq/3/type", Channel::EQ_BAND_TYPE.getRawMessageArgument(), ValueStorer(2)),
-                CueOSCAction("/ch/01/eq/4/type", Channel::EQ_BAND_TYPE.getRawMessageArgument(), ValueStorer(4)),
-                CueOSCAction("/ch/01/eq/1/f", Channel::EQ_BAND_FREQ.getRawMessageArgument(), ValueStorer(185.f)),
-                CueOSCAction("/ch/01/eq/3/f", Channel::EQ_BAND_FREQ.getRawMessageArgument(), ValueStorer(4500.f)),
-                CueOSCAction("/ch/01/eq/4/f", Channel::EQ_BAND_FREQ.getRawMessageArgument(), ValueStorer(13600.f)),
-                CueOSCAction("/ch/01/eq/1/g", Channel::EQ_BAND_GAIN.getRawMessageArgument(), ValueStorer(6.f)),
-                CueOSCAction("/ch/01/eq/3/g", Channel::EQ_BAND_GAIN.getRawMessageArgument(), ValueStorer(9.8f)),
-                CueOSCAction("/ch/01/eq/4/g", Channel::EQ_BAND_GAIN.getRawMessageArgument(), ValueStorer(11.4f)),
-                CueOSCAction("/ch/01/eq/3/q", Channel::EQ_BAND_QLTY.getRawMessageArgument(), ValueStorer(0.8f)),
-        },
-        }
+                "S5", "Fade Out", "Fade all channels out",
+                {
+                    CueOSCAction("/ch/03/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(5.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/05/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/07/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/08/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/09/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/10/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/11/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/13/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                },
+            },
+            {
+                "D1", "Demo", "Demo EQ 1",
+                {
+                    CueOSCAction("/ch/01/eq/1/type", Channel::EQ_BAND_TYPE.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/01/eq/3/type", Channel::EQ_BAND_TYPE.getRawMessageArgument(), ValueStorer(2)),
+                    CueOSCAction("/ch/01/eq/4/type", Channel::EQ_BAND_TYPE.getRawMessageArgument(), ValueStorer(4)),
+                    CueOSCAction("/ch/01/eq/1/f", Channel::EQ_BAND_FREQ.getRawMessageArgument(), ValueStorer(185.f)),
+                    CueOSCAction("/ch/01/eq/3/f", Channel::EQ_BAND_FREQ.getRawMessageArgument(), ValueStorer(4500.f)),
+                    CueOSCAction("/ch/01/eq/4/f", Channel::EQ_BAND_FREQ.getRawMessageArgument(), ValueStorer(13600.f)),
+                    CueOSCAction("/ch/01/eq/1/g", Channel::EQ_BAND_GAIN.getRawMessageArgument(), ValueStorer(6.f)),
+                    CueOSCAction("/ch/01/eq/3/g", Channel::EQ_BAND_GAIN.getRawMessageArgument(), ValueStorer(9.8f)),
+                    CueOSCAction("/ch/01/eq/4/g", Channel::EQ_BAND_GAIN.getRawMessageArgument(), ValueStorer(11.4f)),
+                    CueOSCAction("/ch/01/eq/3/q", Channel::EQ_BAND_QLTY.getRawMessageArgument(), ValueStorer(0.8f)),
+                },
+            }
         }
     );
 
@@ -631,7 +635,7 @@ private:
     const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};
     const std::vector<Component *> activeComps = {&headerBar, &sidePanel, &cueListBox};
 
-    OSCDeviceSender oscDeviceSender{"192.168.0.100", "10023", "X32"};
+    OSCDeviceSender oscDeviceSender{"192.168.1.179", "10023", "X32"};
     OSCCueDispatcherManager dispatcher{oscDeviceSender};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)

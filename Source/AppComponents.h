@@ -54,6 +54,7 @@ struct EncoderRotary : public Slider {
 
     void paint(Graphics &) override;
 
+
 private:
     const bool isOptionParam;
     const bool isEnumParam;
@@ -254,6 +255,21 @@ struct Encoder : public Component, public Slider::Listener, public TextEditor::L
     void removeListener(Listener* lstr) {
         encoderListeners.erase(std::remove(encoderListeners.begin(), encoderListeners.end(), lstr), encoderListeners.end());
     }
+
+    void setValue(double value) {
+        if (value < minValue || value > maxValue) {
+            jassertfalse; // Value out of range
+            return;
+        }
+        encoder.setValue(value);
+    }
+    void setNormalisedValue(double value) {
+        if (value < 0 || value > 1) {
+            jassertfalse; // Value out of range
+            return;
+        }
+        encoder.setValue(inferValueFromMinMaxAndPercentage(minValue, maxValue, value, paramType));
+    }
 private:
     EncoderRotary encoder;
 
@@ -402,6 +418,21 @@ struct Fader : public Component, public Slider::Listener {
 
     void removeListener(Listener* lstr) {
         faderListeners.erase(std::remove(faderListeners.begin(), faderListeners.end(), lstr), faderListeners.end());
+    }
+
+    void setValue(double value) {
+        if (value < doubleMin || value > doubleMax) {
+            jassertfalse; // Value out of range
+            return;
+        }
+        slider->setValue(inferPercentageFromMinMaxAndValue(doubleMin, doubleMax, value, paramType));
+    }
+    void setNormalisedValue(double value) {
+        if (value < 0.0 || value > 1.0) {
+            jassertfalse; // Value out of range
+            return;
+        }
+        slider->setValue(value);
     }
 private:
     std::unique_ptr<FaderSlider> slider;
@@ -554,6 +585,8 @@ struct TextEditorWrapper: public TextEditor, public TextEditor::Listener {
         setColour(textColourId, UICfg::TEXT_COLOUR);
         setColour(focusedOutlineColourId, UICfg::TEXT_COLOUR);
         TextEditor::addListener(this);
+        // 24 as a default. We don't actually know what's the best option.
+        setFont(FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 24, Font::plain));
     }
 
     void addListener(Listener* lstr) {
@@ -590,6 +623,7 @@ struct TextEditorWrapper: public TextEditor, public TextEditor::Listener {
         }
     }
     void textEditorTextChanged(TextEditor &) override {
+
         for (auto lstr: textEditorListeners) {
             if (lstr != nullptr) {
                 lstr->wrappedTextEditorTextChanged(this);
@@ -623,13 +657,14 @@ public:
 
 class OSCActionConstructor : public DocumentWindow {
 public:
-    OSCActionConstructor(const std::string &uuid, String name = "Cue OSC Action Constructor") : DocumentWindow(name,
+    // When provided an editThisAction, a valid XM32Template ID must be specified with the CueOSCAction.
+    explicit OSCActionConstructor(const std::string &uuid, String name = "Cue OSC Action Constructor", const CueOSCAction& editThisAction = CueOSCAction(true)) : DocumentWindow(name,
         UICfg::BG_COLOUR,
         allButtons), uuid(uuid) {
         centreWithSize(1000, 800);
         setUsingNativeTitleBar(true);
         setAlwaysOnTop(true);
-        mainComponent = std::make_unique<MainComp>();
+        mainComponent = std::make_unique<MainComp>(editThisAction);
         setContentOwned(mainComponent.get(), true);
         setVisible(true);
     }
@@ -673,9 +708,15 @@ public:
             NONE // Only used when second input is not required
         };
 
-        MainComp();
+        MainComp(const CueOSCAction& editThisAction = CueOSCAction(true));
 
         ~MainComp() override { removeAllChildren(); }
+
+        // All the component and children calls
+        void uiInit();
+
+        // Try find the XM32Template for the editThisAction CueOSCAction.
+        void findEditThisActionsTemplate(const CueOSCAction& editThisAction);
 
         void resized() override;
 
@@ -687,11 +728,14 @@ public:
 
         void reconstructImage();
 
+
         // Change template dropdown based on new template category
-        void changeTpltDdBasedOnTpltCategory(const TemplateCategory category) {
+        // If you need to select a template, you can pass the Template ID to try select it.
+        void changeTpltDdBasedOnTpltCategory(const TemplateCategory category, const std::string& selectByTemplateID = "") {
             auto it = TEMPLATE_CATEGORY_MAP.find(category);
             if (it == TEMPLATE_CATEGORY_MAP.end()) {
                 jassertfalse; // 🤦 how... how is this even possible?
+                return;
             }
             const XM32TemplateGroup &tpltGroup = it->second;
             tpltDd.clear();
@@ -699,6 +743,9 @@ public:
             for (const auto &tplt: tpltGroup.templates) {
                 i++;
                 tpltDd.addItem(tplt.NAME, i);
+                if (selectByTemplateID == tplt.ID) {
+                    tpltDd.setSelectedId(i, dontSendNotification);
+                }
                 // To access the correct template, simply use tpltGroup.templates[i-1].
             }
         }
@@ -728,6 +775,9 @@ public:
 
         // Called to update the component when a new input method is selected. Expects existing values to be set.
         void uponNewInputMethodSelected(bool updateFirst = true, bool updateSecond = true);
+
+        // Called when a valuestorer object has changed without changing the child components.
+        void uponValueStorerExternallyChanged(bool updateFirst = true, bool updateSecond = true);
 
         // Called to update the component when fading becomes enabled. Expects most items to be set. Usually called upon
         // the fade button being ticked and with uponNewTemplateSelected()

@@ -107,6 +107,9 @@ struct XM32Template {
         CATEGORY(category), PATH(path), NONITER(nullNonIter), ENUMPARAM(enumParam), _META_UsesNonIter(false) {
     }
 
+    XM32Template(const XM32Template& other): NAME(other.NAME), ID(other.ID), FADE_ENABLED(other.FADE_ENABLED),
+    CATEGORY(other.CATEGORY), PATH(other.PATH), NONITER(other.NONITER), ENUMPARAM(other.ENUMPARAM), _META_UsesNonIter(other._META_UsesNonIter) {}
+
 
     // Not recommended. For performance, the type of the template should be checked first, then a control path should be entered depending
     // on the appropriate type.
@@ -368,10 +371,10 @@ namespace Channel {
         DYN_HOLD, DYN_RELEASE, DYN_POS, DYN_KEYSRC, DYN_MIX, DYN_AUTO, DYN_FILTER_ON, DYN_FILTER_TYPE, DYN_FILTER_FREQ,
         ON, FADER
     };
-
 }
 
 
+inline std::map<std::string, const XM32Template&> ID_TO_TEMPLATE_MAP = {};
 
 
 
@@ -381,3 +384,12 @@ const XM32TemplateGroup CHANNEL_GROUP {CH, "Channel", Channel::ALL_TEMPLATES};
 const std::map<TemplateCategory, XM32TemplateGroup> TEMPLATE_CATEGORY_MAP = {
     {CH, CHANNEL_GROUP}
 };
+
+inline void generateIDTemplateMap() {
+    for (auto [_, group]: TEMPLATE_CATEGORY_MAP) {
+        for (const XM32Template& tplt: group.templates) {
+            ID_TO_TEMPLATE_MAP.insert({tplt.ID, tplt});
+        }
+    }
+}
+

@@ -25,19 +25,24 @@ MainComponent::MainComponent(): cueListModel(cueListBox, cueListData) {
         addAndMakeVisible(*comp);
     }
 
-    // auto uuid = uuidGen.generate();
-    // actionConstructorWindows[uuid].reset(new OSCActionConstructor(uuid));
-    // actionConstructorWindows[uuid].get()->setParentListener(this);
+    if (ID_TO_TEMPLATE_MAP.empty()) {
+        generateIDTemplateMap();
+    }
+
+    auto uuid = uuidGen.generate();
+    actionConstructorWindows[uuid].reset(new OSCActionConstructor(uuid, "test",
+        CueOSCAction("/ch/2/preamp/trim", 2.f, Channel::TRIM.NONITER, ValueStorer(3.f), ValueStorer(2.5f), Channel::TRIM.ID)));
+    actionConstructorWindows[uuid].get()->setParentListener(this);
 }
 
 
 void MainComponent::paint(Graphics &g) {
     g.drawImage(backgroundPrerender, getLocalBounds().toFloat());
 
-    g.setFont(FontOptions(16.0f));
-    g.setColour(Colours::white);
-    g.drawText("Kewei's bad!", getLocalBounds(), Justification::centred, true);
-    g.drawText("james's fat!", getLocalBounds(), Justification::centred, true);
+    // g.setFont(FontOptions(16.0f));
+    // g.setColour(Colours::white);
+    // g.drawText("Kewei's bad!", getLocalBounds(), Justification::centred, true);
+    // g.drawText("james's fat!", getLocalBounds(), Justification::centred, true);
 }
 
 
@@ -45,17 +50,36 @@ void MainComponent::resized() {
     // This is called when the MainComponent is resized.
     // If you add any child components, this is where you should
     // update their positions.
+
+    int idealBorderThickness = std::ceil(getHeight() * UICfg::COMPONENT_OUTLINE_THICKNESS_PROPORTIONAL_TO_PARENT_HEIGHT);
+    std::vector<Rectangle<int>> borderBounds;
+
     auto bounds = getLocalBounds();
-    headerBar.setBounds(bounds.removeFromTop(bounds.getHeight() * 0.05f));
-    sidePanel.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.2f));
+    auto headerBarBounds = bounds.removeFromTop(bounds.getHeight() * 0.05f);
+
+    borderBounds.push_back(bounds.removeFromTop(idealBorderThickness));
+
+    auto sidePanelBounds = bounds.removeFromLeft(bounds.getWidth() * 0.25f);
+
+    borderBounds.push_back(bounds.removeFromLeft(idealBorderThickness));
+
+    auto cueListBounds = bounds;
+    headerBar.setBounds(headerBarBounds);
+    sidePanel.setBounds(sidePanelBounds);
     auto boxHeight = bounds.getHeight() * 0.05f;
     auto cueListHeaderBox = bounds.removeFromTop(boxHeight);
     cueListBox.setBounds(bounds);
     cueListBox.setRowHeight(boxHeight);
 
+
     // Prerender the background for the cue list area and the titles for the cue list.
     backgroundPrerender = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
     Graphics g(backgroundPrerender);
+
+    g.setColour(UICfg::TEXT_ACCENTED_COLOUR);
+    for (auto border: borderBounds) {
+        g.fillRect(border);
+    }
 
     g.setColour(UICfg::BG_SECONDARY_COLOUR);
     g.fillRect(bounds);
@@ -84,6 +108,7 @@ void MainComponent::resized() {
     g.drawText("#A", numberOfActionsBox.reduced(padding), Justification::centred, true);
     g.drawText("Status", stateBox.reduced(padding), Justification::centred, true);
     g.drawText("Edit", editBox.reduced(padding), Justification::centred, true);
+
 }
 
 
@@ -287,7 +312,12 @@ void MainComponent::closeRequested(WindowType windowType, std::string uuid) {
         case AppComponents_OSCActionConstructor:
             auto it = actionConstructorWindows.find(uuid);
             if (it != actionConstructorWindows.end()) {
-                it->second.reset();
+                auto cueOSCAction = it->second->getCompiledCurrentCueAction();
+                if (cueOSCAction.oat != EXIT_THREAD) {
+                    it->second.reset(new OSCActionConstructor(uuidGen.generate(), "Constructor 2", cueOSCAction));
+                } else {
+                    it->second.reset();
+                }
             }
     }
 }
@@ -822,6 +852,7 @@ void CCISidePanel::constructImage() {
     sII.drawFittedText("STOPPED",
                        0, 0, stoppedPlayingIndicatorBoxWidth, stoppedPlayingIndicatorBoxHeight,
                        Justification::centred, 1);
+
 }
 
 
@@ -869,7 +900,7 @@ void CCISidePanel::resized() {
 
 
 void CCISidePanel::resizeActionList() {
-    actionList.setTargetFontSize(cueNameBox.getHeight() * 0.2f, false);
+    actionList.setTargetFontSize(cueNameBox.getHeight() * 0.25f, false);
     // Don't need to repaint; setting new bounds will repaint it.
     actionList.setBounds(viewportBox.getX(), viewportBox.getY(),
                          viewportBox.getWidth() - cueActionListViewport.getScrollBarThickness(),
@@ -1108,9 +1139,9 @@ void HeaderBar::resized() {
 
 void HeaderBar::paint(Graphics &g) {
     auto localBoundsToFloat = getLocalBounds().toFloat();
-    g.drawImage(borderImage, localBoundsToFloat);
     g.drawImage(buttonsBGImage, localBoundsToFloat);
     g.drawImage(buttonsFGImage, localBoundsToFloat);
+    g.drawImage(borderImage, localBoundsToFloat);
 
 
     // We'll need to manually draw the time.
@@ -1119,6 +1150,7 @@ void HeaderBar::paint(Graphics &g) {
     g.setColour(UICfg::TEXT_COLOUR);
     g.drawFittedText(getCurrentTimeAsFormattedString(), timeTextBox.toNearestInt(),
                      Justification::centred, 1);
+
 }
 
 
