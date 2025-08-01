@@ -663,7 +663,7 @@ public:
         allButtons), uuid(uuid) {
         centreWithSize(1000, 800);
         setUsingNativeTitleBar(true);
-        setAlwaysOnTop(true);
+        // setAlwaysOnTop(false);
         mainComponent = std::make_unique<MainComp>(editThisAction);
         setContentOwned(mainComponent.get(), true);
         setVisible(true);

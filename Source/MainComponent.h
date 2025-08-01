@@ -411,7 +411,7 @@ private:
     Rectangle<int> timeBox;
     Rectangle<float> timeTextBox;
 
-    Image buttonsFGImage;
+    // Image buttonsFGImage;
     Image buttonsBGImage;
     Image borderImage;
 
@@ -419,13 +419,17 @@ private:
     Rectangle<float> stopButtonIconBox;
     Rectangle<float> stopButtonTextBox;
     Image stopIcon{getIconImageFile(IconID::STOP)};
+    Image stopIconDisabled{getIconImageFile(IconID::STOP, true)};
     Rectangle<float> downButtonIconBox;
     Image downIcon{getIconImageFile(IconID::DOWN_ARROW)};
+    Image downIconDisabled{getIconImageFile(IconID::DOWN_ARROW, true)};
     Rectangle<float> upButtonIconBox;
     Image upIcon{getIconImageFile(IconID::UP_ARROW)};
+    Image upIconDisabled{getIconImageFile(IconID::UP_ARROW, true)};
     Rectangle<float> playButtonIconBox;
     Rectangle<float> playButtonTextBox;
     Image playIcon{getIconImageFile(IconID::PLAY)};
+    Image playIconDisabled{getIconImageFile(IconID::PLAY, true)};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HeaderBar)
 };
@@ -635,7 +639,7 @@ private:
     const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};
     const std::vector<Component *> activeComps = {&headerBar, &sidePanel, &cueListBox};
 
-    OSCDeviceSender oscDeviceSender{"192.168.1.179", "10023", "X32"};
+    OSCDeviceSender oscDeviceSender{"127.0.0.1", "10023", "X32"};
     OSCCueDispatcherManager dispatcher{oscDeviceSender};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)

@@ -31,7 +31,7 @@ MainComponent::MainComponent(): cueListModel(cueListBox, cueListData) {
 
     auto uuid = uuidGen.generate();
     actionConstructorWindows[uuid].reset(new OSCActionConstructor(uuid, "test",
-        CueOSCAction("/ch/2/preamp/trim", 2.f, Channel::TRIM.NONITER, ValueStorer(3.f), ValueStorer(2.5f), Channel::TRIM.ID)));
+        CueOSCAction("/ch/2/preamp/trim", {Channel::TRIM.NONITER}, {ValueStorer(3.f)}, Channel::TRIM.ID)));
     actionConstructorWindows[uuid].get()->setParentListener(this);
 }
 
@@ -968,26 +968,46 @@ void HeaderBar::reconstructButtonBackgroundImage() {
 
     Graphics gBG(buttonsBGImage);
 
+    bool stopEnabled = stopButton.isEnabled();
+    bool downEnabled = downButton.isEnabled();
+    bool upEnabled = upButton.isEnabled();
+    bool playEnabled = playButton.isEnabled();
 
-    gBG.setColour(stopButton.isEnabled() ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
+
+    gBG.setColour(stopEnabled ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
     gBG.fillRect(stopBox);
     gBG.setColour(UICfg::STRONG_BORDER_COLOUR);
     gBG.drawRect(stopBox, 1);
 
-    gBG.setColour(downButton.isEnabled() ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
+    gBG.setColour(downEnabled ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
     gBG.fillRect(downBox);
     gBG.setColour(UICfg::STRONG_BORDER_COLOUR);
     gBG.drawRect(downBox, 1);
 
-    gBG.setColour(upButton.isEnabled() ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
+    gBG.setColour(upEnabled ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
     gBG.fillRect(upBox);
     gBG.setColour(UICfg::STRONG_BORDER_COLOUR);
     gBG.drawRect(upBox, 1);
 
-    gBG.setColour(playButton.isEnabled() ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
+    gBG.setColour(playEnabled ? UICfg::HEADER_BG_COLOUR : UICfg::HEADER_BTN_DISABLED_BG_COLOUR);
     gBG.fillRect(playBox);
     gBG.setColour(UICfg::STRONG_BORDER_COLOUR);
     gBG.drawRect(playBox, 1);
+
+    // For STOP and PLAY buttons, we need text labels
+    gBG.setFont(UICfg::DEFAULT_MONOSPACE_FONT.withHeight(stopButtonTextBox.getHeight()));
+    gBG.setColour(stopEnabled ? UICfg::TEXT_COLOUR: UICfg::TEXT_COLOUR_DARK);
+    gBG.drawFittedText("STOP", stopButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
+    gBG.setColour(playEnabled ? UICfg::TEXT_COLOUR: UICfg::TEXT_COLOUR_DARK);
+    gBG.drawFittedText("PLAY", playButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
+
+    // Also need enabled and disabled STOP, PLAY, UP and DOWN icons
+    gBG.drawImage(stopEnabled ? stopIcon: stopIconDisabled, stopButtonIconBox, RectanglePlacement::centred);
+    gBG.drawImage(playEnabled ? playIcon: playIconDisabled, playButtonIconBox, RectanglePlacement::centred);
+    gBG.drawImage(upEnabled ? upIcon: upIconDisabled, upButtonIconBox, RectanglePlacement::centred);
+    gBG.drawImage(downEnabled ? downIcon: downIconDisabled, downButtonIconBox, RectanglePlacement::centred);
+
+
 }
 
 
@@ -1048,7 +1068,7 @@ void HeaderBar::reconstructImage() {
         "Cue " + String(activeShowOptions.currentCueIndex + 1) + "/" + String(activeShowOptions.numberOfCueItems),
         cueNoTextBox.toNearestInt(), Justification::centredLeft, 1);
 
-
+    /*
     // Button Foregrounds
     buttonsFGImage = Image(Image::ARGB, getLocalBounds().getWidth(), getLocalBounds().getHeight(), true);
     Graphics gFG(buttonsFGImage);
@@ -1060,11 +1080,7 @@ void HeaderBar::reconstructImage() {
     gFG.drawImage(playIcon, playButtonIconBox, RectanglePlacement::centred);
     gFG.drawImage(upIcon, upButtonIconBox, RectanglePlacement::centred);
     gFG.drawImage(downIcon, downButtonIconBox, RectanglePlacement::centred);
-
-    // For STOP and PLAY buttons, we need text labels
-    gFG.setFont(stopButtonTextBox.getHeight());;
-    gFG.drawFittedText("STOP", stopButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
-    gFG.drawFittedText("PLAY", playButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
+    */
 }
 
 
@@ -1124,6 +1140,7 @@ void HeaderBar::resized() {
     upButtonIconBox.removeFromTop(boundWidth0005);
     upButtonIconBox.removeFromBottom(boundWidth0005);
 
+
     playButtonIconBox = playBox.toFloat();
     playButtonIconBox.removeFromTop(boundWidth0005);
     playButtonIconBox.removeFromBottom(boundWidth0005);
@@ -1140,7 +1157,7 @@ void HeaderBar::resized() {
 void HeaderBar::paint(Graphics &g) {
     auto localBoundsToFloat = getLocalBounds().toFloat();
     g.drawImage(buttonsBGImage, localBoundsToFloat);
-    g.drawImage(buttonsFGImage, localBoundsToFloat);
+    // g.drawImage(buttonsFGImage, localBoundsToFloat);
     g.drawImage(borderImage, localBoundsToFloat);
 
 

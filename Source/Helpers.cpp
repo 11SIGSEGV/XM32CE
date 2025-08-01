@@ -43,7 +43,7 @@ String formatValueUsingUnit(const Units unit, double value) {
     return "";
 }
 
-Image getIconImageFile(int iconID) {
+Image getIconImageFile(int iconID, bool getDisabledVersion) {
     if (ICON_FILE_MAP.find(iconID) != ICON_FILE_MAP.end()) {
         auto file = FileInfo::ICONS_DIRECTORY.getChildFile(ICON_FILE_MAP.at(iconID));
         if (!file.existsAsFile()) {
@@ -55,6 +55,10 @@ Image getIconImageFile(int iconID) {
         if (fileImage.isNull()) {
             jassertfalse; // Failed to load image from file
             return {};
+        }
+        if (getDisabledVersion) {
+            fileImage.desaturate();
+            fileImage.multiplyAllAlphas(0.5);
         }
         return fileImage; // Return the file if it exists
     } else {

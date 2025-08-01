@@ -86,8 +86,8 @@ namespace UICfg {
     const Colour TEXT_ACCENTED_COLOUR(212, 235, 255);
     const Colour TEXT_COLOUR_DARK(100, 100, 100);
     const Colour STRONG_BORDER_COLOUR(212, 212, 212);
-    const Colour HEADER_BG_COLOUR = BG_SECONDARY_COLOUR;
-    const Colour HEADER_BTN_DISABLED_BG_COLOUR = BG_COLOUR;
+    const Colour HEADER_BG_COLOUR (0, 0, 0);
+    const Colour HEADER_BTN_DISABLED_BG_COLOUR (25, 25, 25);
 
     constexpr float COMPONENT_OUTLINE_THICKNESS_PROPORTIONAL_TO_PARENT_HEIGHT = 0.001;
 
@@ -171,7 +171,7 @@ namespace FileInfo {
 // Icons will be loaded by each individual component. If a component requires, it will load it.
 
 // This function takes the icon ID and returns an Image object of the icon
-Image getIconImageFile(int iconID);
+Image getIconImageFile(int iconID, bool getDisabledVersion = false);
 
 
 // Abbreviated as OAT

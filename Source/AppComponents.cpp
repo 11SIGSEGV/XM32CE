@@ -670,7 +670,6 @@ void OSCActionConstructor::MainComp::comboBoxChanged(ComboBox *comboBoxThatHasCh
 }
 
 void OSCActionConstructor::MainComp::uponNewTemplateSelected() {
-    DBG("New template");
     if (currentTemplateCopy == nullptr) {
         jassertfalse; // You need the current template to be set for this function to work!
         return;
