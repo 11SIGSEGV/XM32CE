@@ -646,6 +646,7 @@ class ParentWindowListener {
 public:
     enum WindowType {
         AppComponents_OSCActionConstructor,
+        AppComponents_OSCCCIConstructor,
     };
 
     virtual ~ParentWindowListener() = default;
@@ -929,6 +930,9 @@ public:
             {BUTTON_ARRAY, "Button Array"},
             {NONE, "None"}
         };
+
+
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComp)
     };
 
 
@@ -940,4 +944,288 @@ private:
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OSCActionConstructor)
+};
+
+
+class OSCCCIConstructor : public DocumentWindow {
+public:
+    // When provided an editThisCCI, each CurrentCueInfo must be specified with CueOSCActions carrying valid UUIDs.
+    explicit OSCCCIConstructor(const std::string &uuid, String name = "Cue Constructor", const CurrentCueInfo& editThisCCI = CurrentCueInfo()) : DocumentWindow(name,
+        UICfg::BG_COLOUR,
+        allButtons), uuid(uuid) {
+        centreWithSize(1000, 800);
+        setUsingNativeTitleBar(true);
+        // setAlwaysOnTop(false);
+        mainComponent = std::make_unique<MainComp>(editThisCCI);
+        setContentOwned(mainComponent.get(), true);
+        setVisible(true);
+    }
+
+    void closeButtonPressed() override {
+        if (mainComponent == nullptr) {
+            return;
+        }
+        // Temporary for testing
+        JUCEApplication::getInstance()->systemRequestedQuit();
+
+    }
+
+    void setParentListener(ParentWindowListener *lstnr) {
+        registeredListener = lstnr;
+    }
+
+    void removeParentListener() { registeredListener = nullptr; }
+
+    // Returns the proper CCI from the user input. If invalid, returns an invalid CCI.
+    CurrentCueInfo getCompiledCurrentCueAction() const;
+
+    class ActionListModel: public ListBoxModel {
+    public:
+        std::vector<CueOSCAction> actions;
+
+        int getNumRows() override { return actions.size(); }
+        void paintListBoxItem(int rowNumber, Graphics &g, int width, int height, bool rowIsSelected) override {
+            Rectangle<int> bounds {0, 0, width, height};
+            g.setColour(UICfg::TEXT_COLOUR);
+            g.drawRect(bounds);
+            auto widthTenths = width * 0.1f;
+            auto editBtnBox = bounds.removeFromLeft(widthTenths);
+            auto oatBox = bounds.removeFromLeft(widthTenths);
+            auto pathBox = bounds.removeFromLeft(widthTenths * 3);
+            auto valuesBox = bounds;
+
+            CueOSCAction& currentAction = actions[rowNumber];
+            g.setColour(UICfg::TEXT_COLOUR);
+            g.setFont(textFont.withHeight(height * 0.5f));
+            g.drawText(currentAction.oscAddress.toString(), pathBox, Justification::centredLeft);
+
+            g.setFont(textFont.withHeight(height * 0.6f));
+            switch (currentAction.oat) {
+                case OAT_COMMAND: {
+                    g.drawText("CMD", oatBox, Justification::centredLeft);
+                    String valueText;
+                    switch (currentAction.argument._meta_PARAMTYPE) {
+                        case INT:
+                            valueText = String(currentAction.argument.intValue) + " (i)";
+                            break;
+                        case STRING:
+                            valueText = String(currentAction.argument.stringValue) + " (s)";
+                            break;
+                        case _GENERIC_FLOAT:
+                            valueText = String(currentAction.argument.floatValue) + " (f)";
+                            break;
+                    }
+                    g.drawText(valueText, valuesBox, Justification::centredLeft);
+                    break;
+                }
+                case OAT_FADE: {
+                    g.drawText("FADE", oatBox, Justification::centredLeft);
+                    auto fadeTimeBox = valuesBox.removeFromLeft(widthTenths);
+                    auto startValueBox = valuesBox.removeFromLeft(widthTenths * 2);
+                    auto endValuesBox = valuesBox;
+                    String startValueText;
+                    String endValueText;
+                    switch (currentAction.startValue._meta_PARAMTYPE) {
+                        case INT:
+                            startValueText = String(currentAction.startValue.intValue) + " (i) >>";
+                            break;
+                        case _GENERIC_FLOAT:
+                            startValueText = String(currentAction.startValue.floatValue) + " (f) >>";
+                            break;
+                    }
+                    switch (currentAction.endValue._meta_PARAMTYPE) {
+                        case INT:
+                            endValueText = String(currentAction.endValue.intValue) + " (i)";
+                            break;
+                        case _GENERIC_FLOAT:
+                            endValueText = String(currentAction.endValue.floatValue) + " (f)";
+                            break;
+                    }
+                    g.drawText(String(currentAction.fadeTime, 2)+"s", fadeTimeBox, Justification::centredLeft);
+                    g.drawText(startValueText, startValueBox, Justification::centredLeft);
+                    g.drawText(endValueText, endValuesBox, Justification::centredLeft);
+
+                    break;
+                }
+                case EXIT_THREAD: {
+                    g.drawText("EXIT", oatBox, Justification::centredLeft);
+                    break;
+                }
+            }
+
+
+        };
+    private:
+        Font textFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::plain);
+    };
+
+    class MainComp : public Component {
+    public:
+        MainComp(const CurrentCueInfo& editThisCCI = CurrentCueInfo()) {
+            setSize(1000, 800);
+            actionsListModel.actions.emplace_back("/ch/01/eq/1/type", 4.f, Channel::EQ_BAND_FREQ.NONITER, ValueStorer(20.f), ValueStorer(60.f));
+
+            actionsList.updateContent();
+            uiInit();
+            addAndMakeVisible(idInput);
+            addAndMakeVisible(nameInput);
+            addAndMakeVisible(descInput);
+            addAndMakeVisible(actionsList);
+            // Required as for some reason, the texteditor input size is for some reason cooked upon init.
+            resized();
+        };
+
+        ~MainComp() override { removeAllChildren(); }
+
+        // All the component and children calls
+        void uiInit() {
+            idInput.setColour(TextEditor::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
+            idInput.setColour(TextEditor::ColourIds::focusedOutlineColourId, UICfg::TEXT_ACCENTED_COLOUR);
+            idInput.setColour(TextEditor::ColourIds::outlineColourId, UICfg::TEXT_COLOUR);
+            idInput.setColour(TextEditor::ColourIds::textColourId, UICfg::TEXT_COLOUR);
+            idInput.setTextToShowWhenEmpty("Enter Cue ID", UICfg::TEXT_COLOUR_DARK);
+            idInput.setFont(inputFont);
+            nameInput.setColour(TextEditor::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
+            nameInput.setColour(TextEditor::ColourIds::focusedOutlineColourId, UICfg::TEXT_ACCENTED_COLOUR);
+            nameInput.setColour(TextEditor::ColourIds::outlineColourId, UICfg::TEXT_COLOUR);
+            nameInput.setColour(TextEditor::ColourIds::textColourId, UICfg::TEXT_COLOUR);
+            nameInput.setTextToShowWhenEmpty("Enter Cue Name", UICfg::TEXT_COLOUR_DARK);
+            nameInput.setFont(inputFont);
+            descInput.setColour(TextEditor::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
+            descInput.setColour(TextEditor::ColourIds::focusedOutlineColourId, UICfg::TEXT_ACCENTED_COLOUR);
+            descInput.setColour(TextEditor::ColourIds::outlineColourId, UICfg::TEXT_COLOUR);
+            descInput.setColour(TextEditor::ColourIds::textColourId, UICfg::TEXT_COLOUR);
+            descInput.setTextToShowWhenEmpty("Enter Cue Description", UICfg::TEXT_COLOUR_DARK);
+            descInput.setFont(inputFont);
+
+            actionsList.setColour(ListBox::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
+            actionsList.setColour(ListBox::ColourIds::outlineColourId, UICfg::TRANSPARENT);
+            actionsList.setColour(ListBox::ColourIds::textColourId, UICfg::TEXT_COLOUR);
+        };
+
+        void resized() override {
+            auto bounds = getLocalBounds();
+            bounds = bounds.reduced(std::min(getWidth(), getHeight()) * UICfg::STD_PADDING);
+
+            auto heightTenths = bounds.getHeight() * 0.1f;
+            auto padding = std::min(bounds.getHeight(), bounds.getWidth()) * UICfg::STD_PADDING;
+            auto topBounds = bounds.removeFromTop(heightTenths * 1.2f);
+            bounds.removeFromTop(padding);
+            auto descBounds = bounds.removeFromTop(heightTenths * 1.5f);
+            bounds.removeFromTop(padding);
+            auto actionBounds = bounds;
+
+            // We'll use this height across top, center and bottom boxes for consistency for heights
+            auto topBoxHeightTenths = topBounds.getHeight() * 0.1f;
+
+            // Deal with ID and Name
+            auto idBounds = topBounds.removeFromLeft(bounds.getWidth() * 0.2f);
+            // auto idBoundsHeightTenths = idBounds.getHeight() * 0.1f;
+            idTitle = idBounds.removeFromTop(topBoxHeightTenths * 4);
+            idBounds.removeFromTop(topBoxHeightTenths);
+            idInputBounds = idBounds;
+            idInput.setBounds(idInputBounds);
+            auto fontSize = idInputBounds.getHeight() * 0.6f;
+            idInput.setFont(inputFont.withHeight(fontSize));
+            // .setText checks that the newText != self.getText().
+            // So first set the TextEditor to a blank string, then to the previous string.
+            String idInputStr = idInput.getText();
+            idInput.setText("");
+            idInput.setText(idInputStr); // Looks really stupid, but it's required to resize text to new font size
+
+
+            topBounds.removeFromLeft(padding);
+            auto nameBounds = topBounds;
+            // auto nameBoundsHeightTenths = nameBounds.getHeight() * 0.1f;
+            nameTitle = nameBounds.removeFromTop(topBoxHeightTenths * 4);
+            nameBounds.removeFromTop(topBoxHeightTenths);
+            nameInputBounds = nameBounds;
+            nameInput.setBounds(nameInputBounds);
+            nameInput.setFont(inputFont.withHeight(fontSize));
+            String nameInputStr = nameInput.getText();
+            nameInput.setText("");
+            nameInput.setText(nameInputStr);
+
+            // Now deal with description. For consistency, we'll use the topBoxHeightTenths to keep padding and font
+            // size consistent
+            // auto descBoundsHeightTenths = descBounds.getHeight() * 0.1f;
+            descTitle = descBounds.removeFromTop(topBoxHeightTenths * 4);
+            descBounds.removeFromTop(topBoxHeightTenths);
+            descInputBounds = descBounds;
+            descInput.setBounds(descInputBounds);
+            descInput.setFont(inputFont.withHeight(fontSize * 0.7f));
+            String descInputStr = descInput.getText();
+            descInput.setText("");
+            descInput.setText(descInputStr);
+
+            // Do similarly for action list.
+            actionsTitle = actionBounds.removeFromTop(topBoxHeightTenths * 4);
+            actionBounds.removeFromTop(topBoxHeightTenths);
+            actionsListBounds = actionBounds;
+            actionsList.setBounds(actionsListBounds);
+            actionsList.setRowHeight(topBoxHeightTenths * 5);
+
+            reconstructImage();
+        };
+
+        void paint(Graphics &g) override {
+            g.drawImage(bgImage, getLocalBounds().toFloat());
+        }
+
+        void reconstructImage() {
+            bgImage = Image(Image::ARGB, getWidth(), getHeight(), true);
+            Graphics g(bgImage);
+
+            g.setFont(titleFont.withHeight(idTitle.getHeight() * 0.7f));
+            g.setColour(UICfg::TEXT_COLOUR);
+            g.drawText("ID", idTitle, Justification::centredLeft);
+            g.drawText("Name", nameTitle, Justification::centredLeft);
+            g.drawText("Description", descTitle, Justification::centredLeft);
+            g.drawText("Actions", actionsTitle, Justification::centredLeft);
+        };
+
+        // Checks if values and child CueOSCActions are suitable for creating a valid CCI
+        bool currentCCIIsValid() const;
+
+        // Returns a CCI. Expects currentCCIIsValid to be true. Returns an invalid CCI if invalid
+        CurrentCueInfo getCCI() const;
+
+        bool exitWasGraceful() const { return gracefulExit; }
+    private:
+        bool gracefulExit { false }; // Used to determine if an exit was made via pressing OK. If this is false, an
+        // invalid CueOSCAction is returned regardless if the current the action is valid.
+
+        Rectangle<int> idTitle;
+        Rectangle<int> idInputBounds;
+        Rectangle<int> nameTitle;
+        Rectangle<int> nameInputBounds;
+        Rectangle<int> descTitle;
+        Rectangle<int> descInputBounds;
+        Rectangle<int> actionsTitle;
+        Rectangle<int> actionsListBounds;
+
+
+        TextEditor idInput;
+        TextEditor nameInput;
+        TextEditor descInput;
+        ActionListModel actionsListModel;
+        ListBox actionsList {"", &actionsListModel};
+
+        Image bgImage;
+
+        Font titleFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::bold);
+        Font inputFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::plain);
+
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComp)
+    };
+
+
+private:
+    const std::string uuid;
+    ParentWindowListener *registeredListener = nullptr;
+    std::unique_ptr<MainComp> mainComponent;
+    bool goodCCI { false };
+
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OSCCCIConstructor)
 };

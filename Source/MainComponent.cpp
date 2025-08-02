@@ -30,9 +30,8 @@ MainComponent::MainComponent(): cueListModel(cueListBox, cueListData) {
     }
 
     auto uuid = uuidGen.generate();
-    actionConstructorWindows[uuid].reset(new OSCActionConstructor(uuid, "test",
-        CueOSCAction("/ch/2/preamp/trim", {Channel::TRIM.NONITER}, {ValueStorer(3.f)}, Channel::TRIM.ID)));
-    actionConstructorWindows[uuid].get()->setParentListener(this);
+    cciConstructorWindows[uuid].reset(new OSCCCIConstructor(uuid, "test"));
+    cciConstructorWindows[uuid].get()->setParentListener(this);
 }
 
 
@@ -326,23 +325,46 @@ void MainComponent::actionFinished(std::string actionID) {
 
 void MainComponent::closeRequested(WindowType windowType, std::string uuid) {
     switch (windowType) {
-        case AppComponents_OSCActionConstructor:
-            auto it = actionConstructorWindows.find(uuid);
-            if (it != actionConstructorWindows.end()) {
-                auto cueOSCAction = it->second->getCompiledCurrentCueAction();
-                if (cueOSCAction.oat != EXIT_THREAD) {
-                    it->second.reset(new OSCActionConstructor(uuidGen.generate(), "Constructor 2", cueOSCAction));
-                } else {
-                    it->second.reset();
-                }
-            }
+        case AppComponents_OSCActionConstructor: {
+            jassertfalse; // Not Supported for MainComponent. Must be called through OSCCCIConstructor.
+            break;
+        }
+        case AppComponents_OSCCCIConstructor:
+            // TODO: Implement
+            break;
     }
 }
 
 void MainComponent::terminateChildWindows() {
-    for (auto& [id, ptr]: actionConstructorWindows) {
+    for (auto& [id, ptr]: cciConstructorWindows) {
         ptr.reset();
     }
+}
+
+bool MainComponent::keyPressed(const KeyPress &key, Component *originatingComponent) {
+    if (originatingComponent != this) {
+        return false;
+    }
+    // std::cout << key.getKeyCode() << std::endl;
+    if (key == KeyPress::spaceKey) {
+        if (!activeShowOptions.currentCuePlaying) {
+            commandOccurred(SHOW_PLAY);
+            if (activeShowOptions.currentCueIndex + 1 < activeShowOptions.numberOfCueItems)
+                commandOccurred(SHOW_NEXT_CUE);
+        }
+    } else if (key == KeyPress::escapeKey) {
+        if (activeShowOptions.currentCuePlaying)
+            commandOccurred(SHOW_STOP);
+    } else if (key == KeyPress::upKey || key == KeyPress::leftKey) {
+        if (activeShowOptions.currentCueIndex != 0) {
+            commandOccurred(SHOW_PREVIOUS_CUE);
+        }
+    } else if (key == KeyPress::downKey || key == KeyPress::returnKey || key == KeyPress::rightKey) {
+        if (activeShowOptions.currentCueIndex + 1 < activeShowOptions.numberOfCueItems) {
+            commandOccurred(SHOW_NEXT_CUE);
+        }
+    }
+    return true;
 }
 
 

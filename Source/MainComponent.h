@@ -525,34 +525,10 @@ public:
     // Closes all child windows registered.
     void terminateChildWindows();
 
-    bool keyPressed(const KeyPress &key, Component *originatingComponent) override {
-        if (originatingComponent != this) {
-            return false;
-        }
-        // std::cout << key.getKeyCode() << std::endl;
-        if (key == KeyPress::spaceKey) {
-            if (!activeShowOptions.currentCuePlaying) {
-                commandOccurred(SHOW_PLAY);
-                if (activeShowOptions.currentCueIndex + 1 < activeShowOptions.numberOfCueItems)
-                    commandOccurred(SHOW_NEXT_CUE);
-            }
-        } else if (key == KeyPress::escapeKey) {
-            if (activeShowOptions.currentCuePlaying)
-                commandOccurred(SHOW_STOP);
-        } else if (key == KeyPress::upKey || key == KeyPress::leftKey) {
-            if (activeShowOptions.currentCueIndex != 0) {
-                commandOccurred(SHOW_PREVIOUS_CUE);
-            }
-        } else if (key == KeyPress::downKey || key == KeyPress::returnKey || key == KeyPress::rightKey) {
-            if (activeShowOptions.currentCueIndex + 1 < activeShowOptions.numberOfCueItems) {
-                commandOccurred(SHOW_NEXT_CUE);
-            }
-        }
-        return true;
-    };
+    bool keyPressed(const KeyPress &key, Component *originatingComponent) override;;
 
 private:
-    std::unordered_map<std::string, std::unique_ptr<OSCActionConstructor>> actionConstructorWindows;
+    std::unordered_map<std::string, std::unique_ptr<OSCCCIConstructor>> cciConstructorWindows;
     Image backgroundPrerender;
     //==============================================================================
     // Your private member variables go here...
@@ -590,6 +566,81 @@ private:
 
     CurrentCueInfoVector cciVector = CurrentCueInfoVector(
         {
+            {
+                "S1", "Unmute and Live",
+                "Initial Level and Unmute",
+                {
+                    CueOSCAction("/ch/01/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/02/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/03/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/05/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/07/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/08/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/09/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/10/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/11/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/13/mix/on", Channel::ON.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/05/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
+                    CueOSCAction("/ch/08/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
+                    CueOSCAction("/ch/09/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
+                    CueOSCAction("/ch/10/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f), ValueStorer(0.f)),
+                }
+            },
+            {
+                "S2", "BG Fade",
+                "Fades Non-Vocals.",
+                {
+                    CueOSCAction("/ch/05/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-2.f)),
+                    CueOSCAction("/ch/06/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-2.f)),
+                    CueOSCAction("/ch/08/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-2.f)),
+                    CueOSCAction("/ch/09/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-2.f)),
+                    CueOSCAction("/ch/10/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(0.f), ValueStorer(-2.f)),
+                },
+            },
+            {
+                "S3", "Organ", "Brings up Organ",
+                {
+                    CueOSCAction("/ch/11/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f),
+                                 ValueStorer(-5.f)),
+                },
+            },
+            {
+                "S4", "Backings", "Brings up Backing for Recp.",
+                {
+                    CueOSCAction("/ch/13/mix/fader", 1.f, Channel::FADER.NONITER, ValueStorer(-90.f),
+                                 ValueStorer(-2.f)),
+                    CueOSCAction("/ch/03/mix/fader", 1.5f, Channel::FADER.NONITER, ValueStorer(-90.f),
+                                 ValueStorer(5.f)),
+                },
+            },
+            {
+                "S5", "Fade Out", "Fade all channels out",
+                {
+                    CueOSCAction("/ch/03/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(5.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/05/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/07/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/08/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/09/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/10/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/11/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                    CueOSCAction("/ch/13/mix/fader", 2.f, Channel::FADER.NONITER, ValueStorer(-2.f), ValueStorer(-90.f)),
+                },
+            },
+            {
+                "D1", "Demo", "Demo EQ 1",
+                {
+                    CueOSCAction("/ch/01/eq/1/type", Channel::EQ_BAND_TYPE.getRawMessageArgument(), ValueStorer(1)),
+                    CueOSCAction("/ch/01/eq/3/type", Channel::EQ_BAND_TYPE.getRawMessageArgument(), ValueStorer(2)),
+                    CueOSCAction("/ch/01/eq/4/type", Channel::EQ_BAND_TYPE.getRawMessageArgument(), ValueStorer(4)),
+                    CueOSCAction("/ch/01/eq/1/f", Channel::EQ_BAND_FREQ.getRawMessageArgument(), ValueStorer(185.f)),
+                    CueOSCAction("/ch/01/eq/3/f", Channel::EQ_BAND_FREQ.getRawMessageArgument(), ValueStorer(4500.f)),
+                    CueOSCAction("/ch/01/eq/4/f", Channel::EQ_BAND_FREQ.getRawMessageArgument(), ValueStorer(13600.f)),
+                    CueOSCAction("/ch/01/eq/1/g", Channel::EQ_BAND_GAIN.getRawMessageArgument(), ValueStorer(6.f)),
+                    CueOSCAction("/ch/01/eq/3/g", Channel::EQ_BAND_GAIN.getRawMessageArgument(), ValueStorer(9.8f)),
+                    CueOSCAction("/ch/01/eq/4/g", Channel::EQ_BAND_GAIN.getRawMessageArgument(), ValueStorer(11.4f)),
+                    CueOSCAction("/ch/01/eq/3/q", Channel::EQ_BAND_QLTY.getRawMessageArgument(), ValueStorer(0.8f)),
+                },
+            },
             {
                 "S1", "Unmute and Live",
                 "Initial Level and Unmute",
