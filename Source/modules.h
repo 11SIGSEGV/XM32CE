@@ -484,6 +484,10 @@ class DraggableListBox : public ListBox, public DragAndDropContainer
 {
     public:
     DraggableListBox() {setColour(backgroundColourId, Colour(0.f, 0.f, 0.f, 0.f));}
+
+    void dragOperationEnded(const DragAndDropTarget::SourceDetails &src) override {
+        repaint(); // Buttons are not always reset upon a drag end, so manually repaint().
+    };
 };
 
 // Everything below this point should be generic.

@@ -399,6 +399,31 @@ void CueListData::paintContents(int rowNum, Graphics &g, Rectangle<int> bounds) 
     // .getInternalID() )
 }
 
+void CueListItem::paint(Graphics &g) {
+    if (!listBox.isDragAndDropActive() && (bounds != lastBounds || goToCueBtn == nullptr)) {
+        lastBounds = bounds;
+
+        auto &cci = data.cciVector.getCurrentCueInfoByIndex(rowNum);
+        if (cci.isInvalid()) {
+            return;
+        }
+
+        goToCueBtn = std::make_unique<GoToCueBtn>();
+        goToCueBtn->onClick = [=]() {
+            data.notifyCueListeners(JUMP_TO_CUE, cci.getInternalID(), rowNum);
+        };
+
+
+        auto btnBounds = getLocalBounds().removeFromLeft(getWidth() * 0.05f);
+        goToCueBtn->setBounds(btnBounds);
+        if (goToCueBtn->getParentComponent() == nullptr) {
+            addAndMakeVisible(goToCueBtn.get());
+        }
+    }
+
+    DraggableListBoxItem::paint(g);
+}
+
 
 // ==========================================================================
 

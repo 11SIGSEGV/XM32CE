@@ -91,8 +91,8 @@ class GoToCueBtn: public Button {
 public:
     GoToCueBtn(): Button("") {}
     void paintButton(Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override {};
-    void clicked() override { DBG("HERE"); onClick(); };
-    void clicked(const ModifierKeys &modifiers) override { DBG("HERE2"); onClick(); };
+    void clicked() override { onClick(); };
+    void clicked(const ModifierKeys &modifiers) override { onClick(); };
     void buttonStateChanged() override {};
     void paint(Graphics &g) override {};
     void paintOverChildren(Graphics &g) override {};
@@ -105,35 +105,7 @@ public:
     CueListItem(DraggableListBox& lb, CueListData& data, int rn): DraggableListBoxItem(lb, data, rn), data(data), listBox(lb) {}
     ~CueListItem() override = default;
 
-    void paint(Graphics &g) override {
-        if (justAddedBtn && lastBounds == getLocalBounds()) {
-            justAddedBtn = false;
-            return; // This paint(Graphics&) was a callback from addAndMakeVisible(goToCueBtn.get())
-        }
-
-        lastBounds = getLocalBounds();
-
-        if (!listBox.isDragAndDropActive()) {
-            auto &cci = data.cciVector.getCurrentCueInfoByIndex(rowNum);
-            if (cci.isInvalid()) {
-                return;
-            }
-
-            goToCueBtn = std::make_unique<GoToCueBtn>();
-            goToCueBtn->onClick = [=]() {
-                data.notifyCueListeners(JUMP_TO_CUE, cci.getInternalID(), rowNum);
-            };
-
-            auto btnBounds = getLocalBounds().removeFromLeft(getWidth() * 0.05f);
-            goToCueBtn->setBounds(btnBounds);
-            if (goToCueBtn->getParentComponent() == nullptr) {
-                justAddedBtn = true;
-                addAndMakeVisible(goToCueBtn.get());
-            }
-        }
-
-        DraggableListBoxItem::paint(g);
-    }
+    void paint(Graphics &g) override;
 
     void resized() override {
         bounds = getLocalBounds();
@@ -145,9 +117,9 @@ private:
     DraggableListBox& listBox;
     std::unique_ptr<GoToCueBtn> goToCueBtn;
     Rectangle<int> lastBounds;
-    // Using addAndMakeVisible callbacks the parent component (i.e., this component) to repaint,
-    // causing an infinite loop.
-    bool justAddedBtn = false;
+    // // Using addAndMakeVisible callbacks the parent component (i.e., this component) to repaint,
+    // // causing an infinite loop.
+    // bool justAddedBtn = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CueListItem)
 };
