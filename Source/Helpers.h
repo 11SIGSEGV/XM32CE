@@ -25,6 +25,7 @@ enum ShowCommand {
     SHOW_NAME_CHANGE,
     CUES_ADDED,
     CUES_DELETED,
+    JUMP_TO_CUE, // Note this is called to cueCommandOccurred, not commandOccurred.
     FULL_SHOW_RESET, // Reset all UI and local variables
 
     CUE_INDEXS_CHANGED,
@@ -55,6 +56,7 @@ public:
     irrelevant ShowCommands.
     */
     virtual void commandOccurred(ShowCommand) = 0;
+
 
     /* Called for specific commands affecting only one single cue. commandOccurred will still be callbacked when a
      * command applies the current cue, but if a cue event happens to a specific cue that is not currently selected,

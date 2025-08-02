@@ -255,10 +255,27 @@ void MainComponent::cueCommandOccurred(ShowCommand command, std::string cciInter
             case CUE_STOPPED:
                 commandOccurred(SHOW_STOP);
                 break;
+            case JUMP_TO_CUE:
+                //...yeah, but we're already on this cue.
+                return;
             default:
                 break;
         }
-    } {
+    } else {
+        switch (command) {
+            case JUMP_TO_CUE: {
+                // Reset activeShowOptions
+                size_t previousIndex = activeShowOptions.currentCueIndex;
+                updateActiveShowOptionsFromCCIIndex(cciCurrentIndex);
+                cueListBox.repaintRow(previousIndex);
+                cueListBox.repaintRow(cciCurrentIndex);
+                break;
+            }
+            default:
+                break;
+        }
+    }
+    {
         const MessageManagerLock mmLock;
         if (!mmLock.lockWasGained()) {
             jassertfalse; // Woah woah woah... where's our message lock?
@@ -378,6 +395,8 @@ void CueListData::paintContents(int rowNum, Graphics &g, Rectangle<int> bounds) 
     g.drawRect(editBox);
     g.setColour(UICfg::CUE_LIST_ITEM_OUTLINE_COLOUR);
     g.drawRect(bounds);
+
+    // .getInternalID() )
 }
 
 
@@ -907,6 +926,19 @@ void CCISidePanel::resizeActionList() {
                          actionList.getTheoreticallyRequiredHeight());
 }
 
+void CCISidePanel::selectedCueChanged() {
+    resizeActionList();
+    constructImage();
+    repaint();
+    auto &cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
+    if (cci.isInvalid()) {
+        lastCCIInternalID = "";
+        return;
+    }
+    // Assumes currentCueIndex is valid!
+    lastCCIInternalID = cci.getInternalID();
+}
+
 
 void CCISidePanel::paint(Graphics &g) {
     g.drawImage(panelImage, getLocalBounds().toFloat());
@@ -926,16 +958,7 @@ void CCISidePanel::commandOccurred(const ShowCommand command) {
             break;
         case SHOW_NEXT_CUE:
         case SHOW_PREVIOUS_CUE: {
-            resizeActionList();
-            constructImage();
-            repaint();
-            auto &cci = cciVector.getCurrentCueInfoByIndex(activeShowOptions.currentCueIndex);
-            if (cci.isInvalid()) {
-                lastCCIInternalID = "";
-                break;
-            }
-            // Assumes currentCueIndex is valid!
-            lastCCIInternalID = cci.getInternalID();
+            selectedCueChanged();
             break;
         }
         case CUES_DELETED: {
@@ -950,6 +973,16 @@ void CCISidePanel::commandOccurred(const ShowCommand command) {
         }
         case FULL_SHOW_RESET:
             commandOccurred(SHOW_NEXT_CUE); // This practically resets the side panel.
+            break;
+        default:
+            break;
+    }
+}
+
+void CCISidePanel::cueCommandOccurred(ShowCommand command, std::string cciInternalID, size_t cciCurrentIndex) {
+    switch (command) {
+        case JUMP_TO_CUE:
+            selectedCueChanged();
             break;
         default:
             break;
@@ -1171,6 +1204,30 @@ void HeaderBar::paint(Graphics &g) {
 }
 
 
+void HeaderBar::selectedCueChanged() {
+    // This case is not NEXT/PREVIOUS dependent. This means jumping to a cue not next or previous to the
+    // currently selected one can still use this function.
+    if (activeShowOptions.numberOfCueItems == 1) {
+        // One cue only
+        upButton.setEnabled(false);
+        downButton.setEnabled(false);
+    } else if (activeShowOptions.currentCueIndex == 0) {
+        // First Cue Selected
+        upButton.setEnabled(false);
+        downButton.setEnabled(true);
+    } else if ((activeShowOptions.currentCueIndex + 1) == activeShowOptions.numberOfCueItems) {
+        // Last Cue Selected
+        upButton.setEnabled(true);
+        downButton.setEnabled(false);
+    } else {
+        upButton.setEnabled(true);
+        downButton.setEnabled(true);
+    }
+    // Now we're on another cue, we also need to set the play button state.
+    playButton.setEnabled(!activeShowOptions.currentCuePlaying);
+    stopButton.setEnabled(activeShowOptions.currentCuePlaying);
+}
+
 void HeaderBar::commandOccurred(const ShowCommand command) {
     if (activeShowOptions.numberOfCueItems == 0) {
         upButton.setEnabled(false);
@@ -1189,21 +1246,7 @@ void HeaderBar::commandOccurred(const ShowCommand command) {
                 break;
             case SHOW_NEXT_CUE:
             case SHOW_PREVIOUS_CUE:
-                if (activeShowOptions.currentCueIndex == 0) {
-                    // First Cue Selected
-                    upButton.setEnabled(false);
-                    downButton.setEnabled(true);
-                } else if ((activeShowOptions.currentCueIndex + 1) == activeShowOptions.numberOfCueItems) {
-                    // Last Cue Selected
-                    upButton.setEnabled(true);
-                    downButton.setEnabled(false);
-                } else {
-                    upButton.setEnabled(true);
-                    downButton.setEnabled(true);
-                }
-                // Now we're on another cue, we also need to set the play button state.
-                playButton.setEnabled(!activeShowOptions.currentCuePlaying);
-                stopButton.setEnabled(activeShowOptions.currentCuePlaying);
+                selectedCueChanged();
                 break;
             case SHOW_NAME_CHANGE:
                 break;
@@ -1230,5 +1273,15 @@ void HeaderBar::commandOccurred(const ShowCommand command) {
         _showCommandsRequiringButtonReconstruction.find(command) != _showCommandsRequiringButtonReconstruction.end()) {
         reconstructButtonBackgroundImage();
         repaint();
+    }
+}
+
+void HeaderBar::cueCommandOccurred(ShowCommand command, std::string cciInternalID, size_t cciCurrentIndex) {
+    switch (command) {
+        case JUMP_TO_CUE:
+            selectedCueChanged();
+            break;
+        default:
+            break;
     }
 }

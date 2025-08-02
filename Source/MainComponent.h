@@ -59,8 +59,8 @@ struct CueListData: public DraggableListBoxItemData {
         else
             cciVector.move(indexOfItemToMove, indexOfItemToPlaceBefore);
     }
-private:
-    std::vector<ShowCommandListener*> listeners;
+
+
 
     // Sends ShowCommand to registered listeners
     void notifyListeners(ShowCommand command) {
@@ -72,16 +72,66 @@ private:
             }
         }
     }
+    // Sends cueCommandOccurred to registered listeners
+    void notifyCueListeners(ShowCommand command, std::string cciInternalID, size_t cciCurrentIndex) {
+        for (auto lstnr: listeners) {
+            if (lstnr != nullptr) {
+                lstnr->cueCommandOccurred(command, cciInternalID, cciCurrentIndex);
+            } else {
+                jassertfalse; // Listener is null, this should never happen
+            }
+        }
+    }
+private:
+    std::vector<ShowCommandListener*> listeners;
+};
+
+
+class GoToCueBtn: public Button {
+public:
+    GoToCueBtn(): Button("") {}
+    void paintButton(Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override {};
+    void clicked() override { DBG("HERE"); onClick(); };
+    void clicked(const ModifierKeys &modifiers) override { DBG("HERE2"); onClick(); };
+    void buttonStateChanged() override {};
+    void paint(Graphics &g) override {};
+    void paintOverChildren(Graphics &g) override {};
 };
 
 
 // Class for individual item (i.e., row) in Cue List.
 class CueListItem: public DraggableListBoxItem {
 public:
-    CueListItem(DraggableListBox& lb, CueListData& data, int rn): DraggableListBoxItem(lb, data, rn), data(data) {}
+    CueListItem(DraggableListBox& lb, CueListData& data, int rn): DraggableListBoxItem(lb, data, rn), data(data), listBox(lb) {}
     ~CueListItem() override = default;
 
     void paint(Graphics &g) override {
+        if (justAddedBtn && lastBounds == getLocalBounds()) {
+            justAddedBtn = false;
+            return; // This paint(Graphics&) was a callback from addAndMakeVisible(goToCueBtn.get())
+        }
+
+        lastBounds = getLocalBounds();
+
+        if (!listBox.isDragAndDropActive()) {
+            auto &cci = data.cciVector.getCurrentCueInfoByIndex(rowNum);
+            if (cci.isInvalid()) {
+                return;
+            }
+
+            goToCueBtn = std::make_unique<GoToCueBtn>();
+            goToCueBtn->onClick = [=]() {
+                data.notifyCueListeners(JUMP_TO_CUE, cci.getInternalID(), rowNum);
+            };
+
+            auto btnBounds = getLocalBounds().removeFromLeft(getWidth() * 0.05f);
+            goToCueBtn->setBounds(btnBounds);
+            if (goToCueBtn->getParentComponent() == nullptr) {
+                justAddedBtn = true;
+                addAndMakeVisible(goToCueBtn.get());
+            }
+        }
+
         DraggableListBoxItem::paint(g);
     }
 
@@ -92,6 +142,12 @@ public:
 private:
     Rectangle<int> bounds;
     CueListData& data;
+    DraggableListBox& listBox;
+    std::unique_ptr<GoToCueBtn> goToCueBtn;
+    Rectangle<int> lastBounds;
+    // Using addAndMakeVisible callbacks the parent component (i.e., this component) to repaint,
+    // causing an infinite loop.
+    bool justAddedBtn = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CueListItem)
 };
@@ -230,7 +286,12 @@ public:
 
     void resizeActionList();
 
+    // Handles when the displayed cue changes. Not NEXT-PREVIOUS dependent (supports jumping to a random cue)
+    void selectedCueChanged();
+
     void commandOccurred(ShowCommand) override;
+
+    void cueCommandOccurred(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex) override;
 
 private:
     std::string lastCCIInternalID = ""; // Used to determine if the CCI has changed, so we can reconstruct the image
@@ -336,8 +397,13 @@ public:
             showCommandListeners.end());
     }
 
+    // Pulls the new cue from ActiveShowOptions and updates component appropriately.
+    void selectedCueChanged();
+
     // Used to listen for when command occurs. Part of inherited ShowCommandListener
     void commandOccurred(ShowCommand command) override;
+    // Used to listen specifically for JUMP_TO_CUE actions.
+    void cueCommandOccurred(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex) override;
 
     // Button Listener for all DrawableButton objects
     void buttonClicked(Button *btn) override {
@@ -462,6 +528,7 @@ public:
 
     // Implemented to listen for ShowCommands.
     void commandOccurred(ShowCommand) override;
+
     // Broadcasts all commands to registered callbacks
     void sendCommandToAllListeners(ShowCommand cmd, bool currentCueListItemRequiresRedraw = false);
 
@@ -500,11 +567,11 @@ public:
         } else if (key == KeyPress::escapeKey) {
             if (activeShowOptions.currentCuePlaying)
                 commandOccurred(SHOW_STOP);
-        } else if (key == KeyPress::upKey) {
+        } else if (key == KeyPress::upKey || key == KeyPress::leftKey) {
             if (activeShowOptions.currentCueIndex != 0) {
                 commandOccurred(SHOW_PREVIOUS_CUE);
             }
-        } else if (key == KeyPress::downKey || key == KeyPress::returnKey) {
+        } else if (key == KeyPress::downKey || key == KeyPress::returnKey || key == KeyPress::rightKey) {
             if (activeShowOptions.currentCueIndex + 1 < activeShowOptions.numberOfCueItems) {
                 commandOccurred(SHOW_NEXT_CUE);
             }
