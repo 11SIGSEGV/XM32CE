@@ -87,17 +87,6 @@ private:
 };
 
 
-class GoToCueBtn: public Button {
-public:
-    GoToCueBtn(): Button("") {}
-    void paintButton(Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override {};
-    void clicked() override { onClick(); };
-    void clicked(const ModifierKeys &modifiers) override { onClick(); };
-    void buttonStateChanged() override {};
-    void paint(Graphics &g) override {};
-    void paintOverChildren(Graphics &g) override {};
-};
-
 
 // Class for individual item (i.e., row) in Cue List.
 class CueListItem: public DraggableListBoxItem {

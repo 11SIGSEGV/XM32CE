@@ -191,7 +191,7 @@ struct CueOSCAction {
 
     // For OAT_COMMAND, the arguments are used to fill in the OSC Message.
     CueOSCAction(OSCAddressPattern oscAddress, OSCMessageArguments argumentTemplate, ValueStorer argument, std::string argumentTemplateID = ""): oat(OAT_COMMAND),
-        oatCommandOSCArgumentTemplate(argumentTemplate), argument(std::move(argument)), oscAddress(oscAddress), ID(uuidGen.generate()),
+        oatCommandOSCArgumentTemplate(argumentTemplate), argument(argument), oscAddress(oscAddress), ID(uuidGen.generate()),
     argumentTemplateID(argumentTemplateID) {
     }
 
@@ -204,6 +204,19 @@ struct CueOSCAction {
     argumentTemplateID(argumentTemplateID) {
         _checks();
     }
+
+    // CueOSCAction(const CueOSCAction& other): oat(other.oat),
+    //       oscAddress(other.oscAddress),
+    //       oatCommandOSCArgumentTemplate(other.oatCommandOSCArgumentTemplate),
+    //       argument(other.argument),
+    //       fadeTime(other.fadeTime),
+    //       oscArgumentTemplate(other.oscArgumentTemplate),
+    //       startValue(other.startValue),
+    //       endValue(other.endValue),
+    //       ID(uuidGen.generate()), // Generate a new unique ID for the copy
+    //       argumentTemplateID(other.argumentTemplateID)
+    // {
+    // }
 
 
     void _checks() const {

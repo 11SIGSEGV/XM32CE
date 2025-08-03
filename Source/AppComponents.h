@@ -13,6 +13,18 @@
 #include "Helpers.h"
 
 
+class GoToCueBtn: public Button {
+public:
+    GoToCueBtn(): Button("") {}
+    void paintButton(Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override {};
+    void clicked() override { onClick(); };
+    void clicked(const ModifierKeys &modifiers) override { onClick(); };
+    void buttonStateChanged() override {};
+    void paint(Graphics &g) override {};
+    void paintOverChildren(Graphics &g) override {};
+};
+
+
 // TODO: Test if setting non-default minDeg and maxDeg works as expected... I'm scared.
 // TODO: Test if NonIter overload functions
 // Acts as a wrapper for Slider. Overwrites painting and resizing.
@@ -689,7 +701,7 @@ public:
 
     // Returns the proper CueOSCAction from the user input. If invalid, returns an EXIT_THREAD CueOSCAction.
     CueOSCAction getCompiledCurrentCueAction() const {
-        if (!goodCueOSCAction) {
+        if (!goodCueOSCAction || mainComponent == nullptr) {
             return CueOSCAction(false);
         }
         return mainComponent->getCueOSCAction();
@@ -843,6 +855,8 @@ public:
         std::vector<NonIter> pathLabelInputTemplates;
         std::vector<std::unique_ptr<Label>> pathLabelInputs;
         ValueStorerArray pathLabelFormattedValues; // But this... is only used for when the final CueOSCAction object has to be returned by this component
+        String pathFromEditThisAction; // The path when editThisAction is provided. Bypasses checking, but is reset/overriden when a new template is selected or when all path label inputs are valid.
+        mutable bool usePathFromEditThisAction = false; // This bool is set by currentActionIsValid(). ALL THE REASON MORE YOU MUST CALL IT BEFORE CALLING getCueOSCAction()!
 
 
         // In the case of a fadeCommand, the first element will be the start value, vice versa
@@ -949,6 +963,12 @@ private:
 
 class OSCCCIConstructor : public DocumentWindow {
 public:
+    class RowUpdateRequiredCallback {
+        public:
+        virtual ~RowUpdateRequiredCallback() {}
+        virtual void rowRequiresUpdate(int rowNum) = 0;
+    };
+
     // When provided an editThisCCI, each CurrentCueInfo must be specified with CueOSCActions carrying valid UUIDs.
     explicit OSCCCIConstructor(const std::string &uuid, String name = "Cue Constructor", const CurrentCueInfo& editThisCCI = CurrentCueInfo()) : DocumentWindow(name,
         UICfg::BG_COLOUR,
@@ -979,11 +999,18 @@ public:
     // Returns the proper CCI from the user input. If invalid, returns an invalid CCI.
     CurrentCueInfo getCompiledCurrentCueAction() const;
 
-    class ActionListModel: public ListBoxModel {
-    public:
-        std::vector<CueOSCAction> actions;
 
-        int getNumRows() override { return actions.size(); }
+    class ActionListModel: public ListBoxModel, public ParentWindowListener {
+    public:
+        RowUpdateRequiredCallback* callbackUponChildWindowExit;
+        std::vector<std::unique_ptr<CueOSCAction>> actions;
+        std::unordered_map<std::string, int> actionConstructorUUIDsToIndex;
+        std::vector<std::unique_ptr<OSCActionConstructor>> actionConstructors;
+
+        void updateSize() { lastSize = static_cast<int>(actions.size()); }
+
+        int getNumRows() override { return lastSize; }
+
         void paintListBoxItem(int rowNumber, Graphics &g, int width, int height, bool rowIsSelected) override {
             Rectangle<int> bounds {0, 0, width, height};
             g.setColour(UICfg::TEXT_COLOUR);
@@ -994,7 +1021,11 @@ public:
             auto pathBox = bounds.removeFromLeft(widthTenths * 3);
             auto valuesBox = bounds;
 
-            CueOSCAction& currentAction = actions[rowNumber];
+            // auto currentAction = &actions[rowNumber];
+            if (actions[rowNumber] == nullptr) {
+                return; // Invalid action
+            }
+            auto currentAction = *actions[rowNumber].get();
             g.setColour(UICfg::TEXT_COLOUR);
             g.setFont(textFont.withHeight(height * 0.5f));
             g.drawText(currentAction.oscAddress.toString(), pathBox, Justification::centredLeft);
@@ -1044,7 +1075,6 @@ public:
                     g.drawText(String(currentAction.fadeTime, 2)+"s", fadeTimeBox, Justification::centredLeft);
                     g.drawText(startValueText, startValueBox, Justification::centredLeft);
                     g.drawText(endValueText, endValuesBox, Justification::centredLeft);
-
                     break;
                 }
                 case EXIT_THREAD: {
@@ -1053,18 +1083,132 @@ public:
                 }
             }
 
+        }
 
+        Component* refreshComponentForRow(int rowNumber, bool /* isRowSelected */, Component *existingComponentToUpdate) override {
+            // We need to an edit action button.
+            if (rowNumber >= getNumRows()) {
+                return nullptr; // Ignore. Not making a component for a row that doesn't exist.
+            }
+            auto* alibcw = static_cast<ActionListItemButtonComponentWrapper*>(existingComponentToUpdate);
+            if (alibcw == nullptr) {
+                alibcw = new ActionListItemButtonComponentWrapper(*this);
+            }
+            alibcw->setIndexOfAction(rowNumber);
+
+            return alibcw;
         };
+
+        void editAction(int indexInVector) {
+            if (indexInVector >= getNumRows()) {
+                jassertfalse; // Attempted to access action in invalid index
+                return;
+            }
+            if (actionConstructors.size() != getNumRows()) {
+                actionConstructors.resize(getNumRows());
+            }
+            // In case the size hasn't been correctly updated, double check index is valid.
+            if (actionConstructors.size() <= indexInVector) {
+                jassertfalse; // This likely means your vector size hasn't been updated properly. You need to call updateSize().
+                return;
+            }
+
+            if (actionConstructors[indexInVector] != nullptr)
+                return;
+            if (actions[indexInVector] == nullptr)
+                return;
+            // Create new constructor window. Order of action vector MUST NOT CHANGE!
+            auto uuid = uuidGen.generate();
+            actionConstructors[indexInVector] = std::make_unique<OSCActionConstructor>(uuid, "Editing Cue Action",
+                *actions[indexInVector].get());
+            actionConstructorUUIDsToIndex[uuid] = indexInVector;
+            actionConstructors[indexInVector]->setParentListener(this);
+        }
+
+
+        void closeRequested(WindowType windowType, std::string uuid) override {
+            if (windowType != AppComponents_OSCActionConstructor) {
+                jassertfalse; // Listener only accepts attempted closes from OSC Action Constructors.
+                return;
+            }
+            auto it = actionConstructorUUIDsToIndex.find(uuid);
+            if (it == actionConstructorUUIDsToIndex.end()) {
+                jassertfalse; // UUID Not found
+                return;
+            }
+            if (it->second >= getNumRows() || it->second >= actionConstructors.size()) {
+                jassertfalse; // Somehow the index is out of range. You really need to lock in.
+                return;
+            }
+            // Now if the CueOSCAction is valid, set the new index.
+            auto &constructor = actionConstructors.at(it->second);
+            if (constructor == nullptr) {
+                jassertfalse; // Constructor is null. JUST HOW DID YOU MANAGE TO PULL THAT OFF
+                return;
+            }
+            auto compiledCCA = constructor->getCompiledCurrentCueAction();
+            if (compiledCCA.oat == EXIT_THREAD) {
+                // Indicates invalid action. Return, do nothing, but still reset the window.
+                actionConstructors[it->second].reset();
+                if (callbackUponChildWindowExit != nullptr)
+                    callbackUponChildWindowExit->rowRequiresUpdate(it->second);
+                return;
+            }
+            switch (compiledCCA.oat) {
+                case OAT_COMMAND: {
+                    actions[it->second].reset(new CueOSCAction(compiledCCA.oscAddress,
+                                                               compiledCCA.oatCommandOSCArgumentTemplate,
+                                                               compiledCCA.argument, compiledCCA.argumentTemplateID));
+                    break;
+                }
+                case OAT_FADE:{
+                    actions[it->second].reset(new CueOSCAction(compiledCCA.oscAddress, compiledCCA.fadeTime,
+                        compiledCCA.oscArgumentTemplate, compiledCCA.startValue, compiledCCA.endValue, compiledCCA.argumentTemplateID));
+                    break;
+                }
+            }
+            actionConstructors[it->second].reset();
+            if (callbackUponChildWindowExit != nullptr)
+                callbackUponChildWindowExit->rowRequiresUpdate(it->second);
+        }
+
     private:
         Font textFont = FontOptions(UICfg::DEFAULT_MONOSPACE_FONT_NAME, 1.f, Font::plain);
+        int lastSize { 0 };
+        UUIDGenerator uuidGen;
     };
 
-    class MainComp : public Component {
+
+    // Component to wrap the edit button for an Action List.
+    struct ActionListItemButtonComponentWrapper: public Component {
+    public:
+        ActionListItemButtonComponentWrapper(ActionListModel& owner): owner(owner) {
+            addAndMakeVisible(goToCueBtn);
+        };
+        void setIndexOfAction(size_t indx) {
+            goToCueBtn.onClick = [=]() {
+                owner.editAction(indx);
+            };
+        }
+        void paint(Graphics &g) override {};
+        void resized() override {
+            goToCueBtn.setBounds(getLocalBounds().removeFromLeft(getWidth() * 0.1f));
+        }
+
+    private:
+        GoToCueBtn goToCueBtn;
+        ActionListModel& owner;
+    };
+
+    class MainComp : public Component, public RowUpdateRequiredCallback {
     public:
         MainComp(const CurrentCueInfo& editThisCCI = CurrentCueInfo()) {
             setSize(1000, 800);
-            actionsListModel.actions.emplace_back("/ch/01/eq/1/type", 4.f, Channel::EQ_BAND_FREQ.NONITER, ValueStorer(20.f), ValueStorer(60.f));
-
+            actionsListModel.callbackUponChildWindowExit = this;
+            actionsListModel.actions.emplace_back(
+                std::make_unique<CueOSCAction>(
+                    "/ch/01/eq/1/type", 4.f, Channel::EQ_BAND_FREQ.NONITER, ValueStorer(20.f), ValueStorer(60.f), Channel::EQ_BAND_FREQ.ID));
+            actionsListModel.updateSize();
             actionsList.updateContent();
             uiInit();
             addAndMakeVisible(idInput);
@@ -1077,18 +1221,22 @@ public:
 
         ~MainComp() override { removeAllChildren(); }
 
+        void rowRequiresUpdate(int rowNum) override { actionsList.repaintRow(rowNum); };
+
         // All the component and children calls
         void uiInit() {
             idInput.setColour(TextEditor::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
             idInput.setColour(TextEditor::ColourIds::focusedOutlineColourId, UICfg::TEXT_ACCENTED_COLOUR);
             idInput.setColour(TextEditor::ColourIds::outlineColourId, UICfg::TEXT_COLOUR);
             idInput.setColour(TextEditor::ColourIds::textColourId, UICfg::TEXT_COLOUR);
+            idInput.setJustification(Justification::centredLeft);
             idInput.setTextToShowWhenEmpty("Enter Cue ID", UICfg::TEXT_COLOUR_DARK);
             idInput.setFont(inputFont);
             nameInput.setColour(TextEditor::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
             nameInput.setColour(TextEditor::ColourIds::focusedOutlineColourId, UICfg::TEXT_ACCENTED_COLOUR);
             nameInput.setColour(TextEditor::ColourIds::outlineColourId, UICfg::TEXT_COLOUR);
             nameInput.setColour(TextEditor::ColourIds::textColourId, UICfg::TEXT_COLOUR);
+            nameInput.setJustification(Justification::centredLeft);
             nameInput.setTextToShowWhenEmpty("Enter Cue Name", UICfg::TEXT_COLOUR_DARK);
             nameInput.setFont(inputFont);
             descInput.setColour(TextEditor::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
@@ -1096,6 +1244,7 @@ public:
             descInput.setColour(TextEditor::ColourIds::outlineColourId, UICfg::TEXT_COLOUR);
             descInput.setColour(TextEditor::ColourIds::textColourId, UICfg::TEXT_COLOUR);
             descInput.setTextToShowWhenEmpty("Enter Cue Description", UICfg::TEXT_COLOUR_DARK);
+            descInput.setJustification(Justification::topLeft);
             descInput.setFont(inputFont);
 
             actionsList.setColour(ListBox::ColourIds::backgroundColourId, UICfg::TRANSPARENT);

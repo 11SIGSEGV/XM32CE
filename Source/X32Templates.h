@@ -334,19 +334,19 @@ namespace Channel {
 
     // TODO: Some more to add!
     const XM32Template EQ_BAND_TYPE = {
-        "CEQBT", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "type"},
+        "CEQBT", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "/type"},
         EnumParam("chEqBandType", "EQ Band Type", "The type for the EQ Band", {"LCut", "LShv", "PEQ", "VEQ", "HShv", "HCut"})
     };
     const XM32Template EQ_BAND_FREQ = {
-        "CEQBF", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "f"},
+        "CEQBF", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "/f"},
         NonIter("chEqBandFreq", "EQ Band Frequency", "The frequency for the EQ Band", 20.f, LOGF, 20.f, 20000.f, HERTZ)
     };
     const XM32Template EQ_BAND_GAIN = {
-        "CEQBG", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "g"},
+        "CEQBG", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "/g"},
         NonIter("chEqBandGain", "EQ Band Gain", "The gain for the EQ Band", 0.f, LINF, -15.f, 15.f, DB)
     };
     const XM32Template EQ_BAND_QLTY = {
-        "CEQBQ", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "q"},
+        "CEQBQ", CH, {"/ch/", _channelNum, "/eq/", _eqBand, "/q"},
         NonIter("chEqBandQlty", "EQ Band Quality", "The quality for the EQ Band", 2.f, LOGF, 0.3f, 10.f, NONE, true)
     };
 
@@ -369,6 +369,7 @@ namespace Channel {
         GATE_FILTER_ON, GATE_FILTER_TYPE, GATE_FILTER_FREQ,
         DYN_ON, DYN_MODE, DYN_DET, DYN_ENV, DYN_THR, DYN_RATIO, DYN_KNEE, DYN_MGAIN, DYN_ATTACK,
         DYN_HOLD, DYN_RELEASE, DYN_POS, DYN_KEYSRC, DYN_MIX, DYN_AUTO, DYN_FILTER_ON, DYN_FILTER_TYPE, DYN_FILTER_FREQ,
+        EQ_BAND_TYPE, EQ_BAND_FREQ, EQ_BAND_GAIN, EQ_BAND_QLTY,
         ON, FADER
     };
 }

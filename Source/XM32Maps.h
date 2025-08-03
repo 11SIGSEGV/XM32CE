@@ -454,6 +454,9 @@ struct OptionParam {
             jassertfalse; // Cannot create OptionParam with no options
         }
     }
+
+    OptionParam(const OptionParam& other): name(other.name), verboseName(other.verboseName), description(other.description),
+    value(other.value), _meta_PARAMTYPE(other._meta_PARAMTYPE), _meta_UNIT(other._meta_UNIT), len(other.len) {}
 };
 
 
@@ -474,6 +477,10 @@ struct EnumParam {
             jassertfalse; // Cannot create EnumParam with no enumerators
         }
     }
+
+    EnumParam(const EnumParam& other)
+        : name(other.name), verboseName(other.verboseName), description(other.description),
+          value(other.value), _meta_PARAMTYPE(other._meta_PARAMTYPE), _meta_UNIT(other._meta_UNIT), len(other.len) {}
 
     bool isSimilar(const EnumParam& other) const {
         if (name == other.name && verboseName == other.verboseName && description == other.description &&
@@ -595,6 +602,14 @@ struct NonIter {
         defaultIntValue(defaultIntValue), intMin(intMin), intMax(intMax), defaultFloatValue(defaultFloatValue),
         floatMin(floatMin), floatMax(floatMax), defaultStringValue(defaultStringValue), _meta_PARAMTYPE(_meta_PARAMTYPE),
         _meta_UNIT(_meta_UNIT), normalisedInverted(normalisedFloatInverted) {}
+
+
+    NonIter(const NonIter& other)
+        : name(other.name), verboseName(other.verboseName), description(other.description),
+          defaultIntValue(other.defaultIntValue), intMin(other.intMin), intMax(other.intMax),
+          defaultFloatValue(other.defaultFloatValue), floatMin(other.floatMin), floatMax(other.floatMax),
+          normalisedInverted(other.normalisedInverted), defaultStringValue(other.defaultStringValue),
+          _meta_PARAMTYPE(other._meta_PARAMTYPE), _meta_UNIT(other._meta_UNIT) {}
 
     // Check if a float is valid. If the ParamType doesn't support float, returns false.
     bool valueIsValid(float val) const {

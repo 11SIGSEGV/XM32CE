@@ -57,6 +57,8 @@ OSCActionConstructor::MainComp::MainComp(const CueOSCAction& editThisAction) {
             inputValues.first.changeStore(editThisAction.argument);
         }
         uponValueStorerExternallyChanged(true, (editThisAction.oat == OAT_FADE));
+        pathFromEditThisAction = editThisAction.oscAddress.toString();
+        reconstructImage(); // To update pathFromEditThisAction.
     }
 }
 
@@ -548,6 +550,11 @@ void OSCActionConstructor::MainComp::reconstructImage() {
             addInPathArgLabel(*nonIter, pathBoxRemaining, fCopy, lblTxt, autoAddToOtherVectors);
         }
     }
+    // Now if we have a pathFromEditThisAction, note that in brackets.
+    if (pathFromEditThisAction.isNotEmpty()) {
+        g.setFont(g.getCurrentFont().getHeight() * 0.7f);
+        g.drawText(" (also using \"" + pathFromEditThisAction + "\")", pathBoxRemaining, Justification::centredLeft);
+    }
 }
 
 
@@ -692,6 +699,8 @@ void OSCActionConstructor::MainComp::uponNewTemplateSelected() {
     pathLabelInputTemplates.clear();
     pathLabelInputValues.clear();
     pathLabelFormattedValues.clear();
+    pathFromEditThisAction = ""; // Reset if user selects a new template. Can no longer use old path.
+
 
     // Also clear all inputs child components
     clearInputPair(faderInputs);
@@ -1522,32 +1531,55 @@ bool OSCActionConstructor::MainComp::currentActionIsValid() const {
 
 
     // Then check path.
+    bool canUsePathFromEditThisAction = pathFromEditThisAction.isNotEmpty();
+    if (canUsePathFromEditThisAction) {
+        // Test to check the path is valid.
+        try {
+            OSCAddressPattern _ {pathFromEditThisAction};
+        }
+        catch (OSCFormatError) { canUsePathFromEditThisAction = false; }
+    }
+
     size_t pathLabelInputsSize = pathLabelInputs.size();
 
-    if (pathLabelInputsSize != pathLabelInputValues.size() ||
-        pathLabelInputsSize != pathLabelInputTemplates.size() ||
-        pathLabelInputsSize != pathLabelFormattedValues.size()) {
-        jassertfalse; // Uh oh... someone forgot to make sure the 3 vectors were properly updated...
-        return false;
-    }
-    for (size_t i = 0; i < pathLabelInputsSize; i++) {
-        // Only need to check ValueStorers.
-        const NonIter& argTemplate = pathLabelInputTemplates.at(i);
-        switch (argTemplate._meta_PARAMTYPE) {
-            case INT: {
-                if (!argTemplate.valueIsValid(pathLabelFormattedValues.at(i).intValue))
+    if (pathLabelInputsSize == pathLabelInputValues.size() &&
+        pathLabelInputsSize == pathLabelInputTemplates.size() &&
+        pathLabelInputsSize == pathLabelFormattedValues.size()) {
+        bool lastWasInvalid { false };
+        for (size_t i = 0; i < pathLabelInputsSize; i++) {
+            // Only need to check ValueStorers.
+            const NonIter& argTemplate = pathLabelInputTemplates.at(i);
+            switch (argTemplate._meta_PARAMTYPE) {
+                case INT: {
+                    if (!argTemplate.valueIsValid(pathLabelFormattedValues.at(i).intValue))
+                        lastWasInvalid = true;
+                    break;
+                }
+                case STRING: {
+                    if (!argTemplate.valueIsValid(pathLabelFormattedValues.at(i).stringValue))
+                        lastWasInvalid = true;
+                    break;
+                }
+                default:
+                    jassertfalse; // Invalid option for in-path argument
+                    lastWasInvalid = false;
+                    break;
+            }
+            if (lastWasInvalid) {
+                if (!canUsePathFromEditThisAction) {
                     return false;
+                }
+                // Ok this forces us to use the path from edit this action since it's the only valid one.
+                usePathFromEditThisAction = true;
                 break;
             }
-            case STRING: {
-                if (!argTemplate.valueIsValid(pathLabelFormattedValues.at(i).stringValue))
-                    return false;
-                break;
-            }
-            default:
-                jassertfalse; // Invalid option for in-path argument
-                return false;
         }
+    } else {
+        jassertfalse; // Sizes of path input vectors do not match
+        if (!canUsePathFromEditThisAction)
+            return false;
+        // Forced to use pathFromEditThisAction
+        usePathFromEditThisAction = true;
     }
 
     // Now, check values.
@@ -1626,7 +1658,13 @@ CueOSCAction OSCActionConstructor::MainComp::getCueOSCAction() const {
         jassertfalse; // Bad copy
         return CueOSCAction(false);
     }
-    String path = OSCDeviceSender::fillInArgumentsOfEmbeddedPath(currentTemplateCopy->PATH,  pathLabelFormattedValues);
+    // Determine what to use for path
+    String path;
+    if (usePathFromEditThisAction) {
+        path = pathFromEditThisAction;
+    } else {
+        path = OSCDeviceSender::fillInArgumentsOfEmbeddedPath(currentTemplateCopy->PATH,  pathLabelFormattedValues);
+    }
     if (enableFadeCommandBtn.getToggleState()) {
         return CueOSCAction(
             path, lastValidFadeTime, currentTemplateCopy->NONITER, inputValues.first, inputValues.second, currentTemplateCopy->ID);
