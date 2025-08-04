@@ -1002,6 +1002,8 @@ public:
 
     class ActionListModel: public ListBoxModel, public ParentWindowListener {
     public:
+        Image editIcon{getIconImageFile(IconID::EDIT)};
+
         RowUpdateRequiredCallback* callbackUponChildWindowExit;
         std::vector<std::unique_ptr<CueOSCAction>> actions;
         std::unordered_map<std::string, int> actionConstructorUUIDsToIndex;
@@ -1013,18 +1015,23 @@ public:
 
         void paintListBoxItem(int rowNumber, Graphics &g, int width, int height, bool rowIsSelected) override {
             Rectangle<int> bounds {0, 0, width, height};
-            g.setColour(UICfg::TEXT_COLOUR);
+            g.setColour(UICfg::TEXT_COLOUR_DARK);
             g.drawRect(bounds);
+            g.setColour(UICfg::TEXT_COLOUR);
             auto widthTenths = width * 0.1f;
-            auto editBtnBox = bounds.removeFromLeft(widthTenths);
-            auto oatBox = bounds.removeFromLeft(widthTenths);
+            auto editBtnBox = bounds.removeFromLeft(widthTenths * 0.7f);
+            auto oatBox = bounds.removeFromLeft(widthTenths * 0.8f);
             auto pathBox = bounds.removeFromLeft(widthTenths * 3);
             auto valuesBox = bounds;
 
+
+            g.setColour(UICfg::TEXT_COLOUR);
             // auto currentAction = &actions[rowNumber];
             if (actions[rowNumber] == nullptr) {
                 return; // Invalid action
             }
+
+            g.drawImage(editIcon, editBtnBox.reduced(editBtnBox.getWidth() * UICfg::STD_PADDING * 4).toFloat(), RectanglePlacement::centred);
             auto currentAction = *actions[rowNumber].get();
             g.setColour(UICfg::TEXT_COLOUR);
             g.setFont(textFont.withHeight(height * 0.5f));
@@ -1229,14 +1236,14 @@ public:
             idInput.setColour(TextEditor::ColourIds::focusedOutlineColourId, UICfg::TEXT_ACCENTED_COLOUR);
             idInput.setColour(TextEditor::ColourIds::outlineColourId, UICfg::TEXT_COLOUR);
             idInput.setColour(TextEditor::ColourIds::textColourId, UICfg::TEXT_COLOUR);
-            idInput.setJustification(Justification::centredLeft);
+            idInput.setJustification(Justification::topLeft);
             idInput.setTextToShowWhenEmpty("Enter Cue ID", UICfg::TEXT_COLOUR_DARK);
             idInput.setFont(inputFont);
             nameInput.setColour(TextEditor::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
             nameInput.setColour(TextEditor::ColourIds::focusedOutlineColourId, UICfg::TEXT_ACCENTED_COLOUR);
             nameInput.setColour(TextEditor::ColourIds::outlineColourId, UICfg::TEXT_COLOUR);
             nameInput.setColour(TextEditor::ColourIds::textColourId, UICfg::TEXT_COLOUR);
-            nameInput.setJustification(Justification::centredLeft);
+            nameInput.setJustification(Justification::topLeft);
             nameInput.setTextToShowWhenEmpty("Enter Cue Name", UICfg::TEXT_COLOUR_DARK);
             nameInput.setFont(inputFont);
             descInput.setColour(TextEditor::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
@@ -1274,7 +1281,7 @@ public:
             idBounds.removeFromTop(topBoxHeightTenths);
             idInputBounds = idBounds;
             idInput.setBounds(idInputBounds);
-            auto fontSize = idInputBounds.getHeight() * 0.6f;
+            auto fontSize = idInputBounds.getHeight() * 0.5f;
             idInput.setFont(inputFont.withHeight(fontSize));
             // .setText checks that the newText != self.getText().
             // So first set the TextEditor to a blank string, then to the previous string.
@@ -1302,7 +1309,7 @@ public:
             descBounds.removeFromTop(topBoxHeightTenths);
             descInputBounds = descBounds;
             descInput.setBounds(descInputBounds);
-            descInput.setFont(inputFont.withHeight(fontSize * 0.7f));
+            descInput.setFont(inputFont.withHeight(fontSize * 0.8f));
             String descInputStr = descInput.getText();
             descInput.setText("");
             descInput.setText(descInputStr);
@@ -1310,6 +1317,7 @@ public:
             // Do similarly for action list.
             actionsTitle = actionBounds.removeFromTop(topBoxHeightTenths * 4);
             actionBounds.removeFromTop(topBoxHeightTenths);
+            actionsHeader = actionBounds.removeFromTop(topBoxHeightTenths * 5);
             actionsListBounds = actionBounds;
             actionsList.setBounds(actionsListBounds);
             actionsList.setRowHeight(topBoxHeightTenths * 5);
@@ -1331,6 +1339,19 @@ public:
             g.drawText("Name", nameTitle, Justification::centredLeft);
             g.drawText("Description", descTitle, Justification::centredLeft);
             g.drawText("Actions", actionsTitle, Justification::centredLeft);
+
+            auto widthTenths = actionsHeader.getWidth() * 0.1f;
+            auto bounds = actionsHeader;
+            auto editBtnBox = bounds.removeFromLeft(widthTenths * 0.7f);
+            auto oatBox = bounds.removeFromLeft(widthTenths * 0.8f);
+            auto pathBox = bounds.removeFromLeft(widthTenths * 3);
+            auto valuesBox = bounds;
+            g.setColour(UICfg::TEXT_COLOUR_DARK);
+            g.setFont(inputFont.withHeight(editBtnBox.getHeight() * 0.5f).boldened());
+            g.drawText("Edit", editBtnBox, Justification::centredLeft);
+            g.drawText("Type", oatBox, Justification::centredLeft);
+            g.drawText("Address", pathBox, Justification::centredLeft);
+            g.drawText("Arguments", valuesBox, Justification::centredLeft);
         };
 
         // Checks if values and child CueOSCActions are suitable for creating a valid CCI
@@ -1351,6 +1372,7 @@ public:
         Rectangle<int> descTitle;
         Rectangle<int> descInputBounds;
         Rectangle<int> actionsTitle;
+        Rectangle<int> actionsHeader;
         Rectangle<int> actionsListBounds;
 
 

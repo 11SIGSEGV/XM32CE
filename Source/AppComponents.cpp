@@ -86,10 +86,12 @@ void OSCActionConstructor::MainComp::uiInit() {
     okBtn.setColour(TextButton::ColourIds::buttonColourId, UICfg::POSITIVE_BUTTON_COLOUR);
     okBtn.setColour(TextButton::ColourIds::buttonOnColourId, UICfg::POSITIVE_DOWN_BUTTON_COLOUR);
     okBtn.setColour(TextButton::ColourIds::textColourOnId, UICfg::TEXT_COLOUR);
+    okBtn.setHasFocusOutline(false);
     cancelBtn.setButtonText("Cancel");
     cancelBtn.setColour(TextButton::ColourIds::buttonColourId, UICfg::NEGATIVE_BUTTON_COLOUR);
     cancelBtn.setColour(TextButton::ColourIds::buttonOnColourId, UICfg::NEGATIVE_DOWN_BUTTON_COLOUR);
     cancelBtn.setColour(TextButton::ColourIds::textColourOnId, UICfg::TEXT_COLOUR);
+    cancelBtn.setHasFocusOutline(false);
     addAndMakeVisible(okBtn);
     addAndMakeVisible(cancelBtn);
     okBtn.addListener(this);
@@ -499,7 +501,7 @@ void OSCActionConstructor::MainComp::reconstructImage() {
     // Let's handle the path/inputs!
     g.setFont(font);
     g.setFont(fontSize);
-    g.drawText("Path", pathTitleBox, Justification::centredLeft);
+    g.drawText("Address", pathTitleBox, Justification::centredLeft);
 
     // We need to reset the inputs upon a reconstruction.
     // HOWEVER, everything else stays.
