@@ -1003,13 +1003,13 @@ public:
 
     class ActionListModel: public ListBoxModel, public ParentWindowListener {
     public:
-        ~ActionListModel() {
-            for (auto comp: componentsThatMayNeedToBeFreed) {
-                if (comp != nullptr) {
-                    delete comp;
-                }
-            }
-        }
+        // ~ActionListModel() {
+        //     for (auto comp: componentsThatMayNeedToBeFreed) {
+        //         if (comp != nullptr) {
+        //             delete comp;
+        //         }
+        //     }
+        // }
         Image editIcon{getIconImageFile(IconID::EDIT)};
         Image deleteIcon{getIconImageFile(IconID::DELETE)};
 
@@ -1017,7 +1017,7 @@ public:
         std::vector<std::unique_ptr<CueOSCAction>> actions;
         std::unordered_map<std::string, int> actionConstructorUUIDsToIndex;
         std::vector<std::unique_ptr<OSCActionConstructor>> actionConstructors;
-        std::vector<Component*> componentsThatMayNeedToBeFreed;
+        // std::vector<Component*> componentsThatMayNeedToBeFreed;
 
 
         void updateSize() { lastSize = static_cast<int>(actions.size()); }
@@ -1106,7 +1106,7 @@ public:
 
         }
 
-        Component* refreshComponentForRow(int rowNumber, bool /* isRowSelected */, Component *existingComponentToUpdate) override {
+        Component* refreshComponentForRow(const int rowNumber, bool /* isRowSelected */, Component *existingComponentToUpdate) override {
             // We need to an edit action button.
             if (rowNumber >= getNumRows()) {
                 return nullptr; // Ignore. Not making a component for a row that doesn't exist.
@@ -1115,21 +1115,20 @@ public:
                 return nullptr;
             }
             // DBG(String(rowNumber));
-            auto* alibcw = static_cast<ActionListItemButtonComponentWrapper*>(existingComponentToUpdate);
+            auto* alibcw = dynamic_cast<ActionListItemButtonComponentWrapper*>(existingComponentToUpdate);
             if (alibcw == nullptr) {
-                if (existingComponentToUpdate != nullptr) {
-                    componentsThatMayNeedToBeFreed.erase(std::remove(componentsThatMayNeedToBeFreed.begin(), componentsThatMayNeedToBeFreed.end(), existingComponentToUpdate), componentsThatMayNeedToBeFreed.end());
-                    delete existingComponentToUpdate;
-                }
+                // componentsThatMayNeedToBeFreed.erase(std::remove(componentsThatMayNeedToBeFreed.begin(), componentsThatMayNeedToBeFreed.end(), existingComponentToUpdate), componentsThatMayNeedToBeFreed.end());
+                delete existingComponentToUpdate;
+
                 alibcw = new ActionListItemButtonComponentWrapper(*this);
-                componentsThatMayNeedToBeFreed.push_back(alibcw);
+                // componentsThatMayNeedToBeFreed.push_back(alibcw);
             }
 
             alibcw->setIndexOfAction(rowNumber, actions[rowNumber]->ID);
             return alibcw;
         };
 
-        void editAction(int indexInVector) {
+        void editAction(const int indexInVector) {
             if (indexInVector >= getNumRows()) {
                 jassertfalse; // Attempted to access action in invalid index
                 return;
