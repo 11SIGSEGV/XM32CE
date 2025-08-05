@@ -998,7 +998,7 @@ public:
     void removeParentListener() { registeredListener = nullptr; }
 
     // Returns the proper CCI from the user input. If invalid, returns an invalid CCI.
-    CurrentCueInfo getCompiledCurrentCueAction() const;
+    [[nodiscard]] CurrentCueInfo getCompiledCurrentCueAction() const;
 
 
     class ActionListModel: public ListBoxModel, public ParentWindowListener {
@@ -1066,6 +1066,9 @@ public:
                         case _GENERIC_FLOAT:
                             valueText = String(currentAction.argument.floatValue) + " (f)";
                             break;
+                        default:
+                            jassertfalse; // Invalid ParamType for ValueStorer
+                            break;
                     }
                     g.drawText(valueText, valuesBox, Justification::centredLeft);
                     break;
@@ -1084,6 +1087,9 @@ public:
                         case _GENERIC_FLOAT:
                             startValueText = String(currentAction.startValue.floatValue) + " (f) >>";
                             break;
+                        default:
+                            jassertfalse; // Invalid ParamType for fading actions
+                            break;
                     }
                     switch (currentAction.endValue._meta_PARAMTYPE) {
                         case INT:
@@ -1091,6 +1097,9 @@ public:
                             break;
                         case _GENERIC_FLOAT:
                             endValueText = String(currentAction.endValue.floatValue) + " (f)";
+                            break;
+                        default:
+                            jassertfalse; // Invalid ParamType for fading actions
                             break;
                     }
                     g.drawText(String(currentAction.fadeTime, 2)+"s", fadeTimeBox, Justification::centredLeft);
@@ -1109,6 +1118,7 @@ public:
         Component* refreshComponentForRow(const int rowNumber, bool /* isRowSelected */, Component *existingComponentToUpdate) override {
             // We need to an edit action button.
             if (rowNumber >= getNumRows()) {
+                delete existingComponentToUpdate;
                 return nullptr; // Ignore. Not making a component for a row that doesn't exist.
             }
             if (actions[rowNumber] == nullptr) {
@@ -1124,7 +1134,7 @@ public:
                 // componentsThatMayNeedToBeFreed.push_back(alibcw);
             }
 
-            alibcw->setIndexOfAction(rowNumber, actions[rowNumber]->ID);
+            alibcw->setIndexOfAction(rowNumber);
             return alibcw;
         };
 
@@ -1154,13 +1164,12 @@ public:
             actionConstructors[indexInVector]->setParentListener(this);
         }
 
-        void deleteAction(int indexInVector, const std::string &expectUUID) {
+        void deleteAction(int indexInVector) {
             if (indexInVector >= getNumRows()) {
                 jassertfalse;
                 return;
             }
-            // Expect UUID as .onClick lambda often sends duplicate calls
-            if (actions[indexInVector] == nullptr || actions[indexInVector]->ID != expectUUID) {
+            if (actions[indexInVector] == nullptr) {
                 return;
             }
             if (actionConstructors.size() > indexInVector) {
@@ -1232,17 +1241,17 @@ public:
     // Component to wrap the edit button for an Action List.
     struct ActionListItemButtonComponentWrapper: public Component {
     public:
-        ActionListItemButtonComponentWrapper(ActionListModel& owner): owner(owner)
+        explicit ActionListItemButtonComponentWrapper(ActionListModel& owner): owner(owner)
         {
             addAndMakeVisible(goToCueBtn);
             addAndMakeVisible(deleteBtn);
         };
-        void setIndexOfAction(size_t indx, std::string newUUID) {
+        void setIndexOfAction(const size_t indx) {
             goToCueBtn.onClick = [=]() {
                 owner.editAction(indx);
             };
             deleteBtn.onClick = [=]() {
-                owner.deleteAction(indx, newUUID);
+                owner.deleteAction(indx);
             };
         }
         void paint(Graphics &g) override {};
@@ -1261,7 +1270,7 @@ public:
 
     class MainComp : public Component, public RowUpdateRequiredCallback {
     public:
-        MainComp(const CurrentCueInfo& editThisCCI = CurrentCueInfo()) {
+        explicit MainComp(const CurrentCueInfo& editThisCCI = CurrentCueInfo()) {
             setSize(1000, 800);
             actionsListModel.callbackUponChildWindowExit = this;
             actionsListModel.actions.emplace_back(
