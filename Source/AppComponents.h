@@ -965,13 +965,13 @@ class OSCCCIConstructor : public DocumentWindow {
 public:
     class RowUpdateRequiredCallback {
         public:
-        virtual ~RowUpdateRequiredCallback() {}
+        virtual ~RowUpdateRequiredCallback() = default;
         virtual void rowRequiresUpdate(int rowNum) = 0;
         virtual void updateEntireList() = 0;
     };
 
     // When provided an editThisCCI, each CurrentCueInfo must be specified with CueOSCActions carrying valid UUIDs.
-    explicit OSCCCIConstructor(const std::string &uuid, String name = "Cue Constructor", const CurrentCueInfo& editThisCCI = CurrentCueInfo()) : DocumentWindow(name,
+    explicit OSCCCIConstructor(const std::string &uuid, const String &name = "Cue Constructor", const CurrentCueInfo& editThisCCI = CurrentCueInfo()) : DocumentWindow(name,
         UICfg::BG_COLOUR,
         allButtons), uuid(uuid) {
         centreWithSize(1000, 800);
@@ -986,9 +986,19 @@ public:
         if (mainComponent == nullptr) {
             return;
         }
+        goodCCI = mainComponent->exitWasGraceful();
+        if (registeredListener != nullptr) {
+            registeredListener->closeRequested(ParentWindowListener::AppComponents_OSCCCIConstructor, uuid);
+        }
         // Temporary for testing
-        JUCEApplication::getInstance()->systemRequestedQuit();
+        // JUCEApplication::getInstance()->systemRequestedQuit();
+    }
 
+    CurrentCueInfo getCompiledCCI() const {
+        if (!goodCCI || mainComponent == nullptr) {
+            return CurrentCueInfo();
+        }
+        return mainComponent->getCCI();
     }
 
     void setParentListener(ParentWindowListener *lstnr) {
@@ -1022,6 +1032,12 @@ public:
 
         void updateSize() { lastSize = static_cast<int>(actions.size()); }
 
+        void clearAllChildren() {
+            for (auto& constructor: actionConstructors) {
+                constructor.reset();
+            }
+            actionConstructorUUIDsToIndex.clear();
+        }
 
         int getNumRows() override { return lastSize; }
 
@@ -1108,7 +1124,7 @@ public:
                     break;
                 }
                 case EXIT_THREAD: {
-                    g.drawText("EXIT", oatBox, Justification::centredLeft);
+                    g.drawText("BLANK", oatBox, Justification::centredLeft);
                     break;
                 }
             }
@@ -1138,13 +1154,33 @@ public:
             return alibcw;
         };
 
-        void addAction(std::unique_ptr<CueOSCAction> action = nullptr) {
-            if (action == nullptr) {
+        void addAction(const CueOSCAction &action = CueOSCAction(false)) {
+            if (action.oat == EXIT_THREAD) {
                 actions.push_back(std::make_unique<CueOSCAction>(false)); // Create blank invalid action
             } else {
-                actions.push_back(action);
+                switch (action.oat) {
+                    case OAT_COMMAND: {
+                        actions.emplace_back(new CueOSCAction(action.oscAddress,
+                                                              action.oatCommandOSCArgumentTemplate,
+                                                              action.argument, action.argumentTemplateID));
+                        break;
+                    }
+                    case OAT_FADE: {
+                        actions.emplace_back(new CueOSCAction(action.oscAddress, action.fadeTime,
+                                                              action.oscArgumentTemplate, action.startValue,
+                                                              action.endValue, action.argumentTemplateID));
+                        break;
+                    }
+                    default: {
+                        jassertfalse; // Invalid OAT
+                        return;
+                    }
+                }
             }
             updateSize();
+            if (callbackUponChildWindowExit != nullptr) {
+                callbackUponChildWindowExit->updateEntireList();
+            }
         }
 
         void editAction(const int indexInVector) {
@@ -1277,7 +1313,8 @@ public:
         ActionListModel& owner;
     };
 
-    class MainComp : public Component, public RowUpdateRequiredCallback {
+
+    class MainComp : public Component, public RowUpdateRequiredCallback, public Button::Listener {
     public:
         explicit MainComp(const CurrentCueInfo& editThisCCI = CurrentCueInfo()) {
             setSize(1000, 800);
@@ -1302,6 +1339,8 @@ public:
             addAndMakeVisible(nameInput);
             addAndMakeVisible(descInput);
             addAndMakeVisible(actionsList);
+            addAndMakeVisible(addActionBtn);
+            addActionBtn.addListener(this);
             // Required as for some reason, the texteditor input size is for some reason cooked upon init.
             resized();
         };
@@ -1311,6 +1350,55 @@ public:
         void rowRequiresUpdate(int rowNum) override { actionsList.repaintRow(rowNum); };
         void updateEntireList() override {
             actionsList.updateContent();
+        }
+
+        bool currentCCIIsValid() const {
+            if (idInput.getText().isEmpty())
+                return false;
+            if (nameInput.getText().isEmpty())
+                return false;
+            for (auto& action: actionsListModel.actions) {
+                if (action == nullptr || action->oat == EXIT_THREAD)
+                    return false;
+            }
+            return true;
+        }
+
+        // Returns a CurrentCueInfo. Expects currentCCIIsValid to be true. Theoretically should never return an invalid CCI.
+        CurrentCueInfo getCCI() {
+            std::vector<CueOSCAction> actions;
+            for (int i = 0; i < actionsListModel.actions.size(); ++i) {
+                if (actionsListModel.actions[i] == nullptr) {continue;}
+                actions.push_back(std::move(*actionsListModel.actions[i]));
+            }
+            return {idInput.getText(), nameInput.getText(), descInput.getText(), actions};
+        }
+
+        void buttonStateChanged(Button *) override {}
+
+        void buttonClicked(Button *btn) override {
+            if (btn == &addActionBtn) {
+                actionsListModel.addAction();
+                return;
+            }
+            if (btn == &okBtn) {
+                if (!currentCCIIsValid()) {
+                    AlertWindow::showMessageBoxAsync(AlertWindow::WarningIcon, "Invalid Inputs",
+                        "Cannot construct cue as some values are still invalid.\n(Hint: all actions must also be valid and cannot be blank)",
+                        "Ok", this);
+                    return;
+                }
+                gracefulExit = true;
+                exitModalState();
+                getParentComponent()->userTriedToCloseWindow();
+                return;
+            }
+            if (btn == &cancelBtn) {
+                exitModalState();
+                getParentComponent()->userTriedToCloseWindow();
+                return;
+            }
+            jassertfalse; // Invalid option
         };
 
         // All the component and children calls
@@ -1340,6 +1428,21 @@ public:
             actionsList.setColour(ListBox::ColourIds::backgroundColourId, UICfg::TRANSPARENT);
             actionsList.setColour(ListBox::ColourIds::outlineColourId, UICfg::TRANSPARENT);
             actionsList.setColour(ListBox::ColourIds::textColourId, UICfg::TEXT_COLOUR);
+
+            okBtn.setButtonText("Ok");
+            okBtn.setColour(TextButton::ColourIds::buttonColourId, UICfg::POSITIVE_BUTTON_COLOUR);
+            okBtn.setColour(TextButton::ColourIds::buttonOnColourId, UICfg::POSITIVE_DOWN_BUTTON_COLOUR);
+            okBtn.setColour(TextButton::ColourIds::textColourOnId, UICfg::TEXT_COLOUR);
+            okBtn.setHasFocusOutline(false);
+            cancelBtn.setButtonText("Cancel");
+            cancelBtn.setColour(TextButton::ColourIds::buttonColourId, UICfg::NEGATIVE_BUTTON_COLOUR);
+            cancelBtn.setColour(TextButton::ColourIds::buttonOnColourId, UICfg::NEGATIVE_DOWN_BUTTON_COLOUR);
+            cancelBtn.setColour(TextButton::ColourIds::textColourOnId, UICfg::TEXT_COLOUR);
+            cancelBtn.setHasFocusOutline(false);
+            addAndMakeVisible(okBtn);
+            addAndMakeVisible(cancelBtn);
+            okBtn.addListener(this);
+            cancelBtn.addListener(this);
         };
 
         void resized() override {
@@ -1352,6 +1455,7 @@ public:
             bounds.removeFromTop(padding);
             auto descBounds = bounds.removeFromTop(heightTenths * 1.5f);
             bounds.removeFromTop(padding);
+            auto btnBounds = bounds.removeFromBottom(heightTenths * 0.6f);
             auto actionBounds = bounds;
 
             // We'll use this height across top, center and bottom boxes for consistency for heights
@@ -1399,14 +1503,25 @@ public:
 
             // Do similarly for action list.
             actionsTitle = actionBounds.removeFromTop(topBoxHeightTenths * 4);
+            newActionBtnBounds = actionsTitle.removeFromRight(actionsTitle.getWidth() * 0.1f);
+            addActionBtn.setBounds(newActionBtnBounds);
             actionBounds.removeFromTop(topBoxHeightTenths);
             actionsHeader = actionBounds.removeFromTop(topBoxHeightTenths * 5);
             actionsListBounds = actionBounds;
             actionsList.setBounds(actionsListBounds);
             actionsList.setRowHeight(topBoxHeightTenths * 5);
 
+            // Now for Ok and Cancel Buttons
+            auto paddingBetweenBtns = btnBounds.getWidth() * UICfg::STD_PADDING;
+            auto btnWidth = btnBounds.getWidth() * 0.1f;
+            okBtnBounds = btnBounds.removeFromRight(btnWidth);
+            okBtn.setBounds(okBtnBounds);
+            btnBounds.removeFromRight(paddingBetweenBtns); // Padding
+            cancelBtnBounds = btnBounds.removeFromRight(btnWidth);
+            cancelBtn.setBounds(cancelBtnBounds);
+
             reconstructImage();
-        };
+        }
 
         void paint(Graphics &g) override {
             g.drawImage(bgImage, getLocalBounds().toFloat());
@@ -1437,10 +1552,12 @@ public:
             g.drawText("Type", oatBox, Justification::centredLeft);
             g.drawText("Address", pathBox, Justification::centredLeft);
             g.drawText("Arguments", valuesBox, Justification::centredLeft);
+
+            g.drawImage(plusIcon,
+                newActionBtnBounds.toFloat().reduced(std::min(newActionBtnBounds.getWidth(),
+                    newActionBtnBounds.getHeight()) * 0.2f), RectanglePlacement::centred);
         };
 
-        // Checks if values and child CueOSCActions are suitable for creating a valid CCI
-        bool currentCCIIsValid() const;
 
         // Returns a CCI. Expects currentCCIIsValid to be true. Returns an invalid CCI if invalid
         CurrentCueInfo getCCI() const;
@@ -1457,17 +1574,23 @@ public:
         Rectangle<int> descTitle;
         Rectangle<int> descInputBounds;
         Rectangle<int> actionsTitle;
+        Rectangle<int> newActionBtnBounds;
         Rectangle<int> actionsHeader;
         Rectangle<int> actionsListBounds;
+        Rectangle<int> okBtnBounds;
+        Rectangle<int> cancelBtnBounds;
 
+        TextButton okBtn;
+        TextButton cancelBtn;
 
         TextEditor idInput;
         TextEditor nameInput;
         TextEditor descInput;
         ActionListModel actionsListModel;
         ListBox actionsList {"", &actionsListModel};
-        ShapeButton addCueBtn {"", UICfg::TRANSPARENT, UICfg::TRANSPARENT, UICfg::TRANSPARENT};
+        ShapeButton addActionBtn {"", UICfg::TRANSPARENT, UICfg::TRANSPARENT, UICfg::TRANSPARENT};
 
+        Image plusIcon{getIconImageFile(IconID::PLUS)};
         Image bgImage;
 
         Font titleFont = FontOptions(UICfg::DEFAULT_SANS_SERIF_FONT_NAME, 1.f, Font::bold);
@@ -1486,5 +1609,3 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OSCCCIConstructor)
 };
-
-//I HATE NIGGAS

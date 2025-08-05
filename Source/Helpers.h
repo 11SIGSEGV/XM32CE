@@ -140,6 +140,7 @@ namespace IconID {
     constexpr int PLAY = 4;
     constexpr int EDIT = 5;
     constexpr int DELETE = 6;
+    constexpr int PLUS = 7;
 }
 
 
@@ -150,6 +151,7 @@ inline const std::unordered_map<int, std::string> ICON_FILE_MAP = {
     {IconID::OCTAGON, "octagon.png"},
     {IconID::EDIT, "edit.png"},
     {IconID::DELETE, "delete.png"},
+    {IconID::PLUS, "plus.png"},
 };
 
 

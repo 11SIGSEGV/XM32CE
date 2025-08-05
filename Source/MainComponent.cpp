@@ -331,6 +331,13 @@ void MainComponent::closeRequested(WindowType windowType, std::string uuid) {
         }
         case AppComponents_OSCCCIConstructor:
             // TODO: Implement
+            auto it = cciConstructorWindows.find(uuid);
+            if (it == cciConstructorWindows.end()) {
+                jassertfalse; // Invalid window close request passed on improperly registered parent component
+                return;
+            }
+            auto cci = it->second->getCompiledCCI();
+            cciConstructorWindows.erase(uuid);
             break;
     }
 }
