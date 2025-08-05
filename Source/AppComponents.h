@@ -1138,6 +1138,15 @@ public:
             return alibcw;
         };
 
+        void addAction(std::unique_ptr<CueOSCAction> action = nullptr) {
+            if (action == nullptr) {
+                actions.push_back(std::make_unique<CueOSCAction>(false)); // Create blank invalid action
+            } else {
+                actions.push_back(action);
+            }
+            updateSize();
+        }
+
         void editAction(const int indexInVector) {
             if (indexInVector >= getNumRows()) {
                 jassertfalse; // Attempted to access action in invalid index
@@ -1457,6 +1466,7 @@ public:
         TextEditor descInput;
         ActionListModel actionsListModel;
         ListBox actionsList {"", &actionsListModel};
+        ShapeButton addCueBtn {"", UICfg::TRANSPARENT, UICfg::TRANSPARENT, UICfg::TRANSPARENT};
 
         Image bgImage;
 
@@ -1476,3 +1486,5 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OSCCCIConstructor)
 };
+
+//I HATE NIGGAS
