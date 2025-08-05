@@ -70,9 +70,9 @@ inline UUIDGenerator uuidGen;
 
 
 namespace UICfg {
-    const String DEFAULT_SANS_SERIF_FONT_NAME = Font::getDefaultSansSerifFontName();
-    const String DEFAULT_SERIF_FONT_NAME = Font::getDefaultSerifFontName();
-    const String DEFAULT_MONOSPACE_FONT_NAME = Font::getDefaultMonospacedFontName();
+    const String DEFAULT_SANS_SERIF_FONT_NAME = "Public Sans"/*Font::getDefaultSansSerifFontName()*/;
+    const String DEFAULT_SERIF_FONT_NAME = "Public Sans"/*Font::getDefaultSerifFontName()*/;
+    const String DEFAULT_MONOSPACE_FONT_NAME = "JetBrains Mono"/*Font::getDefaultMonospacedFontName()*/;
     constexpr int DEFAULT_TEXT_HEIGHT = 100;
     const Font DEFAULT_FONT = FontOptions(DEFAULT_SANS_SERIF_FONT_NAME, static_cast<float>(DEFAULT_TEXT_HEIGHT),
                                           Font::plain);
@@ -139,6 +139,7 @@ namespace IconID {
     constexpr int STOP = OCTAGON;
     constexpr int PLAY = 4;
     constexpr int EDIT = 5;
+    constexpr int DELETE = 6;
 }
 
 
@@ -148,6 +149,7 @@ inline const std::unordered_map<int, std::string> ICON_FILE_MAP = {
     {IconID::PLAY, "play.png"},
     {IconID::OCTAGON, "octagon.png"},
     {IconID::EDIT, "edit.png"},
+    {IconID::DELETE, "delete.png"},
 };
 
 

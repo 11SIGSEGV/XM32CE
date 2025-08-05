@@ -17,228 +17,234 @@ copied from master/range.hpp (c3b7a35)
 #include <iterator>
 #include <type_traits>
 
-namespace util { namespace lang {
+namespace util {
+    namespace lang {
+        namespace detail {
+            template<typename T>
+            struct range_iter_base : std::iterator<std::input_iterator_tag, T> {
+                range_iter_base(T current) : current(current) {
+                }
 
-namespace detail {
+                T operator *() const { return current; }
 
-template <typename T>
-struct range_iter_base : std::iterator<std::input_iterator_tag, T> {
-    range_iter_base(T current) : current(current) { }
+                T const *operator ->() const { return &current; }
 
-    T operator *() const { return current; }
+                range_iter_base &operator ++() {
+                    ++current;
+                    return *this;
+                }
 
-    T const* operator ->() const { return &current; }
+                range_iter_base operator ++(int) {
+                    auto copy = *this;
+                    ++*this;
+                    return copy;
+                }
 
-    range_iter_base& operator ++() {
-        ++current;
-        return *this;
-    }
+                bool operator ==(range_iter_base const &other) const {
+                    return current == other.current;
+                }
 
-    range_iter_base operator ++(int) {
-        auto copy = *this;
-        ++*this;
-        return copy;
-    }
+                bool operator !=(range_iter_base const &other) const {
+                    return not(*this == other);
+                }
 
-    bool operator ==(range_iter_base const& other) const {
-        return current == other.current;
-    }
+            protected:
+                T current;
+            };
+        } // namespace detail
 
-    bool operator !=(range_iter_base const& other) const {
-        return not (*this == other);
-    }
+        template<typename T>
+        struct step_range_proxy {
+            struct iterator : detail::range_iter_base<T> {
+                iterator(T current, T step)
+                    : detail::range_iter_base<T>(current), step_(step) {
+                }
 
-protected:
-    T current;
-};
+                using detail::range_iter_base<T>::current;
 
-} // namespace detail
+                iterator &operator ++() {
+                    current += step_;
+                    return *this;
+                }
 
-template <typename T>
-struct step_range_proxy {
-    struct iterator : detail::range_iter_base<T> {
-        iterator(T current, T step)
-            : detail::range_iter_base<T>(current), step_(step) { }
+                iterator operator ++(int) {
+                    auto copy = *this;
+                    ++*this;
+                    return copy;
+                }
 
-        using detail::range_iter_base<T>::current;
+                // Loses commutativity. Iterator-based ranges are simply broken. :-(
+                bool operator ==(iterator const &other) const {
+                    return step_ > 0
+                               ? current >= other.current
+                               : current < other.current;
+                }
 
-        iterator& operator ++() {
-            current += step_;
-            return *this;
+                bool operator !=(iterator const &other) const {
+                    return not(*this == other);
+                }
+
+                T step_;
+            };
+
+            step_range_proxy(T begin, T end, T step)
+                : begin_(begin, step), end_(end, step) {
+            }
+
+            iterator begin() const { return begin_; }
+
+            iterator end() const { return end_; }
+
+            std::size_t size() const {
+                if (*end_ >= *begin_) {
+                    // Increasing and empty range
+                    if (begin_.step_ < T{0}) return 0;
+                } else {
+                    // Decreasing range
+                    if (begin_.step_ > T{0}) return 0;
+                }
+                return std::ceil(std::abs(static_cast<double>(*end_ - *begin_) / begin_.step_));
+            }
+
+        private:
+            iterator begin_;
+            iterator end_;
+        };
+
+        template<typename T>
+        struct range_proxy {
+            struct iterator : detail::range_iter_base<T> {
+                iterator(T current) : detail::range_iter_base<T>(current) {
+                }
+            };
+
+            range_proxy(T begin, T end) : begin_(begin), end_(end) {
+            }
+
+            step_range_proxy<T> step(T step) {
+                return {*begin_, *end_, step};
+            }
+
+            iterator begin() const { return begin_; }
+
+            iterator end() const { return end_; }
+
+            std::size_t size() const { return *end_ - *begin_; }
+
+        private:
+            iterator begin_;
+            iterator end_;
+        };
+
+        template<typename T>
+        struct step_inf_range_proxy {
+            struct iterator : detail::range_iter_base<T> {
+                iterator(T current = T(), T step = T())
+                    : detail::range_iter_base<T>(current), step(step) {
+                }
+
+                using detail::range_iter_base<T>::current;
+
+                iterator &operator ++() {
+                    current += step;
+                    return *this;
+                }
+
+                iterator operator ++(int) {
+                    auto copy = *this;
+                    ++*this;
+                    return copy;
+                }
+
+                bool operator ==(iterator const &) const { return false; }
+
+                bool operator !=(iterator const &) const { return true; }
+
+            private:
+                T step;
+            };
+
+            step_inf_range_proxy(T begin, T step) : begin_(begin, step) {
+            }
+
+            iterator begin() const { return begin_; }
+
+            iterator end() const { return iterator(); }
+
+        private:
+            iterator begin_;
+        };
+
+        template<typename T>
+        struct infinite_range_proxy {
+            struct iterator : detail::range_iter_base<T> {
+                iterator(T current = T()) : detail::range_iter_base<T>(current) {
+                }
+
+                bool operator ==(iterator const &) const { return false; }
+
+                bool operator !=(iterator const &) const { return true; }
+            };
+
+            infinite_range_proxy(T begin) : begin_(begin) {
+            }
+
+            step_inf_range_proxy<T> step(T step) {
+                return {*begin_, step};
+            }
+
+            iterator begin() const { return begin_; }
+
+            iterator end() const { return iterator(); }
+
+        private:
+            iterator begin_;
+        };
+
+        template<typename T, typename U>
+        auto range(T begin, U end) -> range_proxy<typename std::common_type<T, U>::type> {
+            using C = typename std::common_type<T, U>::type;
+            return {static_cast<C>(begin), static_cast<C>(end)};
         }
 
-        iterator operator ++(int) {
-            auto copy = *this;
-            ++*this;
-            return copy;
+        template<typename T>
+        infinite_range_proxy<T> range(T begin) {
+            return {begin};
         }
 
-        // Loses commutativity. Iterator-based ranges are simply broken. :-(
-        bool operator ==(iterator const& other) const {
-            return step_ > 0 ? current >= other.current
-                             : current < other.current;
+        namespace traits {
+            template<typename C>
+            struct has_size {
+                template<typename T>
+                static auto check(T *) ->
+                    typename std::is_integral<
+                        decltype(std::declval<T const>().size())>::type;
+
+                template<typename>
+                static auto check(...) -> std::false_type;
+
+                using type = decltype(check<C>(0));
+                static constexpr bool value = type::value;
+            };
+        } // namespace traits
+
+        template<typename C, typename = typename std::enable_if<traits::has_size<C>::value> >
+        auto indices(C const &cont) -> range_proxy<decltype(cont.size())> {
+            return {0, cont.size()};
         }
 
-        bool operator !=(iterator const& other) const {
-            return not (*this == other);
+        template<typename T, std::size_t N>
+        range_proxy<std::size_t> indices(T (&)[N]) {
+            return {0, N};
         }
 
-        T step_;
-    };
-
-    step_range_proxy(T begin, T end, T step)
-        : begin_(begin, step), end_(end, step) { }
-
-    iterator begin() const { return begin_; }
-
-    iterator end() const { return end_; }
-
-    std::size_t size() const {
-        if (*end_ >= *begin_) {
-            // Increasing and empty range
-            if (begin_.step_ < T{0}) return 0;
-        } else {
-            // Decreasing range
-            if (begin_.step_ > T{0}) return 0;
+        template<typename T>
+        range_proxy<typename std::initializer_list<T>::size_type>
+        indices(std::initializer_list<T> &&cont) {
+            return {0, cont.size()};
         }
-        return std::ceil(std::abs(static_cast<double>(*end_ - *begin_) / begin_.step_));
     }
-
-private:
-    iterator begin_;
-    iterator end_;
-};
-
-template <typename T>
-struct range_proxy {
-    struct iterator : detail::range_iter_base<T> {
-        iterator(T current) : detail::range_iter_base<T>(current) { }
-    };
-
-    range_proxy(T begin, T end) : begin_(begin), end_(end) { }
-
-    step_range_proxy<T> step(T step) {
-        return {*begin_, *end_, step};
-    }
-
-    iterator begin() const { return begin_; }
-
-    iterator end() const { return end_; }
-
-    std::size_t size() const { return *end_ - *begin_; }
-
-private:
-    iterator begin_;
-    iterator end_;
-};
-
-template <typename T>
-struct step_inf_range_proxy {
-    struct iterator : detail::range_iter_base<T> {
-        iterator(T current = T(), T step = T())
-            : detail::range_iter_base<T>(current), step(step) { }
-
-        using detail::range_iter_base<T>::current;
-
-        iterator& operator ++() {
-            current += step;
-            return *this;
-        }
-
-        iterator operator ++(int) {
-            auto copy = *this;
-            ++*this;
-            return copy;
-        }
-
-        bool operator ==(iterator const&) const { return false; }
-
-        bool operator !=(iterator const&) const { return true; }
-
-    private:
-        T step;
-    };
-
-    step_inf_range_proxy(T begin, T step) : begin_(begin, step) { }
-
-    iterator begin() const { return begin_; }
-
-    iterator end() const { return  iterator(); }
-
-private:
-    iterator begin_;
-};
-
-template <typename T>
-struct infinite_range_proxy {
-    struct iterator : detail::range_iter_base<T> {
-        iterator(T current = T()) : detail::range_iter_base<T>(current) { }
-
-        bool operator ==(iterator const&) const { return false; }
-
-        bool operator !=(iterator const&) const { return true; }
-    };
-
-    infinite_range_proxy(T begin) : begin_(begin) { }
-
-    step_inf_range_proxy<T> step(T step) {
-        return {*begin_, step};
-    }
-
-    iterator begin() const { return begin_; }
-
-    iterator end() const { return iterator(); }
-
-private:
-    iterator begin_;
-};
-
-template <typename T, typename U>
-auto range(T begin, U end) -> range_proxy<typename std::common_type<T, U>::type> {
-    using C = typename std::common_type<T, U>::type;
-    return {static_cast<C>(begin), static_cast<C>(end)};
-}
-
-template <typename T>
-infinite_range_proxy<T> range(T begin) {
-    return {begin};
-}
-
-namespace traits {
-
-template <typename C>
-struct has_size {
-    template <typename T>
-    static auto check(T*) ->
-        typename std::is_integral<
-            decltype(std::declval<T const>().size())>::type;
-
-    template <typename>
-    static auto check(...) -> std::false_type;
-
-    using type = decltype(check<C>(0));
-    static constexpr bool value = type::value;
-};
-
-} // namespace traits
-
-template <typename C, typename = typename std::enable_if<traits::has_size<C>::value>>
-auto indices(C const& cont) -> range_proxy<decltype(cont.size())> {
-    return {0, cont.size()};
-}
-
-template <typename T, std::size_t N>
-range_proxy<std::size_t> indices(T (&)[N]) {
-    return {0, N};
-}
-
-template <typename T>
-range_proxy<typename std::initializer_list<T>::size_type>
-indices(std::initializer_list<T>&& cont) {
-    return {0, cont.size()};
-}
-
-} } // namespace util::lang
+} // namespace util::lang
 
 #endif // ndef UTIL_LANG_RANGE_HPP
 
@@ -252,7 +258,7 @@ indices(std::initializer_list<T>&& cont) {
 #include <queue>
 
 // Thread-safe queue
-template <typename T>
+template<typename T>
 class TSQueue {
 private:
     // Underlying queue
@@ -266,9 +272,7 @@ private:
 
 public:
     // Pushes an element to the queue
-    void push(T item)
-    {
-
+    void push(T item) {
         // Acquire lock
         std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -281,9 +285,7 @@ public:
     }
 
     // Pops an element off the queue
-    T pop()
-    {
-
+    T pop() {
         // acquire lock
         std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -299,8 +301,7 @@ public:
         return item;
     }
 
-    bool empty()
-    {
+    bool empty() {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_queue.empty();
     }
@@ -310,9 +311,9 @@ public:
 
 #ifndef ROUND
 #define ROUND
+
 template<class T>
-static T Round(T a)
-{
+static T Round(T a) {
     static_assert(std::is_floating_point<T>::value, "Round<T>: T must be floating point");
 
     return (a > 0) ? ::floor(a + static_cast<T>(0.5)) : ::ceil(a - static_cast<T>(0.5));
@@ -352,7 +353,7 @@ static const char hex_chars_lookup[] = "0123456789abcdef";
  * @param out_buf A pointer to a character buffer where the two hex characters
  * will be written. It must have space for at least 2 characters.
  */
-inline void byteToHexChars(uint8_t byte, char* out_buf) {
+inline void byteToHexChars(uint8_t byte, char *out_buf) {
     // Extract the higher nibble (4 bits) and use it as an index into hex_chars_lookup.
     out_buf[0] = hex_chars_lookup[(byte >> 4) & 0x0F];
     // Extract the lower nibble (4 bits) and use it as an index.
@@ -391,12 +392,13 @@ public:
         // A UUID consists of 16 bytes.
         std::array<uint8_t, 16> uuid_bytes;
 
-        // Use a uniform_int_distribution to generate random bytes (0-255).
-        std::uniform_int_distribution<uint8_t> dist;
+        // The C++ standard library does not allow uint8_t for uniform_int_distribution.
+        // The fix is to use a larger integer type (like int) and cast the result.
+        std::uniform_int_distribution<int> dist(0, 255);
 
         // Fill all 16 bytes of the UUID with random data.
         for (int i = 0; i < 16; ++i) {
-            uuid_bytes[i] = dist(rand_engine_);
+            uuid_bytes[i] = static_cast<uint8_t>(dist(rand_engine_));
         }
 
         // --- Apply UUID version (4) and variant (RFC 4122) bits ---
@@ -463,27 +465,30 @@ private:
 
 // Your item-data container must inherit from this, and override at least the first
 // four member functions.
-struct DraggableListBoxItemData
-{
+struct DraggableListBoxItemData {
     virtual ~DraggableListBoxItemData() = 0;
 
     virtual int getNumItems() = 0;
-    virtual void paintContents(int, Graphics&, Rectangle<int>) = 0;
+
+    virtual void paintContents(int, Graphics &, Rectangle<int>) = 0;
 
     virtual void moveBefore(int indexOfItemToMove, int indexOfItemToPlaceBefore) = 0;
+
     virtual void moveAfter(int indexOfItemToMove, int indexOfItemToPlaceAfter) = 0;
 
     // If you need a dynamic list, override these functions as well.
-    virtual void deleteItem(int /*indexOfItemToDelete*/) {};
-    virtual void addItemAtEnd() {};
+    virtual void deleteItem(int /*indexOfItemToDelete*/) {
+    };
+
+    virtual void addItemAtEnd() {
+    };
 };
 
 // DraggableListBox is basically just a ListBox, that inherits from DragAndDropContainer.
 // Declare your list box using this type.
-class DraggableListBox : public ListBox, public DragAndDropContainer
-{
-    public:
-    DraggableListBox() {setColour(backgroundColourId, Colour(0.f, 0.f, 0.f, 0.f));}
+class DraggableListBox : public ListBox, public DragAndDropContainer {
+public:
+    DraggableListBox() { setColour(backgroundColourId, Colour(0.f, 0.f, 0.f, 0.f)); }
 
     void dragOperationEnded(const DragAndDropTarget::SourceDetails &src) override {
         repaint(); // Buttons are not always reset upon a drag end, so manually repaint().
@@ -491,34 +496,43 @@ class DraggableListBox : public ListBox, public DragAndDropContainer
 };
 
 // Everything below this point should be generic.
-class DraggableListBoxItem : public Component, public DragAndDropTarget
-{
+class DraggableListBoxItem : public Component, public DragAndDropTarget {
 public:
-    DraggableListBoxItem(DraggableListBox& lb, DraggableListBoxItemData& data, int rn)
-        : rowNum(rn), modelData(data), listBox(lb)  {}
+    DraggableListBoxItem(DraggableListBox &lb, DraggableListBoxItemData &data, int rn)
+        : rowNum(rn), modelData(data), listBox(lb) {
+    }
 
     // Component
-    void paint(Graphics& g) override;
-    void mouseEnter(const MouseEvent&) override;
-    void mouseExit(const MouseEvent&) override;
-    void mouseDrag(const MouseEvent&) override;
+    void paint(Graphics &g) override;
+
+    void mouseEnter(const MouseEvent &) override;
+
+    void mouseExit(const MouseEvent &) override;
+
+    void mouseDrag(const MouseEvent &) override;
 
     // DragAndDropTarget
-    bool isInterestedInDragSource(const SourceDetails&) override { return true; }
-    void itemDragEnter(const SourceDetails&) override;
-    void itemDragMove(const SourceDetails&) override;
-    void itemDragExit(const SourceDetails&) override;
-    void itemDropped(const SourceDetails&) override;
+    bool isInterestedInDragSource(const SourceDetails &) override { return true; }
+
+    void itemDragEnter(const SourceDetails &) override;
+
+    void itemDragMove(const SourceDetails &) override;
+
+    void itemDragExit(const SourceDetails &) override;
+
+    void itemDropped(const SourceDetails &) override;
+
     bool shouldDrawDragImageWhenOver() override { return true; }
 
     // DraggableListBoxItem
 protected:
     void updateInsertLines(const SourceDetails &dragSourceDetails);
+
     void hideInsertLines();
 
     int rowNum;
-    DraggableListBoxItemData& modelData;
-    DraggableListBox& listBox;
+    DraggableListBoxItemData &modelData;
+    DraggableListBox &listBox;
 
     MouseCursor savedCursor;
     bool insertAfter = false;
@@ -526,16 +540,18 @@ protected:
     Image prerendered;
 };
 
-class DraggableListBoxModel : public ListBoxModel
-{
+class DraggableListBoxModel : public ListBoxModel {
 public:
-    DraggableListBoxModel(DraggableListBox& lb, DraggableListBoxItemData& md)
-        : listBox(lb), modelData(md) {}
+    DraggableListBoxModel(DraggableListBox &lb, DraggableListBoxItemData &md)
+        : listBox(lb), modelData(md) {
+    }
 
     int getNumRows() override { return modelData.getNumItems(); }
-    void paintListBoxItem(int, Graphics &, int, int, bool) override {}
 
-    Component* refreshComponentForRow(int, bool, Component*) override;
+    void paintListBoxItem(int, Graphics &, int, int, bool) override {
+    }
+
+    Component *refreshComponentForRow(int, bool, Component *) override;
 
 protected:
     // Draggable model has a reference to its owner ListBox, so it can tell it to update after DnD.
@@ -543,10 +559,9 @@ protected:
 
     // It also has a reference to the model data, which it uses to get the current items count,
     // and which it passes to the DraggableListBoxItem objects it creates/updates.
-    DraggableListBoxItemData& modelData;
+    DraggableListBoxItemData &modelData;
 };
 #endif
-
 
 
 #ifndef Constants
@@ -563,10 +578,11 @@ namespace NumericLimits {
 
 #ifndef miscellanouesutils
 #define miscellaneousutils
-template <typename KeyType, typename ValueType>
-std::optional<KeyType> findKeyByValue(const std::map<KeyType, ValueType>& myMap, const ValueType& targetValue) {
+
+template<typename KeyType, typename ValueType>
+std::optional<KeyType> findKeyByValue(const std::map<KeyType, ValueType> &myMap, const ValueType &targetValue) {
     auto it = std::find_if(myMap.begin(), myMap.end(),
-                           [&](const std::pair<const KeyType, ValueType>& pair) {
+                           [&](const std::pair<const KeyType, ValueType> &pair) {
                                return pair.second == targetValue;
                            });
 
@@ -576,10 +592,11 @@ std::optional<KeyType> findKeyByValue(const std::map<KeyType, ValueType>& myMap,
     return std::nullopt; // Value not found
 }
 
-template <typename KeyType, typename ValueType>
-std::optional<KeyType> findKeyByValue(const std::unordered_map<KeyType, ValueType>& myMap, const ValueType& targetValue) {
+template<typename KeyType, typename ValueType>
+std::optional<KeyType> findKeyByValue(const std::unordered_map<KeyType, ValueType> &myMap,
+                                      const ValueType &targetValue) {
     auto it = std::find_if(myMap.begin(), myMap.end(),
-                           [&](const std::pair<const KeyType, ValueType>& pair) {
+                           [&](const std::pair<const KeyType, ValueType> &pair) {
                                return pair.second == targetValue;
                            });
 

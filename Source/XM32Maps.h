@@ -382,7 +382,7 @@ enum ParamType {
     LINF, LOGF, ENUM, STRING, INT,
     LEVEL_1024, LEVEL_161, BITSET, OPTION,
     _GENERIC_FLOAT, // ONLY TO BE USED IN ValueStorer. Used for metadata to let OSC Message Constructor know which datatype to use
-    _BLANK // ONLY TO BE USED IN NonIter and ValueStorer acting as nullptr-equivalent for OSCMessageArguments
+    BLANK // ONLY TO BE USED IN NonIter and ValueStorer acting as nullptr-equivalent for OSCMessageArguments
 };
 
 
@@ -401,7 +401,7 @@ struct ValueStorer {
     ValueStorer(int intValue): intValue(intValue), _meta_PARAMTYPE(INT) {};
     ValueStorer(float floatValue): floatValue(floatValue), _meta_PARAMTYPE(_GENERIC_FLOAT) {};
     ValueStorer(const std::string &stringValue): stringValue(stringValue), _meta_PARAMTYPE(STRING) {};
-    ValueStorer(): _meta_PARAMTYPE(_BLANK) {}; // Used for NonIter, acting as nullptr-equivalent for OSCMessageArguments
+    ValueStorer(): _meta_PARAMTYPE(BLANK) {}; // Used for NonIter, acting as nullptr-equivalent for OSCMessageArguments
 
     void changeStore(int newIntValue) {
         intValue = newIntValue;
@@ -429,7 +429,7 @@ struct ValueStorer {
         intValue = 0;
         floatValue = 0.f;
         stringValue = "";
-        _meta_PARAMTYPE = _BLANK;
+        _meta_PARAMTYPE = BLANK;
     }
 };
 
@@ -591,7 +591,7 @@ struct NonIter {
     intMax((maxLen == -1) ? STD_STRING_SIZE_LIMIT: maxLen), _meta_UNIT(unit) {}
 
     // Blank
-    NonIter(): name(""), verboseName(""), description(""), _meta_PARAMTYPE(_BLANK), _meta_UNIT(NONE) {}
+    NonIter(): name(""), verboseName(""), description(""), _meta_PARAMTYPE(BLANK), _meta_UNIT(NONE) {}
 
     // Custom constructor. Just saying, if you can only create a NonIter via this overload, you're probably doing
     // something wrong.

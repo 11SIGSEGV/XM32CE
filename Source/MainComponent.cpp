@@ -102,8 +102,8 @@ void MainComponent::resized() {
     auto editBox = cueListHeaderBoxCopy;
 
     g.drawText("No", numBox.reduced(padding), Justification::centred, true);
-    g.drawText("ID", idBox.reduced(padding), Justification::centredLeft, true);
-    g.drawText("Name", nameBox.reduced(padding), Justification::centredLeft, true);
+    g.drawText("Cue ID", idBox.reduced(padding), Justification::centredLeft, true);
+    g.drawText("Cue Name", nameBox.reduced(padding), Justification::centredLeft, true);
     g.drawText("#A", numberOfActionsBox.reduced(padding), Justification::centred, true);
     g.drawText("Status", stateBox.reduced(padding), Justification::centred, true);
     g.drawText("Edit", editBox.reduced(padding), Justification::centred, true);
@@ -578,7 +578,7 @@ String CCIActionList::getWidthAdjustedArgumentValueString(const ValueStorer &val
         case LEVEL_161:
         case BITSET:
         case OPTION:
-        case _BLANK:
+        case BLANK:
             jassertfalse; // Why are you passing invalid types here?
             break;
     }
@@ -912,7 +912,7 @@ void CCISidePanel::constructImage() {
     Graphics sII(stoppedIndicatorImage);
 
     sII.fillAll(UICfg::NEGATIVE_BUTTON_COLOUR);
-    sII.setFont(monospaceFont);
+    sII.setFont(textFont);
     sII.setFont(stoppedPlayingIndicatorBoxHeight * 0.6);
     sII.setColour(UICfg::TEXT_COLOUR);
     sII.drawFittedText("STOPPED",
@@ -1075,7 +1075,7 @@ void HeaderBar::reconstructButtonBackgroundImage() {
     gBG.drawRect(playBox, 1);
 
     // For STOP and PLAY buttons, we need text labels
-    gBG.setFont(UICfg::DEFAULT_MONOSPACE_FONT.withHeight(stopButtonTextBox.getHeight()));
+    gBG.setFont(UICfg::DEFAULT_MONOSPACE_FONT.withHeight(stopButtonTextBox.getHeight()).boldened());
     gBG.setColour(stopEnabled ? UICfg::TEXT_COLOUR: UICfg::TEXT_COLOUR_DARK);
     gBG.drawFittedText("STOP", stopButtonTextBox.toNearestInt(), Justification::centredLeft, 1);
     gBG.setColour(playEnabled ? UICfg::TEXT_COLOUR: UICfg::TEXT_COLOUR_DARK);
@@ -1137,7 +1137,7 @@ void HeaderBar::reconstructImage() {
 
 
     // Now, let's draw the Showname, CueID and CueNo.
-    g.setFont(UICfg::DEFAULT_MONOSPACE_FONT);
+    g.setFont(UICfg::DEFAULT_MONOSPACE_FONT.boldened());
     g.setFont(fontSize);
     g.setColour(UICfg::TEXT_COLOUR);
 

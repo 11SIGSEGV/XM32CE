@@ -658,7 +658,7 @@ void OSCActionConstructor::MainComp::comboBoxChanged(ComboBox *comboBoxThatHasCh
         return;
     }
 
-    if (currentParamType == _BLANK) {
+    if (currentParamType == BLANK) {
         jassertfalse; // Cannot select new input method for blank ParamType
         return;
     }
@@ -716,7 +716,7 @@ void OSCActionConstructor::MainComp::uponNewTemplateSelected() {
 
     // By this stage, fadeCommandEnabled should still be false.
     // Let's set the allowed input methods dropdown
-    if (currentParamType == _BLANK) {
+    if (currentParamType == BLANK) {
         jassertfalse; // ...I TOLD YOU ALREADY, YOU CAN'T USE THESE!
         return;
     }
@@ -780,7 +780,7 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
         return;
     }
     // ReSharper disable once CppDFAConstantConditions
-    if (currentParamType == _BLANK) {
+    if (currentParamType == BLANK) {
         // Ok... we don't want to touch this. There is something wrong.
         jassertfalse; // A valid ParamType is needed to reconstruct the component's inputs
         return;
@@ -796,7 +796,7 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
         switch (firstInputMethod) {
             case FADER: {
                 faderInputs.first.reset(new Fader(currentTemplateCopy->NONITER));
-                if (inputValues.first._meta_PARAMTYPE != _BLANK) {
+                if (inputValues.first._meta_PARAMTYPE != BLANK) {
                     // Check if the value is valid
                     switch (inputValues.first._meta_PARAMTYPE) {
                         case _GENERIC_FLOAT: {
@@ -866,7 +866,7 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
             }
             case TEXTBOX: {
                 textInputs.first.reset(new TextEditorWrapper(currentTemplateCopy->NONITER));
-                if (inputValues.first._meta_PARAMTYPE != _BLANK) {
+                if (inputValues.first._meta_PARAMTYPE != BLANK) {
                     switch (inputValues.first._meta_PARAMTYPE) {
                         case _GENERIC_FLOAT: {
                             if (currentTemplateCopy->NONITER.valueIsValid(inputValues.first.floatValue)) {
@@ -909,7 +909,7 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
         switch (secondInputMethod) {
             case FADER: {
                 faderInputs.second.reset(new Fader(currentTemplateCopy->NONITER));
-                if (inputValues.second._meta_PARAMTYPE != _BLANK) {
+                if (inputValues.second._meta_PARAMTYPE != BLANK) {
                     switch (inputValues.second._meta_PARAMTYPE) {
                         case _GENERIC_FLOAT: {
                             if (currentTemplateCopy->NONITER.valueIsValid(inputValues.second.floatValue)) {
@@ -975,7 +975,7 @@ void OSCActionConstructor::MainComp::uponNewInputMethodSelected(bool updateFirst
             }
             case TEXTBOX: {
                 textInputs.second.reset(new TextEditorWrapper(currentTemplateCopy->NONITER));
-                if (inputValues.second._meta_PARAMTYPE != _BLANK) {
+                if (inputValues.second._meta_PARAMTYPE != BLANK) {
                     switch (inputValues.second._meta_PARAMTYPE) {
                         case _GENERIC_FLOAT: {
                             if (currentTemplateCopy->NONITER.valueIsValid(inputValues.second.floatValue)) {
@@ -1524,7 +1524,7 @@ void OSCActionConstructor::MainComp::clearCurrentInputMethod(bool first, bool se
 
 bool OSCActionConstructor::MainComp::currentActionIsValid() const {
     if (currentTemplateCopy == nullptr ||
-        inputValues.first._meta_PARAMTYPE == _BLANK) {
+        inputValues.first._meta_PARAMTYPE == BLANK) {
         return false;
     }
     // First check fade time

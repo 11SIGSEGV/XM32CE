@@ -18,7 +18,7 @@ public:
     GoToCueBtn(): Button("") {}
     void paintButton(Graphics &g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override {};
     void clicked() override { onClick(); };
-    void clicked(const ModifierKeys &modifiers) override { onClick(); };
+    void clicked(const ModifierKeys &modifiers) override { };
     void buttonStateChanged() override {};
     void paint(Graphics &g) override {};
     void paintOverChildren(Graphics &g) override {};
@@ -844,7 +844,7 @@ public:
 
         int indexOfLastTemplateSelected = -1; // Used as dropdown tends to send unnecessary comboBoxChanged callbacks
         std::unique_ptr<XM32Template> currentTemplateCopy;
-        ParamType currentParamType {_BLANK};
+        ParamType currentParamType {BLANK};
         TemplateCategory currentCategory;
 
         std::unordered_map<int, TemplateCategory> dDitemIDtoCategory; // Dropdown item ID to XM32 Template Category
@@ -934,7 +934,7 @@ public:
             {OPTION, {DROPDOWN}},
             {BITSET, {BUTTON_ARRAY}},
             {STRING, {TEXTBOX}},
-            {_BLANK, {}}
+            {BLANK, {}}
         };
         const std::unordered_map<InputMethod, String> INPUT_METHOD_NAME = {
             {FADER, "Fader"},
@@ -967,6 +967,7 @@ public:
         public:
         virtual ~RowUpdateRequiredCallback() {}
         virtual void rowRequiresUpdate(int rowNum) = 0;
+        virtual void updateEntireList() = 0;
     };
 
     // When provided an editThisCCI, each CurrentCueInfo must be specified with CueOSCActions carrying valid UUIDs.
@@ -1002,14 +1003,25 @@ public:
 
     class ActionListModel: public ListBoxModel, public ParentWindowListener {
     public:
+        ~ActionListModel() {
+            for (auto comp: componentsThatMayNeedToBeFreed) {
+                if (comp != nullptr) {
+                    delete comp;
+                }
+            }
+        }
         Image editIcon{getIconImageFile(IconID::EDIT)};
+        Image deleteIcon{getIconImageFile(IconID::DELETE)};
 
         RowUpdateRequiredCallback* callbackUponChildWindowExit;
         std::vector<std::unique_ptr<CueOSCAction>> actions;
         std::unordered_map<std::string, int> actionConstructorUUIDsToIndex;
         std::vector<std::unique_ptr<OSCActionConstructor>> actionConstructors;
+        std::vector<Component*> componentsThatMayNeedToBeFreed;
+
 
         void updateSize() { lastSize = static_cast<int>(actions.size()); }
+
 
         int getNumRows() override { return lastSize; }
 
@@ -1020,6 +1032,7 @@ public:
             g.setColour(UICfg::TEXT_COLOUR);
             auto widthTenths = width * 0.1f;
             auto editBtnBox = bounds.removeFromLeft(widthTenths * 0.7f);
+            auto deleteBtnBox = bounds.removeFromLeft(widthTenths * 0.7f);
             auto oatBox = bounds.removeFromLeft(widthTenths * 0.8f);
             auto pathBox = bounds.removeFromLeft(widthTenths * 3);
             auto valuesBox = bounds;
@@ -1032,6 +1045,7 @@ public:
             }
 
             g.drawImage(editIcon, editBtnBox.reduced(editBtnBox.getWidth() * UICfg::STD_PADDING * 4).toFloat(), RectanglePlacement::centred);
+            g.drawImage(deleteIcon, deleteBtnBox.reduced(deleteBtnBox.getWidth() * UICfg::STD_PADDING * 4).toFloat(), RectanglePlacement::centred);
             auto currentAction = *actions[rowNumber].get();
             g.setColour(UICfg::TEXT_COLOUR);
             g.setFont(textFont.withHeight(height * 0.5f));
@@ -1097,12 +1111,21 @@ public:
             if (rowNumber >= getNumRows()) {
                 return nullptr; // Ignore. Not making a component for a row that doesn't exist.
             }
+            if (actions[rowNumber] == nullptr) {
+                return nullptr;
+            }
+            // DBG(String(rowNumber));
             auto* alibcw = static_cast<ActionListItemButtonComponentWrapper*>(existingComponentToUpdate);
             if (alibcw == nullptr) {
+                if (existingComponentToUpdate != nullptr) {
+                    componentsThatMayNeedToBeFreed.erase(std::remove(componentsThatMayNeedToBeFreed.begin(), componentsThatMayNeedToBeFreed.end(), existingComponentToUpdate), componentsThatMayNeedToBeFreed.end());
+                    delete existingComponentToUpdate;
+                }
                 alibcw = new ActionListItemButtonComponentWrapper(*this);
+                componentsThatMayNeedToBeFreed.push_back(alibcw);
             }
-            alibcw->setIndexOfAction(rowNumber);
 
+            alibcw->setIndexOfAction(rowNumber, actions[rowNumber]->ID);
             return alibcw;
         };
 
@@ -1130,6 +1153,27 @@ public:
                 *actions[indexInVector].get());
             actionConstructorUUIDsToIndex[uuid] = indexInVector;
             actionConstructors[indexInVector]->setParentListener(this);
+        }
+
+        void deleteAction(int indexInVector, const std::string &expectUUID) {
+            if (indexInVector >= getNumRows()) {
+                jassertfalse;
+                return;
+            }
+            // Expect UUID as .onClick lambda often sends duplicate calls
+            if (actions[indexInVector] == nullptr || actions[indexInVector]->ID != expectUUID) {
+                return;
+            }
+            if (actionConstructors.size() > indexInVector) {
+                actionConstructors.erase(std::next(actionConstructors.begin(), indexInVector));
+            }
+            // Erase in actionConstructor and actions
+            actions.erase(std::next(actions.begin(), indexInVector));
+            updateSize();
+
+            if (callbackUponChildWindowExit != nullptr)
+                callbackUponChildWindowExit->updateEntireList();
+
         }
 
 
@@ -1189,21 +1233,30 @@ public:
     // Component to wrap the edit button for an Action List.
     struct ActionListItemButtonComponentWrapper: public Component {
     public:
-        ActionListItemButtonComponentWrapper(ActionListModel& owner): owner(owner) {
+        ActionListItemButtonComponentWrapper(ActionListModel& owner): owner(owner)
+        {
             addAndMakeVisible(goToCueBtn);
+            addAndMakeVisible(deleteBtn);
         };
-        void setIndexOfAction(size_t indx) {
+        void setIndexOfAction(size_t indx, std::string newUUID) {
             goToCueBtn.onClick = [=]() {
                 owner.editAction(indx);
+            };
+            deleteBtn.onClick = [=]() {
+                owner.deleteAction(indx, newUUID);
             };
         }
         void paint(Graphics &g) override {};
         void resized() override {
-            goToCueBtn.setBounds(getLocalBounds().removeFromLeft(getWidth() * 0.1f));
+            auto bounds = getLocalBounds();
+            goToCueBtn.setBounds(bounds.removeFromLeft(getWidth() * 0.07f));
+            deleteBtn.setBounds(bounds.removeFromLeft(getWidth() * 0.07f));
         }
 
     private:
+        // std::string uuid;
         GoToCueBtn goToCueBtn;
+        GoToCueBtn deleteBtn;
         ActionListModel& owner;
     };
 
@@ -1214,7 +1267,17 @@ public:
             actionsListModel.callbackUponChildWindowExit = this;
             actionsListModel.actions.emplace_back(
                 std::make_unique<CueOSCAction>(
-                    "/ch/01/eq/1/type", 4.f, Channel::EQ_BAND_FREQ.NONITER, ValueStorer(20.f), ValueStorer(60.f), Channel::EQ_BAND_FREQ.ID));
+                    "/ch/01/eq/1/f", 4.f, Channel::EQ_BAND_FREQ.NONITER, ValueStorer(20.f), ValueStorer(60.f), Channel::EQ_BAND_FREQ.ID));
+            actionsListModel.actions.emplace_back(
+                std::make_unique<CueOSCAction>(
+                    "/ch/01/eq/1/type", Channel::EQ_BAND_TYPE.NONITER, ValueStorer(2), Channel::EQ_BAND_TYPE.ID));
+            actionsListModel.actions.emplace_back(
+                std::make_unique<CueOSCAction>(
+                    "/ch/01/eq/1/q", Channel::EQ_BAND_QLTY.NONITER, ValueStorer(8.f), Channel::EQ_BAND_QLTY.ID));
+            actionsListModel.actions.emplace_back(
+                std::make_unique<CueOSCAction>(
+                    "/ch/01/eq/1/g", Channel::EQ_BAND_GAIN.NONITER, ValueStorer(2.f), Channel::EQ_BAND_GAIN.ID));
+
             actionsListModel.updateSize();
             actionsList.updateContent();
             uiInit();
@@ -1229,6 +1292,9 @@ public:
         ~MainComp() override { removeAllChildren(); }
 
         void rowRequiresUpdate(int rowNum) override { actionsList.repaintRow(rowNum); };
+        void updateEntireList() override {
+            actionsList.updateContent();
+        };
 
         // All the component and children calls
         void uiInit() {
@@ -1343,12 +1409,14 @@ public:
             auto widthTenths = actionsHeader.getWidth() * 0.1f;
             auto bounds = actionsHeader;
             auto editBtnBox = bounds.removeFromLeft(widthTenths * 0.7f);
+            auto delBtnBox = bounds.removeFromLeft(widthTenths * 0.7f);
             auto oatBox = bounds.removeFromLeft(widthTenths * 0.8f);
             auto pathBox = bounds.removeFromLeft(widthTenths * 3);
             auto valuesBox = bounds;
             g.setColour(UICfg::TEXT_COLOUR_DARK);
             g.setFont(inputFont.withHeight(editBtnBox.getHeight() * 0.5f).boldened());
-            g.drawText("Edit", editBtnBox, Justification::centredLeft);
+            g.drawText("Edit", editBtnBox, Justification::centred);
+            g.drawText("Del", delBtnBox, Justification::centred);
             g.drawText("Type", oatBox, Justification::centredLeft);
             g.drawText("Address", pathBox, Justification::centredLeft);
             g.drawText("Arguments", valuesBox, Justification::centredLeft);
