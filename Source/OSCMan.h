@@ -19,6 +19,9 @@ struct OSCDevice {
     String ipAddress;
     int port{};
     String deviceName;
+
+    OSCDevice(const String& ipAddress, int port, const String& deviceName): ipAddress(ipAddress), port(port), deviceName(deviceName) {}
+    OSCDevice() {}
 };
 
 
@@ -44,6 +47,19 @@ public:
 
     ~OSCDeviceSender();
 
+    void setNewDevice(const OSCDevice& device) {
+        if (device.deviceName.isEmpty()) {
+            this->ipAddress = "127.0.0.1";
+            this->port = 10023;
+            this->deviceName = "LocalX32";
+            connect();
+            return;
+        }
+        this->ipAddress = device.ipAddress;
+        this->port = device.port;
+        this->deviceName = device.deviceName;
+        connect();
+    }
 
     String getIPAddress() { return ipAddress; }
 
@@ -321,6 +337,12 @@ private:
 
 class OSCDeviceSelectorWindow : public DocumentWindow {
 public:
+    class CloseListener {
+    public:
+        virtual ~CloseListener() = default;
+        // Called when OSC Device Selector Window is closed.
+        virtual void oscDevSelClosed() = 0;
+    };
     explicit OSCDeviceSelectorWindow(const String &name = "OSC Device Selector")
         : DocumentWindow(name,
                          Desktop::getInstance().getDefaultLookAndFeel()
@@ -329,36 +351,48 @@ public:
         oscDeviceSelectorComponent.reset(new OSCDeviceSelectorComponent());
         setUsingNativeTitleBar(true);
         setFullScreen(false);
-        setSize(1280, 540);
         setContentOwned(oscDeviceSelectorComponent.get(), true);
         setResizable(true, true);
         setResizeLimits(640, 270, 1920, 1080);
         setAlwaysOnTop(true);
+        setSize(1280, 540);
+        enterModalState();
 
 
-        #if JUCE_IOS || JUCE_ANDROID
-                        setFullScreen (true);
-        #else
-                setResizable(true, true);
-                centreWithSize(getWidth(), getHeight());
-        #endif
+#if JUCE_IOS || JUCE_ANDROID
+        setFullScreen (true);
+#else
+        setResizable(true, true);
+        centreWithSize(getWidth(), getHeight());
+#endif
 
-        setVisible(true);
+
     }
 
+    void setNewListener(CloseListener *newListener) {
+        lstr = newListener;
+    }
 
     void closeButtonPressed() override {
+        if (oscDeviceSelectorComponent == nullptr) {
+            return;
+        }
         returnedOSCDev = oscDeviceSelectorComponent->getDevice();
-        if (!returnedOSCDev.deviceName.isEmpty()) {
+        if (returnedOSCDev.deviceName.isNotEmpty()) {
             // Means valid OSC Device was inputted
             validOSCDevice = true;
         }
         setVisible(false);
-        if (oscDeviceSelectorComponent != nullptr) {
-            removeChildComponent(oscDeviceSelectorComponent.get());
-            oscDeviceSelectorComponent.release();
+        oscDeviceSelectorComponent.reset();
+        if (lstr != nullptr) {
+            lstr->oscDevSelClosed();
         }
     }
+
+    [[nodiscard]] OSCDevice getDevice() {
+        return returnedOSCDev;
+    };
+
 
 private:
     String returnedIPAddr{};
@@ -366,8 +400,9 @@ private:
     String returnedDeviceName{};
 
     std::unique_ptr<OSCDeviceSelectorComponent> oscDeviceSelectorComponent;
-    OSCDevice returnedOSCDev{};
+    OSCDevice returnedOSCDev;
     bool validOSCDevice{false};
+    CloseListener* lstr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OSCDeviceSelectorWindow)
 };

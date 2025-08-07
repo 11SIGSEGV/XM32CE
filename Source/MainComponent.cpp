@@ -3,7 +3,7 @@
 //==============================================================================
 
 
-MainComponent::MainComponent(): cueListModel(cueListBox, cueListData) {
+MainComponent::MainComponent(): cueListModel(cueListBox, cueListData), oscDeviceSender(OSCDevice()) {
     DBG("OSC Device Connected on " + oscDeviceSender.getIPAddress());
 
     dispatcher.startRealtimeThread(Thread::RealtimeOptions().withPriority(8));
@@ -30,8 +30,11 @@ MainComponent::MainComponent(): cueListModel(cueListBox, cueListData) {
     }
 
     auto uuid = uuidGen.generate();
-    cciConstructorWindows[uuid].reset(new OSCCCIConstructor(uuid, "test"));
+    cciConstructorWindows[uuid].reset(new OSCCCIConstructor(uuid, "CCI Constructor"));
     cciConstructorWindows[uuid].get()->setParentListener(this);
+
+    oscDevSelWin.reset(new OSCDeviceSelectorWindow());
+    oscDevSelWin->setNewListener(this);
 }
 
 
@@ -241,6 +244,20 @@ void MainComponent::sendCommandToAllListeners(const ShowCommand cmd, bool curren
             jassertfalse; // Invalid pointer to callback
         }
     } // Force message manager lock to be released here, so that we can call this function from any thread.
+}
+
+void MainComponent::oscDevSelClosed() {
+    OSCDevice dev;
+    if (oscDevSelWin != nullptr) {
+        dev = oscDevSelWin->getDevice();
+    }
+    if (dev.deviceName.isEmpty()) {
+        // Invalid device
+        AlertWindow::showMessageBoxAsync(AlertWindow::WarningIcon, "No OSC Device Selected",
+                                         "While the application will still run, no valid OSC Device was selected.\nThe program will default to 127.0.0.1:10023.", "Ok");
+    }
+    oscDevSelWin.reset();
+    oscDeviceSender.setNewDevice(dev);
 }
 
 

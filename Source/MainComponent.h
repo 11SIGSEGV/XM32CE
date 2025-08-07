@@ -466,7 +466,7 @@ private:
 //==============================================================================
 
 
-class MainComponent : public Component, public ShowCommandListener, public OSCDispatcherListener,
+class MainComponent : public Component, public ShowCommandListener, public OSCDispatcherListener, public OSCDeviceSelectorWindow::CloseListener,
     public ParentWindowListener, public KeyListener {
 public:
     //==============================================================================
@@ -494,6 +494,9 @@ public:
     // Broadcasts all commands to registered callbacks
     void sendCommandToAllListeners(ShowCommand cmd, bool currentCueListItemRequiresRedraw = false);
 
+    // Recieves a callback when the OSC Device Selector Window is closed
+    void oscDevSelClosed() override;;
+
 
     // Implemented to listen for individual-cue ShowCommands
     void cueCommandOccurred(ShowCommand, std::string cciInternalID, size_t cciCurrentIndex) override;
@@ -518,6 +521,8 @@ public:
     bool keyPressed(const KeyPress &key, Component *originatingComponent) override;;
 
 private:
+    std::unique_ptr<OSCDeviceSelectorWindow> oscDevSelWin;
+
     std::unordered_map<std::string, std::unique_ptr<OSCCCIConstructor>> cciConstructorWindows;
     Image backgroundPrerender;
     //==============================================================================
@@ -719,7 +724,7 @@ private:
     const std::vector<ShowCommandListener *> callbackCompsUponActiveShowOptionsChanged = {&headerBar, &sidePanel};
     const std::vector<Component *> activeComps = {&headerBar, &sidePanel, &cueListBox};
 
-    OSCDeviceSender oscDeviceSender{"127.0.0.1", "10023", "X32"};
+    OSCDeviceSender oscDeviceSender;
     OSCCueDispatcherManager dispatcher{oscDeviceSender};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)

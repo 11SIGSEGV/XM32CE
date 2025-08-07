@@ -37,31 +37,45 @@ OSCDeviceSender::OSCDeviceSender(const String &ipAddress, const String &port, co
 /* Assumes device is valid*/
 OSCDeviceSender::OSCDeviceSender(const OSCDevice &device) {
     if (device.deviceName.isEmpty()) {
-        throw std::invalid_argument("Empty OSCDevice");
+        this->ipAddress = "127.0.0.1";
+        this->port = 10023;
+        this->deviceName = "LocalX32";
+        connect();
+        return;
     }
     this->ipAddress = device.ipAddress;
     this->port = device.port;
     this->deviceName = device.deviceName;
+    connect();
 }
 
 
 OSCDeviceSender::OSCDeviceSender(const String &ipAddress, const int port, const String &deviceName) {
+    String properIP;
+    int properPort;
+    String properDeviceName;
     auto ipv4AddrValidatorOut = isValidIPv4(ipAddress);
     if (!ipv4AddrValidatorOut.isValid) {
-        throw std::invalid_argument(
-            (String("IP address is not valid: ") + ipv4AddrValidatorOut.errorMessage).toStdString());
+        jassertfalse; // IP address is not valid.
+        properIP = "127.0.0.1";
+    } else {
+        properIP = ipAddress;
     }
     if (port < 0 || port > 65535) {
-        throw std::invalid_argument("Port is within 0 and 65535");
+        properPort = 10023;
+    } else {
+        properPort = port;
     }
     auto deviceNameValidatorOut = isValidDeviceName(deviceName);
     if (!deviceNameValidatorOut.isValid) {
-        throw std::invalid_argument(
-            (String("Device name is not valid: ") + deviceNameValidatorOut.errorMessage).toStdString());
+        jassertfalse; // Invalid device name
+        properDeviceName = "LocalX32";
+    } else {
+        properDeviceName = deviceName;
     }
-    this->ipAddress = ipAddress;
-    this->port = port;
-    this->deviceName = deviceName;
+    this->ipAddress = properIP;
+    this->port = properPort;
+    this->deviceName = properDeviceName;
 }
 
 

@@ -994,9 +994,9 @@ public:
         // JUCEApplication::getInstance()->systemRequestedQuit();
     }
 
-    CurrentCueInfo getCompiledCCI() const {
+    [[nodiscard]] CurrentCueInfo getCompiledCCI() const {
         if (!goodCCI || mainComponent == nullptr) {
-            return CurrentCueInfo();
+            return {};
         }
         return mainComponent->getCCI();
     }

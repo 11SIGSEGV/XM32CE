@@ -17,10 +17,7 @@ class XM32CEApplication  : public JUCEApplication
 public:
 
     //==============================================================================
-    XM32CEApplication() {
-
-        // tests();
-    }
+    XM32CEApplication() {}
 
     void tests() {
         testTooManyArguments();
@@ -111,13 +108,13 @@ public:
     {
         // This method is where you should put your application's initialisation code..
         // oscDevSelWin.reset(new OSCDeviceSelectorWindow("OSC Device Selector"));
-        mainWindow.reset (new MainWindow (getApplicationName()));
+        mainWindow.reset(new MainWindow("XM32CE"));
     }
+
 
     void shutdown() override
     {
         // Add your application's shutdown code here..
-
         mainWindow = nullptr; // (deletes our window)
     }
 
@@ -152,7 +149,6 @@ public:
         {
             setUsingNativeTitleBar (true);
             setFullScreen(true);
-            setContentOwned (new MainComponent(), true);
             setResizable (true, true);
             setResizeLimits (600, 400, 10000, 10000);
             // TODO: Set icon upon final build - doesn't appear JUCE can set icon
@@ -165,7 +161,7 @@ public:
             centreWithSize (getWidth(), getHeight());
            #endif
             setVisible (true);
-
+            setContentOwned (new MainComponent(), true);
         }
 
 
@@ -183,16 +179,14 @@ public:
            you really have to override any DocumentWindow methods, make sure your
            subclass also calls the superclass's method.
         */
-
     private:
+
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainWindow)
     };
 
 private:
     std::unique_ptr<MainWindow> mainWindow;
     // std::unique_ptr<OSCDeviceSelectorWindow> oscDevSelWin;
-    OSCDeviceSender testOscDevice = OSCDeviceSender {String("192.168.1.100"), 20023, String("Test")};
-
 };
 
 //==============================================================================
